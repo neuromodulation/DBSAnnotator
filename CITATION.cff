@@ -16,7 +16,7 @@ authors:
     affiliation: Wyss Center for Bio and Neuroengineering, Geneva, Switzerland
     # orcid: 'https://orcid.org/0000-0000-0000-0000'   # TODO: add before submission
 repository-code: https://github.com/neuromodulation/DBSAnnotator
-url: https://dbsannotator.readthedocs.io/
+url: https://dbs-annotator.readthedocs.io/
 abstract: >-
   DBS Annotator records the programming visits that follow deep brain
   stimulation surgery, the appointments at which a neurologist or psychiatrist

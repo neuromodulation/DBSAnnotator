@@ -316,7 +316,7 @@ class ElectrodePainter extends CustomPainter {
     final text =
         'E${level.levelIdx}${switch (polarity) {
           ContactState.anodic => ' +',
-          ContactState.cathodic => ' −',
+          ContactState.cathodic => ' -',
           ContactState.off => '',
         }}';
     final painter = TextPainter(

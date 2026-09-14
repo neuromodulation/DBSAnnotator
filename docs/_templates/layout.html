@@ -1,0 +1,8 @@
+{% extends "!layout.html" %}
+{# Sphinx hardcodes an em dash between the page title and the project title:
+   `layout.html` does `set titlesuffix = " &#8212; " + docstitle`, which no
+   conf.py value can reach. Only the separator changes here; the titles are
+   still the ones Sphinx derives. #}
+{% block htmltitle %}
+<title>{{ title|striptags|e }}{% if docstitle %} | {{ docstitle|e }}{% endif %}</title>
+{% endblock %}

@@ -1,7 +1,7 @@
 blank_issues_enabled: true
 contact_links:
   - name: Documentation
-    url: https://dbsannotator.readthedocs.io/
+    url: https://dbs-annotator.readthedocs.io/
     about: Installation, the four workflows, the output format and the reports.
   - name: Clinical safety concern
     url: https://github.com/neuromodulation/DBSAnnotator/security/advisories/new
