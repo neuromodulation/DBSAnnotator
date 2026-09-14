@@ -4,5 +4,5 @@ contact_links:
     url: https://dbsannotator.readthedocs.io/
     about: Installation, the four workflows, the output format and the reports.
   - name: Clinical safety concern
-    url: https://github.com/Brain-Modulation-Lab/DBSAnnotator/security/advisories/new
+    url: https://github.com/neuromodulation/DBSAnnotator/security/advisories/new
     about: Anything affecting the correctness of a document filed in a patient record. Report it privately.

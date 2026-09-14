@@ -16,7 +16,7 @@ Android tablet
 --------------
 
 Each tagged release attaches an ``.apk`` to its
-`GitHub release <https://github.com/Brain-Modulation-Lab/DBSAnnotator/releases>`_.
+`GitHub release <https://github.com/neuromodulation/DBSAnnotator/releases>`_.
 
 1. On the tablet, open the release page and download ``app-release.apk``.
 2. Android will ask you to allow installation from that source. This is expected
@@ -70,7 +70,7 @@ per-machine and needs administrator rights:
 **Loose folder**, if you would rather not install anything. Every commit builds
 one and attaches it to the workflow run: open the latest successful run of the
 *App CI/CD* workflow in the
-`Actions tab <https://github.com/Brain-Modulation-Lab/DBSAnnotator/actions>`_ and
+`Actions tab <https://github.com/neuromodulation/DBSAnnotator/actions>`_ and
 download ``windows-bundle``. Unzip it and run ``dbs_annotator.exe`` from inside
 the folder; it needs the DLLs and ``data\`` directory beside it. Being unsigned,
 SmartScreen will warn on first launch: *More info* → *Run anyway*.
@@ -98,7 +98,7 @@ older SDK fails at ``pub get``):
 
 .. code-block:: bash
 
-   git clone https://github.com/Brain-Modulation-Lab/DBSAnnotator.git
+   git clone https://github.com/neuromodulation/DBSAnnotator.git
    cd DBSAnnotator
    flutter pub get
    flutter run          # on a connected tablet, emulator, or the desktop

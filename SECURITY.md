@@ -12,7 +12,7 @@ Two kinds of problem, and the second is the one people forget:
    so a correctness bug in that path has consequences a crash does not.
 
 Report either through
-[GitHub's private advisory form](https://github.com/Brain-Modulation-Lab/DBSAnnotator/security/advisories/new),
+[GitHub's private advisory form](https://github.com/neuromodulation/DBSAnnotator/security/advisories/new),
 or by email to lucia.poma@wysscenter.ch if you would rather not use GitHub.
 
 Please do **not** open a public issue for these first, and please do not attach

@@ -85,4 +85,4 @@ At a glance
    privacy
 
 Release notes are published with each tagged release on
-`GitHub <https://github.com/Brain-Modulation-Lab/DBSAnnotator/releases>`_.
+`GitHub <https://github.com/neuromodulation/DBSAnnotator/releases>`_.
