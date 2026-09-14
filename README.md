@@ -1,6 +1,6 @@
 # DBS Annotator
 
-[![CI](https://github.com/Brain-Modulation-Lab/DBSAnnotator/actions/workflows/ci.yml/badge.svg)](https://github.com/Brain-Modulation-Lab/DBSAnnotator/actions/workflows/ci.yml)
+[![CI](https://github.com/neuromodulation/DBSAnnotator/actions/workflows/ci.yml/badge.svg)](https://github.com/neuromodulation/DBSAnnotator/actions/workflows/ci.yml)
 [![Docs](https://readthedocs.org/projects/dbsannotator/badge/?version=latest)](https://dbsannotator.readthedocs.io/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 

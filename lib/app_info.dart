@@ -8,7 +8,7 @@ const String appName = 'DBS Annotator';
 /// footers and document metadata, so `version_parity_test.dart` guards it
 /// against drift.
 const String appVersion = '0.5.0';
-const String repoUrl = 'https://github.com/Brain-Modulation-Lab/DBSAnnotator';
+const String repoUrl = 'https://github.com/neuromodulation/DBSAnnotator';
 const String issuesUrl = '$repoUrl/issues';
 const String contactEmail = 'lucia.poma@wysscenter.ch';
 const String publisher = 'Wyss Center for Bio and Neuroengineering';
