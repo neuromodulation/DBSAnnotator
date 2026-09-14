@@ -43,7 +43,7 @@ void main() {
 
   test('step1 / decimals / omitted_tsv are parsed from the contract', () {
     final limits = loadLimits();
-    // The − / + stepper buttons move by these (stimulation.*.step1).
+    // The - / + stepper buttons move by these (stimulation.*.step1).
     expect(limits.frequencyStep, 10);
     expect(limits.amplitudeStep, 1);
     expect(limits.pulseWidthStep, 10);

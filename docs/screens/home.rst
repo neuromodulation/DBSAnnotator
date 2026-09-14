@@ -45,7 +45,7 @@ an appointment and neither should need hunting for.
 
    Dark theme, for a dimly lit consulting room.
 
-**Text size.** The **A− / A+** pill scales all text between 0.8× and 1.6×.
+**Text size.** The **A- / A+** pill scales all text between 0.8× and 1.6×.
 
 .. figure:: ../_static/screenshots/home_large_text.png
    :alt: The home screen at an enlarged text scale

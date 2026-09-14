@@ -1284,7 +1284,7 @@ class _SessionScreenState extends State<SessionScreen> {
         swatch(
           DbsColors.cathodicBase,
           DbsColors.cathodicBorder,
-          'Cathodic (−)',
+          'Cathodic (-)',
         ),
       ],
     );

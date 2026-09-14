@@ -174,7 +174,7 @@ class StimParamsForm extends StatelessWidget {
   final TextEditingController amplitude;
   final TextEditingController pulseWidth;
 
-  /// Adjust [controller] by [step] in [direction] (−1/+1), clamped to
+  /// Adjust [controller] by [step] in [direction] (-1/+1), clamped to
   /// [range]. A blank or non-numeric field starts at the range minimum,
   /// like the desktop spin boxes.
   static void stepField({

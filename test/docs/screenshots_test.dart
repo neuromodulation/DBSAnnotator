@@ -772,7 +772,7 @@ void main() {
       tester,
       'session_electrodes_invalid',
       from: find.text('Electrodes'),
-      to: find.text('Cathodic (−)'),
+      to: find.text('Cathodic (-)'),
     );
 
     // Completing the circuit with the case turns the pane green.
@@ -786,7 +786,7 @@ void main() {
       tester,
       'session_electrodes',
       from: find.text('Electrodes'),
-      to: find.text('Cathodic (−)'),
+      to: find.text('Cathodic (-)'),
     );
   });
 

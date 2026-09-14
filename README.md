@@ -1,7 +1,7 @@
 # DBS Annotator
 
 [![CI](https://github.com/neuromodulation/DBSAnnotator/actions/workflows/ci.yml/badge.svg)](https://github.com/neuromodulation/DBSAnnotator/actions/workflows/ci.yml)
-[![Docs](https://readthedocs.org/projects/dbsannotator/badge/?version=latest)](https://dbsannotator.readthedocs.io/)
+[![Docs](https://readthedocs.org/projects/dbs-annotator/badge/?version=latest)](https://dbs-annotator.readthedocs.io/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 Record deep brain stimulation programming visits, and get analysis-ready data
@@ -89,7 +89,7 @@ out as a validator-ready `sub-XX/ses-YYYYMMDD/beh/` tree.
 Reports come out as PDF and Word, both built from the same numbers so they
 cannot disagree. The full format reference, including how files written by the
 older desktop app are read, is in the
-[documentation](https://dbsannotator.readthedocs.io/).
+[documentation](https://dbs-annotator.readthedocs.io/).
 
 ## Fonts
 
@@ -133,7 +133,7 @@ sideload path); Linux, Windows and macOS bundles are built as workflow artifacts
 Per-OS app store distribution is planned.
 
 To put a build on a machine or tablet today, with no developer account, see
-[Installing a build you made yourself](https://dbsannotator.readthedocs.io/en/latest/installation.html).
+[Installing a build you made yourself](https://dbs-annotator.readthedocs.io/en/latest/installation.html).
 
 ## Contributing
 
