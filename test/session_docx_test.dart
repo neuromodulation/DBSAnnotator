@@ -232,8 +232,10 @@ void main() {
     test('shades the best and second-best blocks, and rules block starts', () {
       final doc = _part(build(), 'word/document.xml');
       // Tremor is minimised by default, so block 1 (value 2) beats block 2 (5).
-      expect(doc, contains('w:fill="96D2A0"'), reason: 'best-block shading');
-      expect(doc, contains('w:fill="C8EBCD"'), reason: 'second-best shading');
+      // The hexes are spelled out because this is the only automated guard on
+      // what colour reaches a filed clinical document.
+      expect(doc, contains('w:fill="0DE69F"'), reason: 'best-block shading');
+      expect(doc, contains('w:fill="95F9D8"'), reason: 'second-best shading');
       expect(doc, contains('w:sz="24"'), reason: '3pt block separator rule');
       expect(doc, contains('Highest aggregate index (rank 1)'));
       expect(doc, contains('Second highest (rank 2)'));

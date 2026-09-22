@@ -36,6 +36,10 @@ dependencies:
   path_provider: ^2.1.4
   file_picker: ^12.2.0
   share_plus: ^13.3.0
+  # Opens the repository, issues and contact links in the About dialog. Its
+  # Windows and Linux plugins were already being linked through share_plus, so
+  # on the desktop targets this adds the Dart side of something already shipped.
+  url_launcher: ^6.3.2
   # Report export: native PDF, no MS Word needed.
   #
   # Two chart-related packages are deliberately NOT dependencies:
@@ -78,17 +82,19 @@ flutter:
     # Linux runner can set the window icon (Flutter's Linux template sets none).
     - assets/icon/
 
-# App launcher icon: the project mark, at assets/icon/app_icon.png.
-# Regenerate all platform icons with `dart run flutter_launcher_icons`.
+# App launcher icon: the Wyss Center mark, at assets/icon/app_icon.png, which
+# `tool/build_brand_assets.py` renders from assets/brand/*.svg. Regenerate all
+# platform icons with `dart run flutter_launcher_icons`.
 # NOTE: this tool has no Linux support; the Linux window icon is set by hand in
 # linux/runner/my_application.cc from the bundled asset above.
 flutter_launcher_icons:
   image_path: "assets/icon/app_icon.png"
   android: true
-  # Android adaptive icons composite 108dp and show only the inner 72dp (66%).
-  # The mark fills ~94% of its canvas, so it would be clipped at the corners by
-  # circular and squircle launcher masks; the foreground below re-centres it at
-  # 60% on a transparent canvas, over a white background.
+  # Android adaptive icons composite 108dp and show only the inner 72dp (66%),
+  # and ic_launcher.xml insets this layer by a further 16%. The mark fills its
+  # own canvas, so it would be clipped by circular and squircle launcher masks;
+  # the foreground below re-centres it at 75% on a transparent canvas, over a
+  # white background, which lands it at about three quarters of the safe circle.
   adaptive_icon_background: "#FFFFFF"
   adaptive_icon_foreground: "assets/icon/app_icon_adaptive_foreground.png"
   ios: true

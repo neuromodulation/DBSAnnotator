@@ -1485,21 +1485,21 @@ class _SessionScreenState extends State<SessionScreen> {
     if (mounted) _snack('Session scale presets saved.');
   }
 
-  /// Disease preset pill styled to match the desktop QSS: amber fill by
-  /// default; selected = darker fill + 2px border + bold.
+  /// Disease preset pill: plain when unselected, a solid brand-green fill with
+  /// a black label when selected.
   Widget _presetChip(String preset, bool selected, VoidCallback onTap) {
-    // Default = the plain Material chip look; selected = a light accent tint +
-    // a bolder accent border + bold label (no full amber fill).
+    // A filled pill rather than a tint plus a coloured border: the brand green
+    // is 1.64:1 on white, so as an outline it would be close to invisible,
+    // while black on it is 12.8:1.
     return ChoiceChip(
       label: Text(preset),
       selected: selected,
       showCheckmark: false,
       onSelected: (_) => onTap(),
-      selectedColor: DbsColors.accent.withValues(alpha: 0.2),
-      side: selected
-          ? const BorderSide(color: DbsColors.accent, width: 2)
-          : null,
+      selectedColor: DbsColors.green,
+      side: selected ? BorderSide.none : null,
       labelStyle: TextStyle(
+        color: selected ? DbsColors.black : null,
         fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
       ),
     );

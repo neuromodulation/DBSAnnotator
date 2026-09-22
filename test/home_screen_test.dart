@@ -1,5 +1,6 @@
 import 'package:dbs_annotator/app_info.dart';
 import 'package:dbs_annotator/ui/home_screen.dart';
+import 'package:dbs_annotator/ui/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_test/flutter_test.dart';
@@ -48,27 +49,57 @@ void main() {
     tester,
   ) async {
     // AppLogo has an errorBuilder, which is right for robustness but would hide
-    // a packaging mistake. Load the asset directly so a missing or undeclared
-    // icon fails loudly here instead of shipping as a Material glyph.
-    final data = await rootBundle.load(appIconAsset);
-    final bytes = data.buffer.asUint8List();
-    expect(bytes.sublist(0, 8), [
-      0x89,
-      0x50,
-      0x4E,
-      0x47,
-      0x0D,
-      0x0A,
-      0x1A,
-      0x0A,
-    ], reason: 'not a PNG');
-    // The 1024x1024 master, read from the IHDR.
-    int be32(int o) =>
-        (bytes[o] << 24) |
-        (bytes[o + 1] << 16) |
-        (bytes[o + 2] << 8) |
-        bytes[o + 3];
-    expect(be32(16), 1024);
-    expect(be32(20), 1024);
+    // a packaging mistake. Load the assets directly so a missing or undeclared
+    // icon fails loudly here instead of shipping as a Material glyph. All three
+    // are checked: the two the app draws, per theme, and the launcher master.
+    for (final asset in [markBlackAsset, markWhiteAsset, appIconAsset]) {
+      final data = await rootBundle.load(asset);
+      final bytes = data.buffer.asUint8List();
+      expect(bytes.sublist(0, 8), [
+        0x89,
+        0x50,
+        0x4E,
+        0x47,
+        0x0D,
+        0x0A,
+        0x1A,
+        0x0A,
+      ], reason: '$asset is not a PNG');
+      // The 1024x1024 master, read from the IHDR.
+      int be32(int o) =>
+          (bytes[o] << 24) |
+          (bytes[o + 1] << 16) |
+          (bytes[o + 2] << 8) |
+          bytes[o + 3];
+      expect(be32(16), 1024, reason: asset);
+      expect(be32(20), 1024, reason: asset);
+    }
+  });
+
+  testWidgets('the mark takes the theme ink, so it cannot vanish', (
+    tester,
+  ) async {
+    // A black mark on the dark scaffold would be invisible, and the launcher
+    // master is flattened onto white, which in the AppBar is a white tile.
+    for (final (brightness, wanted) in [
+      (Brightness.light, markBlackAsset),
+      (Brightness.dark, markWhiteAsset),
+    ]) {
+      // Torn down between the two, so the const AppLogo cannot be reused from
+      // the previous tree and report the previous theme's asset.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: dbsTheme(brightness),
+          home: const Scaffold(body: AppLogo()),
+        ),
+      );
+      final image = tester.widget<Image>(find.byType(Image));
+      expect(
+        (image.image as AssetImage).assetName,
+        wanted,
+        reason: '$brightness',
+      );
+    }
   });
 }

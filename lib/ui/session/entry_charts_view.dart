@@ -18,6 +18,7 @@ import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 
 import '../../report/entry_charts.dart';
+import '../../report/report_data.dart' show kBestFill, kSecondFill;
 import '../chart_primitives.dart';
 
 /// Width of the fixed left gutter. It holds only the y tick labels; the title
@@ -266,7 +267,9 @@ class _EntryChartsViewState extends State<EntryChartsView> {
                 height: 10,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primary.withValues(alpha: .55),
+                    color: theme.colorScheme.onSurfaceVariant.withValues(
+                      alpha: .55,
+                    ),
                     borderRadius: BorderRadius.circular(5),
                   ),
                 ),
@@ -568,8 +571,11 @@ class _PanelPainter extends CustomPainter {
       }
     }
 
-    bands(secondXs, 0xFFC8EBCD);
-    bands(bestXs, 0xFF96D2A0);
+    // The report's own constants, not copies: re-typing the two greens here is
+    // how the screen and the printed table come to disagree about which block
+    // won.
+    bands(secondXs, kSecondFill);
+    bands(bestXs, kBestFill);
 
     // Horizontal guides, and one vertical per configuration.
     final gridPaint = Paint()

@@ -1,4 +1,7 @@
+import 'package:flutter/gestures.dart' show TapGestureRecognizer;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
+import 'package:url_launcher/url_launcher.dart';
 
 /// App identity, mirroring the desktop `config.py` values.
 const String appName = 'DBS Annotator';
@@ -11,17 +14,41 @@ const String appVersion = '0.5.0';
 const String repoUrl = 'https://github.com/neuromodulation/DBSAnnotator';
 const String issuesUrl = '$repoUrl/issues';
 const String contactEmail = 'lucia.poma@wysscenter.ch';
+
+/// The same three addresses as [Uri]s, for the About dialog's links. Parsed
+/// once here rather than at every tap, and `mailto:` so the contact opens a
+/// mail client instead of a browser.
+final Uri repoUri = Uri.parse(repoUrl);
+final Uri issuesUri = Uri.parse(issuesUrl);
+final Uri contactUri = Uri(scheme: 'mailto', path: contactEmail);
+
 const String publisher = 'Wyss Center for Bio and Neuroengineering';
 const String copyrightHolders =
     'Massachusetts General Hospital, Harvard Medical School, and the Wyss '
     'Center for Bio and Neuroengineering';
 
-/// The app mark, bundled from `icons/logosimple/`. Declared in pubspec assets.
+/// The launcher master, flattened onto white because iOS forbids alpha. Not
+/// what the app draws: see [markBlackAsset].
 const String appIconAsset = 'assets/icon/app_icon.png';
+
+/// The Wyss Center mark on transparency, in the two inks. Rendered from
+/// `assets/brand/` by `tool/build_brand_assets.py`, and declared in pubspec
+/// assets.
+const String markBlackAsset = 'assets/icon/mark_black.png';
+const String markWhiteAsset = 'assets/icon/mark_white.png';
+
+/// The full lockup, mark plus wordmark, in the two official variants. Its 6.4:1
+/// shape only fits where there is width, so the square mark is what the app
+/// icon and the AppBar use.
+const String lockupBlackAsset = 'assets/icon/wyss_lockup_black.png';
+const String lockupWhiteAsset = 'assets/icon/wyss_lockup_white.png';
 
 /// The app mark as a widget, for AppBars and dialogs. [size] is the logical
 /// height; the mark is square. A missing asset degrades to a Material glyph
 /// rather than a red error box.
+///
+/// The ink follows the theme, because the mark is monochrome: black on a light
+/// scaffold, white on a dark one.
 class AppLogo extends StatelessWidget {
   const AppLogo({super.key, this.size = 32});
 
@@ -29,7 +56,9 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Image.asset(
-    appIconAsset,
+    Theme.of(context).brightness == Brightness.dark
+        ? markWhiteAsset
+        : markBlackAsset,
     width: size,
     height: size,
     filterQuality: FilterQuality.medium,
@@ -37,17 +66,107 @@ class AppLogo extends StatelessWidget {
   );
 }
 
-/// Help/About dialog. URLs are SelectableText rather than tappable links,
-/// which avoids a url_launcher dependency.
+/// The full lockup, picking the variant the current theme can show: the black
+/// artwork disappears on a dark scaffold and the white on a light one.
+class WyssLockup extends StatelessWidget {
+  const WyssLockup({super.key, this.height = 28});
+
+  /// Logical height; the lockup is 6.4 times as wide.
+  final double height;
+
+  @override
+  Widget build(BuildContext context) => Image.asset(
+    Theme.of(context).brightness == Brightness.dark
+        ? lockupWhiteAsset
+        : lockupBlackAsset,
+    height: height,
+    filterQuality: FilterQuality.medium,
+    // A packaging slip should cost the lockup, not the dialog.
+    errorBuilder: (_, _, _) => const SizedBox.shrink(),
+  );
+}
+
+/// One `label: value` line whose value opens [uri] when tapped and stays
+/// selectable, so the text can still be copied.
+///
+/// If nothing on the machine handles the scheme, the URL goes to the clipboard
+/// and a snackbar says so, rather than the tap doing nothing at all.
+class _LinkLine extends StatefulWidget {
+  const _LinkLine({required this.label, required this.text, required this.uri});
+
+  final String label;
+  final String text;
+  final Uri uri;
+
+  @override
+  State<_LinkLine> createState() => _LinkLineState();
+}
+
+class _LinkLineState extends State<_LinkLine> {
+  // Held so it can be disposed: a recognizer inside a TextSpan leaks otherwise.
+  late final TapGestureRecognizer _tap = TapGestureRecognizer()..onTap = _open;
+
+  @override
+  void dispose() {
+    _tap.dispose();
+    super.dispose();
+  }
+
+  Future<void> _open() async {
+    final messenger = ScaffoldMessenger.of(context);
+    var opened = false;
+    try {
+      opened = await launchUrl(
+        widget.uri,
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      opened = false;
+    }
+    if (opened) return;
+    await Clipboard.setData(ClipboardData(text: widget.text));
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Could not open the link. Copied it to the clipboard.'),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SelectableText.rich(
+      TextSpan(
+        style: theme.textTheme.bodyMedium,
+        children: [
+          TextSpan(text: '${widget.label}: '),
+          TextSpan(
+            text: widget.text,
+            style: TextStyle(
+              // Not the scheme's primary: the brand green is 1.64:1 on a light
+              // surface. The underline is what marks this as a link.
+              color: theme.colorScheme.onSurface,
+              decoration: TextDecoration.underline,
+            ),
+            recognizer: _tap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Help/About dialog. The links open in the browser or mail client, and remain
+/// selectable so they can be copied on a machine with no handler.
 void showAppAbout(BuildContext context) {
   showAboutDialog(
     context: context,
     applicationName: appName,
     applicationVersion: 'v$appVersion',
     applicationIcon: const AppLogo(size: 48),
-    children: const [
-      SizedBox(height: 8),
-      Text(
+    children: [
+      const SizedBox(height: 8),
+      const Text(
         'Document DBS programming visits, the appointments at which '
         'stimulation configurations are tested and optimised. The complete '
         'workflow runs in four steps: file setup, initial configuration, '
@@ -55,17 +174,16 @@ void showAppAbout(BuildContext context) {
         'behavioural TSV with a JSON sidecar documenting every column, and '
         'exports PDF and Word reports.',
       ),
-      SizedBox(height: 12),
-      Text(
-        'Links (select to copy):',
-        style: TextStyle(fontWeight: FontWeight.w600),
-      ),
-      SelectableText('Repository: $repoUrl'),
-      SelectableText('Issues: $issuesUrl'),
-      SelectableText('Contact: $contactEmail'),
-      SizedBox(height: 12),
-      Text('© 2026 $copyrightHolders'),
-      Text('MIT License. Publisher: $publisher.'),
+      const SizedBox(height: 12),
+      const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),
+      _LinkLine(label: 'Repository', text: repoUrl, uri: repoUri),
+      _LinkLine(label: 'Issues', text: issuesUrl, uri: issuesUri),
+      _LinkLine(label: 'Contact', text: contactEmail, uri: contactUri),
+      const SizedBox(height: 12),
+      const Text('© 2026 $copyrightHolders'),
+      const Text('MIT License. Publisher: $publisher.'),
+      const SizedBox(height: 12),
+      const WyssLockup(),
     ],
   );
 }
