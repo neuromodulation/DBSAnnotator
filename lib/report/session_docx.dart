@@ -322,7 +322,7 @@ Uint8List buildSessionDocx({
         // which is useless on a mono printer or to a colour-blind reader.
         body.write(
           docxPara(
-            'Red = anode (+)   Blue = cathode (-)   Grey = inactive.   '
+            'Orange = anode (+)   Blue = cathode (-)   Grey = inactive.   '
             "A percentage is that contact's share of the total current.",
             size: 14,
           ),

@@ -616,7 +616,7 @@ Future<ReportBytes> buildSessionPdf({
                   // reader.
                   pw.SizedBox(height: 3),
                   pw.Text(
-                    'Red = anode (+)   Blue = cathode (-)   Grey = inactive.   '
+                    'Orange = anode (+)   Blue = cathode (-)   Grey = inactive.   '
                     "A percentage is that contact's share of the total current.",
                     style: const pw.TextStyle(
                       fontSize: 7,

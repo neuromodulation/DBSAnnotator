@@ -264,10 +264,12 @@ class ElectrodePainter extends CustomPainter {
     );
   }
 
-  /// Label colour on a contact: white on active, near-black on OFF metal.
-  static Color _labelOn(ContactState state) => state == ContactState.off
-      ? const Color(0xFF1A1A1A)
-      : const Color(0xFFFFFFFF);
+  /// Label ink on a contact, whatever its state.
+  ///
+  /// The brand polarity colours are pastels, so the white an active contact
+  /// used to carry would be 1.6:1. This is 10.6:1 on the anodic fill and 8.0:1
+  /// on the cathodic one.
+  static const _labelInk = Color(0xFF1A1A1A);
 
   /// Font sizes track the rendered lead (via `scale` px/mm) instead of being
   /// hard-coded, so labels stay proportionate on a 320 px pane and a 900 px.
@@ -372,7 +374,7 @@ class ElectrodePainter extends CustomPainter {
       canvas,
       'CASE',
       layout.caseRect,
-      _labelOn(caseState),
+      _labelInk,
       _font(0.38, 9, 18),
     );
 
@@ -391,13 +393,7 @@ class ElectrodePainter extends CustomPainter {
       if (cap != null) {
         final ringState = _ringState(level.levelIdx);
         _paintCap(canvas, cap, ringState);
-        _paintTextCentered(
-          canvas,
-          'Ring',
-          cap,
-          _labelOn(ringState),
-          _font(0.28, 7, 13),
-        );
+        _paintTextCentered(canvas, 'Ring', cap, _labelInk, _font(0.28, 7, 13));
       }
 
       for (final entry in level.contactRects.entries) {
@@ -409,7 +405,7 @@ class ElectrodePainter extends CustomPainter {
             canvas,
             _segmentLabels[entry.key.segmentIdx],
             rect,
-            _labelOn(state),
+            _labelInk,
             _font(0.36, 8, 16),
             halo: true,
           );

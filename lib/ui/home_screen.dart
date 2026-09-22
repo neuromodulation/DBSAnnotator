@@ -138,7 +138,7 @@ class _SectionHeading extends StatelessWidget {
       child: Text(
         text.toUpperCase(),
         style: theme.textTheme.labelMedium?.copyWith(
-          color: theme.colorScheme.primary,
+          color: theme.colorScheme.onSurfaceVariant,
           letterSpacing: 1.2,
           fontWeight: FontWeight.w700,
         ),

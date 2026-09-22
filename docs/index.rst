@@ -2,8 +2,8 @@ DBS Annotator
 =============
 
 .. image:: _static/logo.png
-   :alt: DBS Annotator
-   :width: 180px
+   :alt: Wyss Center
+   :width: 340px
    :align: center
 
 |

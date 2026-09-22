@@ -1,37 +1,65 @@
 import 'package:flutter/material.dart';
 
-/// Desktop-matched palette (from styles/*.qss and
-/// models/electrode_viewer.py `get_state_color`). Text size adapts to the
-/// tablet, but colours match the Qt app.
+/// The Wyss Center brand palette.
+///
+/// [green] is a FILL, never text or an outline. Measured against white it is
+/// 1.64:1, which fails even the 3:1 bar for a UI component, so every label and
+/// icon is [black] or [greyDark] and the green sits behind them, where black
+/// reads at 12.8:1. The same rule retires the amber this replaced, which was
+/// 2.15:1 and was being used for text.
 class DbsColors {
-  // Accent / primary (amber).
-  static const accent = Color(0xFFF59E0B);
-  static const primary = Color(0xFFB45309);
-  static const primaryHover = Color(0xFFD97706);
-  static const pillActiveBorder = Color(0xFF92400E);
+  // Primary palette.
+  static const greenLighter = Color(0xFF95F9D8);
+  static const green = Color(0xFF0DE69F);
+  static const pink = Color(0xFFE541F6);
+  static const black = Color(0xFF000000);
+  static const greyLighter = Color(0xFFF8F8F8);
+
+  // Secondary palette.
+  static const yellowLime = Color(0xFFDFFE80);
+  static const pinkLight = Color(0xFFEF8AF9);
+  static const blueLight = Color(0xFF77B3F8);
+  static const redLight = Color(0xFFFFBB99);
+  static const greyDark = Color(0xFF6F6F6F);
+  static const greyMid = Color(0xFF949494);
+  static const grey = Color(0xFFD8D8D8);
+  static const greyLight = Color(0xFFE6E6E6);
+
+  /// What a filled, selected or active control is painted with. Always carries
+  /// a black label.
+  static const accent = green;
 
   // Electrode contact states: base + border.
-  static const offBase = Color(0xFF969696);
-  static const offBorder = Color(0xFF323232);
-  static const anodicBase = Color(0xFFFF6464);
-  static const anodicBorder = Color(0xFFC83232);
-  static const cathodicBase = Color(0xFF6496FF);
-  static const cathodicBorder = Color(0xFF3264C8);
+  //
+  // The pastel brand pair replaces a saturated red and blue that were 0.313 and
+  // 0.317 in luminance: a separation of 0.004, so on a monochrome printer the
+  // anode and the cathode were the same shade. These separate by 0.162, and
+  // both are still nameable as red and blue, which the printed key relies on.
+  static const offBase = greyMid;
+  static const offBorder = greyDark;
+  static const anodicBase = redLight;
+  static const anodicBorder = Color(0xFFC96A3C);
+  static const cathodicBase = blueLight;
+  static const cathodicBorder = Color(0xFF2F6FC4);
 
   // Validation.
+  //
+  // Deliberately NOT brand colours: both are label text, and the brand has no
+  // accessible green or red for text. Brand green would be 1.64:1 here.
   static const valid = Color(0xFF22C55E);
   static const invalid = Color(0xFFCC0000);
 
-  // Session-scale progress fill (green gradient), per brightness.
+  // Session-scale progress fill, per brightness. The value is printed on the
+  // bar, so this is decoration.
   static List<Color> scaleFill(bool dark) => dark
-      ? const [Color(0xFF10B981), Color(0xFF34D399), Color(0xFF10B981)]
-      : const [Color(0xFF059669), Color(0xFF10B981), Color(0xFF059669)];
+      ? const [green, greenLighter, green]
+      : const [Color(0xFF0BB37C), green, Color(0xFF0BB37C)];
 
-  /// Warm fill for the titled group cards: a translucent amber over the
+  /// Fill for the titled group cards: a translucent brand green over the
   /// scaffold, never the Material-3 blue surface tint, which callers suppress
   /// with `surfaceTintColor: Colors.transparent`.
   static Color cardFill(bool dark) =>
-      accent.withValues(alpha: dark ? 0.16 : 0.14);
+      greenLighter.withValues(alpha: dark ? 0.12 : 0.22);
 }
 
 /// Non-state colours for the electrode canvas: the lead's insulating polymer
@@ -154,19 +182,32 @@ class TextSizeButtons extends StatelessWidget {
   }
 }
 
-/// App theme mirroring the desktop dark/light surfaces with the amber accent.
+/// App theme in the brand palette: green fills, black text.
+///
+/// `onPrimary` is black rather than Material's computed white, because white on
+/// the brand green is 1.4:1 and black is 12.8:1.
 ThemeData dbsTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final scheme = ColorScheme.fromSeed(
-    seedColor: DbsColors.accent,
+    seedColor: DbsColors.green,
     brightness: brightness,
-    primary: DbsColors.accent,
-    surface: dark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+    primary: DbsColors.green,
+    onPrimary: DbsColors.black,
+    secondary: DbsColors.pink,
+    surface: dark ? DbsColors.black : DbsColors.greyLighter,
+    onSurface: dark ? DbsColors.greyLighter : DbsColors.black,
+    outlineVariant: dark ? DbsColors.greyDark : DbsColors.grey,
   );
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: scheme.surface,
+    // Material paints a text button's label in `primary`, which here would put
+    // 1.64:1 green text on the dialog actions. Filled buttons are unaffected:
+    // they get the green as a background with `onPrimary` black on it.
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(foregroundColor: scheme.onSurface),
+    ),
   );
 }
 
@@ -181,7 +222,7 @@ class GroupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       // A transparent surfaceTintColor (below) keeps Material 3 from tinting
-      // the warm amber blue.
+      // the brand green blue.
       color: DbsColors.cardFill(
         Theme.of(context).brightness == Brightness.dark,
       ),
@@ -199,10 +240,13 @@ class GroupCard extends StatelessWidget {
           children: [
             Padding(
               padding: const EdgeInsets.only(left: 8, bottom: 4),
+              // The card's green wash carries the brand; the title carries the
+              // text, so it takes the scheme's ink rather than the green, which
+              // would be 1.64:1 here.
               child: Text(
                 title,
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: DbsColors.accent,
+                  color: Theme.of(context).colorScheme.onSurface,
                   fontWeight: FontWeight.w600,
                 ),
               ),

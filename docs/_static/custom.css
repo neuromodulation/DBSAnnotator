@@ -1,13 +1,65 @@
 /*
  * DBS Annotator Read the Docs overrides (sphinx-rtd-theme).
- * Keep standard RTD colours (dark sidebar, light content, blue links/headings);
- * give the prose column the full viewport, and let screenshots use all of it.
+ * Dark sidebar, light content, and the Wyss Center blue in place of the
+ * theme's own; the prose column gets the full viewport.
  */
 :root {
   /* sphinx-rtd-theme .wy-nav-side */
   --dbs-docs-sidebar: #343131;
   /* sphinx-rtd-theme .wy-nav-content-wrap / content area */
   --dbs-docs-content-bg: #fcfcfc;
+
+  /*
+   * Wyss Center "Blue light" as a FILL: 2.19:1 on white, so it can sit behind
+   * dark text (9.6:1) but can never be text itself.
+   */
+  --wyss-blue: #77b3f8;
+
+  /*
+   * The same hue darkened until link text passes WCAG AA: 4.73:1, which also
+   * beats the 4.3:1 of the theme blue it replaces.
+   */
+  --wyss-blue-ink: #0c70e3;
+
+  /* Darker again, so visited links stay distinguishable. 7.96:1. */
+  --wyss-blue-visited: #0a4fa0;
+}
+
+/* Links, in the brand blue that is legible as text. */
+.wy-nav-content .rst-content a,
+.wy-nav-content .rst-content a code {
+  color: var(--wyss-blue-ink);
+}
+
+.wy-nav-content .rst-content a:visited,
+.wy-nav-content .rst-content a:visited code {
+  color: var(--wyss-blue-visited);
+}
+
+/*
+ * The search block at the top of the sidebar is the theme's most visible blue.
+ * It is a fill, so it takes the brand blue with dark text on it rather than the
+ * theme's white, which would be 2.19:1.
+ */
+.wy-side-nav-search,
+.wy-nav-top {
+  background-color: var(--wyss-blue) !important;
+}
+
+.wy-side-nav-search a,
+.wy-side-nav-search .wy-dropdown > a,
+.wy-side-nav-search > div.version,
+.wy-nav-top a,
+.wy-nav-top i {
+  color: #111111 !important;
+}
+
+/* Admonition headers use the theme blue too. */
+.rst-content .note .admonition-title,
+.rst-content .seealso .admonition-title,
+.rst-content .hint .admonition-title,
+.rst-content .tip .admonition-title {
+  background: var(--wyss-blue-ink);
 }
 
 /* Outer area: the same dark grey as the left navigation column (standard RTD). */
@@ -107,6 +159,44 @@ section.wy-nav-content-wrap,
 .rst-content a.image-reference img {
   border-radius: 4px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12);
+}
+
+/* So a narrowed screenshot sits in the middle of the column, not at its left. */
+.rst-content a.image-reference {
+  display: block;
+}
+
+.rst-content a.image-reference img {
+  display: block;
+  margin-inline: auto;
+}
+
+/*
+ * Screenshot width is viewport-dependent rather than fixed.
+ *
+ * Every directive asks for `:width: 100%`, which on a wide monitor stretches a
+ * single capture across the whole prose column: more distance than the eye
+ * wants to travel, and larger than the screen the capture came from. Above
+ * 1100px the full-window captures take 70% and centre. Below it they stay at
+ * 100%, where the room is scarce and shrinking them would only hurt.
+ *
+ * Dialog captures are excluded: each is already a small panel floating inside
+ * its own image, so narrowing the image narrows the dialog twice over. So is
+ * the logo, which sets its own width.
+ *
+ * The selector keys on `_images/`, not on `_static/screenshots/`: Sphinx copies
+ * every referenced image into `_images/` and rewrites the src, so a rule
+ * written against the source path silently matches nothing.
+ *
+ * !important because `:width: 100%` reaches the browser as an inline style on
+ * the <img>, which an ordinary rule cannot outrank.
+ */
+@media (min-width: 1100px) {
+  .rst-content
+    a.image-reference
+    img[src*="_images/"]:not([src*="dialog_"]):not([src*="logo"]) {
+    width: 70% !important;
+  }
 }
 
 /* Figure captions read as captions, not as body text. */
