@@ -14,6 +14,7 @@ import 'dart:typed_data';
 
 import '../app_info.dart' show appVersion;
 import 'docx_ooxml.dart';
+import '../core/brand_palette.dart';
 import 'report_data.dart';
 import 'report_sections.dart';
 import 'session_pdf.dart' show ElectrodeReportImages, kElectrodeCellGapPt;
@@ -72,10 +73,6 @@ String _captionCell(
 String _tokenCaption(LateralTokens? tokens, {required bool left}) =>
     tokens == null ? '' : lateralText(tokens, left: left);
 
-/// ARGB int -> the RRGGBB hex Word expects in `w:fill`.
-String _hex(int argb) =>
-    (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
-
 /// One decimal unless the value is whole. Twin of the PDF's formatter.
 String _num(double v) {
   if (v == v.roundToDouble()) return v.toStringAsFixed(0);
@@ -112,7 +109,7 @@ String _legendBlock(SessionReportData data) {
   // A coloured square run, standing in for the desktop's coloured "■" glyph.
   String swatch(int argb) =>
       '<w:r><w:rPr><w:sz w:val="18"/><w:shd w:val="clear" w:color="auto" '
-      'w:fill="${_hex(argb)}"/></w:rPr><w:t xml:space="preserve">    </w:t></w:r>';
+      'w:fill="${docxHex(argb)}"/></w:rPr><w:t xml:space="preserve">    </w:t></w:r>';
   final b = StringBuffer()
     ..write('<w:p>')
     ..write(docxRun('Legend: ', bold: true, size: 18))
@@ -241,9 +238,9 @@ Uint8List buildSessionDocx({
         final block = int.tryParse(label);
         if (block == null) continue;
         if (data.bestBlocks.contains(block)) {
-          fills[i] = _hex(kBestFill);
+          fills[i] = docxHex(kBestFill);
         } else if (data.secondBlocks.contains(block)) {
-          fills[i] = _hex(kSecondFill);
+          fills[i] = docxHex(kSecondFill);
         }
       }
       body.write(

@@ -113,7 +113,7 @@ BEGIN
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "dbs_annotator" "\0"
             // Safe to change - not read by path_provider.
-            VALUE "LegalCopyright", "Copyright (C) 2026 Wyss Center for Bio and Neuroengineering, Massachusetts General Hospital, and Charite Universitatsmedizin Berlin. MIT License." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Wyss Center for Bio and Neuroengineering, Massachusetts General Hospital, and Harvard Medical School. MIT License." "\0"
             VALUE "OriginalFilename", "dbs_annotator.exe" "\0"
             VALUE "ProductName", "dbs_annotator" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

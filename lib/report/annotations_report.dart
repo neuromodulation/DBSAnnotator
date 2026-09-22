@@ -17,6 +17,7 @@ import '../core/timestamps.dart';
 import 'docx_ooxml.dart';
 import 'report_data.dart' show ReportBytes;
 import 'report_fonts.dart';
+import 'report_palette.dart';
 import 'report_text.dart';
 
 /// Everything both formats print, computed once so they cannot disagree.
@@ -121,13 +122,11 @@ List<pw.Widget> _attestation() => [
             margin: const pw.EdgeInsets.only(right: 16),
             padding: const pw.EdgeInsets.only(top: 14),
             decoration: const pw.BoxDecoration(
-              border: pw.Border(
-                top: pw.BorderSide(color: PdfColors.grey600, width: 0.8),
-              ),
+              border: pw.Border(top: pw.BorderSide(color: pdfInk, width: 0.8)),
             ),
             child: pw.Text(
               label,
-              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+              style: const pw.TextStyle(fontSize: 8, color: pdfInk),
             ),
           ),
         ),
@@ -168,7 +167,7 @@ Future<ReportBytes> buildAnnotationsPdf(
           'sub-${t(data.subjectId)}  |  ${data.sessionStamp}  |  '
           'DBS Annotator v$appVersion  |  '
           'Page ${context.pageNumber} of ${context.pagesCount}',
-          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+          style: const pw.TextStyle(fontSize: 8, color: pdfInk),
         ),
       ),
       build: (context) => [
@@ -189,7 +188,7 @@ Future<ReportBytes> buildAnnotationsPdf(
           'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion'
           '${data.sourceFile.isEmpty ? '' : '  |  Source: '
                     '${t(data.sourceFile)} (${data.entries.length} notes)'}',
-          style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+          style: const pw.TextStyle(fontSize: 9, color: pdfInk),
         ),
         pw.SizedBox(height: 12),
         pw.Header(
@@ -213,7 +212,7 @@ Future<ReportBytes> buildAnnotationsPdf(
               fontSize: 9,
               fontWeight: pw.FontWeight.bold,
             ),
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
             cellAlignment: pw.Alignment.topLeft,
             columnWidths: const {
               0: pw.FlexColumnWidth(1),

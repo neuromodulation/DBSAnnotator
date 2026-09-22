@@ -24,6 +24,9 @@ class AmplitudeSplit extends StatefulWidget {
   State<AmplitudeSplit> createState() => _AmplitudeSplitState();
 }
 
+/// Percentage step for the spin arrows.
+const double _pctStep = 5;
+
 class _AmplitudeSplitState extends State<AmplitudeSplit> {
   late List<double> _pct;
   late List<TextEditingController> _ctrls;
@@ -108,6 +111,12 @@ class _AmplitudeSplitState extends State<AmplitudeSplit> {
     widget.onChanged(List<double>.of(_pct));
   }
 
+  void _bump(int i, int direction) {
+    final next = (_pct[i] + direction * _pctStep).clamp(0.0, 100.0).toDouble();
+    _ctrls[i].text = _fmtPct(next);
+    _edit(i, _ctrls[i].text);
+  }
+
   @override
   void dispose() {
     for (final c in _ctrls) {
@@ -115,6 +124,16 @@ class _AmplitudeSplitState extends State<AmplitudeSplit> {
     }
     super.dispose();
   }
+
+  /// Stacked spin arrows, matching the stimulation parameter fields.
+  Widget _arrow(IconData icon, String tooltip, VoidCallback onTap) => Tooltip(
+    message: tooltip,
+    child: InkResponse(
+      onTap: onTap,
+      radius: 16,
+      child: SizedBox(width: 22, height: 15, child: Icon(icon, size: 16)),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +180,25 @@ class _AmplitudeSplitState extends State<AmplitudeSplit> {
                       onChanged: (t) => _edit(i, t),
                     ),
                   ),
+                  // The last row is the remainder, so it has nothing to step.
+                  if (i == last)
+                    const SizedBox(width: 22)
+                  else
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _arrow(
+                          Icons.keyboard_arrow_up,
+                          'Increase ${widget.cathodes[i]} share',
+                          () => _bump(i, 1),
+                        ),
+                        _arrow(
+                          Icons.keyboard_arrow_down,
+                          'Decrease ${widget.cathodes[i]} share',
+                          () => _bump(i, -1),
+                        ),
+                      ],
+                    ),
                   const SizedBox(width: 8),
                   Text(
                     '→ ${(widget.total * _pct[i] / 100).toStringAsFixed(widget.decimals)} mA',

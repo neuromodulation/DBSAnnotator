@@ -15,6 +15,7 @@ import '../core/session/longitudinal.dart'
     show isScaleValueOmitted, splitScalePairs;
 import '../core/session/scale_scoring.dart';
 import '../core/session/session_row.dart';
+import '../core/timestamps.dart' show recordedTime;
 import 'report_data.dart' show coerceInt;
 
 /// One stacked panel: a title, its series, and the y range to draw. [id] is
@@ -159,6 +160,7 @@ EntryChartData buildEntryChartData(
   // Blocks in first-seen order, with the earliest timestamp for each.
   final blockOrder = <int>[];
   final blockTime = <int, DateTime>{};
+  final blockClock = <int, String>{};
   final scales = <String, Map<int, double>>{};
   final ampL = <int, double>{};
   final ampR = <int, double>{};
@@ -174,7 +176,10 @@ EntryChartData buildEntryChartData(
     final ts = row.timestamp;
     if (ts != null) {
       final existing = blockTime[block];
-      if (existing == null || ts.isBefore(existing)) blockTime[block] = ts;
+      if (existing == null || ts.isBefore(existing)) {
+        blockTime[block] = ts;
+        blockClock[block] = row.acqTime;
+      }
     }
 
     for (final pair in splitScalePairs(row.scaleName, row.scaleValue)) {
@@ -212,11 +217,14 @@ EntryChartData buildEntryChartData(
     return a.compareTo(b);
   });
 
-  String two(int n) => n.toString().padLeft(2, '0');
+  // The wall clock recorded in `acq_time`, never the instant: `timestamp` is
+  // local to this machine, so a block recorded at 09:03 in Geneva would be
+  // labelled 10:03 in Berlin, disagreeing with the table beside it and with
+  // the report. Sorting above still uses the instant, where only order counts.
   final xLabels = <int, String>{
     for (final b in blockOrder)
-      if (blockTime[b] != null)
-        b: '${two(blockTime[b]!.hour)}:${two(blockTime[b]!.minute)}',
+      if (recordedTime(blockClock[b] ?? '').isNotEmpty)
+        b: recordedTime(blockClock[b]!).substring(0, 5),
   };
 
   /// y range over every series in a panel.

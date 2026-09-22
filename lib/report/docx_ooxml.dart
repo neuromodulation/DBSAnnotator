@@ -13,6 +13,11 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 
 import '../app_info.dart' show appVersion;
+import '../core/brand_palette.dart';
+
+/// ARGB int to the RRGGBB hex Word expects in `w:fill`.
+String docxHex(int argb) =>
+    (argb & 0xFFFFFF).toRadixString(16).padLeft(6, '0').toUpperCase();
 
 /// XML-escape text content, and drop the characters XML 1.0 cannot represent:
 /// most C0 controls (U+0000-U+0008, U+000B, U+000C, U+000E-U+001F) have no
@@ -142,7 +147,7 @@ String docxRow(
   List<int> widths = const [],
   Map<int, DocxVMerge> vMerges = const {},
 }) =>
-    '<w:tr>${cells.indexed.map((e) => docxCell(e.$2, bold: header, fill: header ? 'D9D9D9' : fill, topRule: topRule, widthTwips: e.$1 < widths.length ? widths[e.$1] : null, vMerge: vMerges[e.$1] ?? DocxVMerge.none)).join()}</w:tr>';
+    '<w:tr>${cells.indexed.map((e) => docxCell(e.$2, bold: header, fill: header ? docxHex(kHeaderFill) : fill, topRule: topRule, widthTwips: e.$1 < widths.length ? widths[e.$1] : null, vMerge: vMerges[e.$1] ?? DocxVMerge.none)).join()}</w:tr>';
 
 /// A bordered table with a shaded header row. [rowFills] and [rowRules] are
 /// keyed by data-row index.

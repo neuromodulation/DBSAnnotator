@@ -30,6 +30,14 @@ void main() {
       }
     });
 
+    test('tick labels are the recorded wall clock, not this machine\'s', () {
+      // The fixture records +00:00, so anywhere but UTC the instant converted
+      // to local time is a different hour, and the axis would then contradict
+      // the entries table printed directly beneath it.
+      expect(data.xLabels[1], '09:03');
+      expect(data.xLabels[7], '09:14');
+    });
+
     test('produces exactly the four panels, in the default order', () {
       expect(data.panels.map((p) => p.id), kEntryPanelIds);
       expect(data.panels.map((p) => p.title), [
