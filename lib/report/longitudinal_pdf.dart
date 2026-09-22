@@ -16,6 +16,7 @@ import 'docx_ooxml.dart';
 import 'longitudinal_data.dart';
 import 'report_data.dart' show ReportBytes;
 import 'report_fonts.dart';
+import 'report_palette.dart';
 import 'report_text.dart';
 
 /// Relative column widths for [longitudinalTableHeaders].
@@ -76,7 +77,7 @@ Future<ReportBytes> buildLongitudinalPdf({
           'sub-${t(data.patientId)}  |  ${data.visits.length} visits'
           '${span.isEmpty ? '' : ', $span'}  |  DBS Annotator v$appVersion'
           '  |  Page ${context.pageNumber} of ${context.pagesCount}',
-          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+          style: const pw.TextStyle(fontSize: 8, color: pdfInk),
         ),
       ),
       build: (context) => [
@@ -96,7 +97,7 @@ Future<ReportBytes> buildLongitudinalPdf({
         ),
         pw.Text(
           'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion',
-          style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+          style: const pw.TextStyle(fontSize: 9, color: pdfInk),
         ),
 
         // Mixing two patients into one longitudinal report is a safety problem,
@@ -107,7 +108,7 @@ Future<ReportBytes> buildLongitudinalPdf({
             width: double.infinity,
             padding: const pw.EdgeInsets.all(6),
             decoration: pw.BoxDecoration(
-              color: PdfColors.grey100,
+              color: pdfPanelFill,
               border: pw.Border.all(color: PdfColors.black, width: 1),
             ),
             child: pw.Text(
@@ -173,7 +174,7 @@ Future<ReportBytes> buildLongitudinalPdf({
               fontSize: 8,
               fontWeight: pw.FontWeight.bold,
             ),
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
+            headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
             cellAlignment: pw.Alignment.centerLeft,
             columnWidths: {
               for (final (i, w) in _tableWeights.indexed)

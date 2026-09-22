@@ -422,16 +422,6 @@ const sessionTableColumnWeights = <double>[
   13, // Notes, where the slack comes from: wrapping prose is normal
 ];
 
-/// Green fills for the best / second-best ranking, as ARGB ints, used for both
-/// the chart bands and the table row shading.
-///
-/// The brand greens, and measurably no worse than the pair they replace: 0.199
-/// of luminance separates them against 0.210 before, and black reads at 12.8:1
-/// and 16.8:1 on them. The order is carried by hatch density as well, because
-/// two greens this close cannot be told apart on a monochrome printer.
-const int kBestFill = 0xFF0DE69F;
-const int kSecondFill = 0xFF95F9D8;
-
 /// A built report, plus whether any character had to be replaced to render it.
 ///
 /// [lostCharacters] lets the UI say so. The PDF's Latin-1 fallback turns an

@@ -80,10 +80,7 @@ class SessionEntriesTable extends StatelessWidget {
           color: theme.colorScheme.surfaceContainerHighest,
           border: Border(bottom: BorderSide(color: rule, width: 1.2)),
         ),
-        children: [
-          for (final h in _headers)
-            _cell(h, bold: true, style: theme.textTheme.labelSmall),
-        ],
+        children: [for (final h in _headers) _cell(h, bold: true)],
       ),
     ];
 
@@ -128,36 +125,34 @@ class SessionEntriesTable extends StatelessWidget {
                   ? triple(r.rightStimFreq, r.rightAmplitude, r.rightPulseWidth)
                   : '',
             ),
-            _cell(isNewBlock ? r.notes : '', maxLines: 3),
+            _cell(isNewBlock ? r.notes : '', maxLines: 4),
           ],
         ),
       );
     }
 
-    return Table(
-      columnWidths: {
-        for (var i = 0; i < _flex.length; i++) i: FlexColumnWidth(_flex[i]),
-      },
-      defaultVerticalAlignment: TableCellVerticalAlignment.top,
-      children: tableRows,
+    // One style for the whole table, so the cells follow the A+/A- setting and
+    // the body text size rather than a literal of their own.
+    return DefaultTextStyle.merge(
+      style: theme.textTheme.bodyMedium,
+      child: Table(
+        columnWidths: {
+          for (var i = 0; i < _flex.length; i++) i: FlexColumnWidth(_flex[i]),
+        },
+        defaultVerticalAlignment: TableCellVerticalAlignment.top,
+        children: tableRows,
+      ),
     );
   }
 
-  Widget _cell(
-    String text, {
-    bool bold = false,
-    TextStyle? style,
-    int maxLines = 2,
-  }) {
+  Widget _cell(String text, {bool bold = false, int maxLines = 3}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       child: Text(
         text,
         maxLines: maxLines,
         overflow: TextOverflow.ellipsis,
-        style: (style ?? const TextStyle(fontSize: 12)).copyWith(
-          fontWeight: bold ? FontWeight.w600 : null,
-        ),
+        style: bold ? const TextStyle(fontWeight: FontWeight.w600) : null,
       ),
     );
   }

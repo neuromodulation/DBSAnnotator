@@ -136,12 +136,15 @@ String tickLabel(double v) {
   return v.toStringAsFixed(v.abs() < 10 ? 1 : 0);
 }
 
-/// A laid-out text run, ready to paint.
+/// A laid-out text run, ready to paint. [scaler] defaults to no scaling, so
+/// the chart rasterised into a report cannot change size with the A+/A-
+/// setting; only the on-screen panels pass one.
 TextPainter chartTextPainter(
   String text, {
   required Color color,
   double size = 10,
   bool bold = false,
+  TextScaler scaler = TextScaler.noScaling,
 }) => TextPainter(
   text: TextSpan(
     text: text,
@@ -154,6 +157,7 @@ TextPainter chartTextPainter(
     ),
   ),
   textDirection: TextDirection.ltr,
+  textScaler: scaler,
 )..layout();
 
 /// Paint [text] at [at]. [align] is horizontal; [anchorY] is the fraction of
@@ -167,8 +171,15 @@ void drawChartText(
   double anchorY = 0,
   double size = 10,
   bool bold = false,
+  TextScaler scaler = TextScaler.noScaling,
 }) {
-  final p = chartTextPainter(text, color: color, size: size, bold: bold);
+  final p = chartTextPainter(
+    text,
+    color: color,
+    size: size,
+    bold: bold,
+    scaler: scaler,
+  );
   final dx = switch (align) {
     TextAlign.center => at.dx - p.width / 2,
     TextAlign.right => at.dx - p.width,
@@ -190,8 +201,15 @@ void drawRotatedChartText(
   /// Anchor the text's start at [at] instead of its centre, so a rotated tick
   /// label hangs down from its tick rather than straddling the axis.
   bool anchorTop = false,
+  TextScaler scaler = TextScaler.noScaling,
 }) {
-  final p = chartTextPainter(text, color: color, size: size, bold: bold);
+  final p = chartTextPainter(
+    text,
+    color: color,
+    size: size,
+    bold: bold,
+    scaler: scaler,
+  );
   canvas
     ..save()
     ..translate(at.dx, at.dy)

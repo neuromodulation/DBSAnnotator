@@ -30,7 +30,7 @@ project = "DBS Annotator"
 author = "Lucia Poma"
 _HOLDERS = (
     "Wyss Center for Bio and Neuroengineering, Massachusetts General Hospital, "
-    "and Charité Universitätsmedizin Berlin"
+    "and Harvard Medical School"
 )
 _FIRST_YEAR = 2026  # matches lib/app_info.dart's About-dialog notice
 _YEAR = datetime.now().year

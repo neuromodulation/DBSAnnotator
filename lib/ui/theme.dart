@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/brand_palette.dart';
+
 /// The Wyss Center brand palette.
 ///
 /// [green] is a FILL, never text or an outline. Measured against white it is
@@ -9,21 +11,21 @@ import 'package:flutter/material.dart';
 /// 2.15:1 and was being used for text.
 class DbsColors {
   // Primary palette.
-  static const greenLighter = Color(0xFF95F9D8);
-  static const green = Color(0xFF0DE69F);
-  static const pink = Color(0xFFE541F6);
-  static const black = Color(0xFF000000);
-  static const greyLighter = Color(0xFFF8F8F8);
+  static const greenLighter = Color(kGreenLighter);
+  static const green = Color(kGreen);
+  static const pink = Color(kPink);
+  static const black = Color(kBlack);
+  static const greyLighter = Color(kGreyLighter);
 
   // Secondary palette.
-  static const yellowLime = Color(0xFFDFFE80);
-  static const pinkLight = Color(0xFFEF8AF9);
-  static const blueLight = Color(0xFF77B3F8);
-  static const redLight = Color(0xFFFFBB99);
-  static const greyDark = Color(0xFF6F6F6F);
-  static const greyMid = Color(0xFF949494);
-  static const grey = Color(0xFFD8D8D8);
-  static const greyLight = Color(0xFFE6E6E6);
+  static const yellowLime = Color(kYellowLime);
+  static const pinkLight = Color(kPinkLight);
+  static const blueLight = Color(kBlueLight);
+  static const redLight = Color(kRedLight);
+  static const greyDark = Color(kGreyDark);
+  static const greyMid = Color(kGreyMid);
+  static const grey = Color(kGrey);
+  static const greyLight = Color(kGreyLight);
 
   /// What a filled, selected or active control is painted with. Always carries
   /// a black label.

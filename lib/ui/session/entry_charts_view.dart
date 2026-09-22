@@ -17,23 +17,35 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 
+import '../../core/brand_palette.dart';
 import '../../report/entry_charts.dart';
-import '../../report/report_data.dart' show kBestFill, kSecondFill;
 import '../chart_primitives.dart';
 
-/// Width of the fixed left gutter. It holds only the y tick labels; the title
-/// and series key live in a full-width header above each panel, because a
-/// narrow gutter silently clips every series past the third.
+/// Width of the fixed left gutter at text scale 1. It holds only the y tick
+/// labels; the title and series key live in a full-width header above each
+/// panel, because a narrow gutter silently clips every series past the third.
 const double _gutterWidth = 52;
 
-/// Height of one panel's plot area.
+/// Height of one panel's plot area at text scale 1.
 const double _panelHeight = 116;
-
-/// Height of the shared x-axis strip under the last panel.
-const double _axisHeight = 30;
 
 /// Vertical inset inside a plot, so markers do not touch the frame.
 const double _plotPadY = 8;
+
+/// The x-axis strip's two lines: the clock time, then the block number.
+const double _axisTimeSize = 11;
+const double _axisBlockSize = 9;
+
+/// Horizontal room one axis label needs, per point of its font size.
+const double _labelPitch = 5.2;
+
+/// Measured rather than assumed, because a [TextScaler] need not be linear.
+double _boxFactor(TextScaler scaler) =>
+    scaler.scale(_axisTimeSize) / _axisTimeSize;
+
+/// Height of the shared x-axis strip under the last panel.
+double _axisHeight(TextScaler scaler) =>
+    5 + scaler.scale(_axisTimeSize) + 2 + scaler.scale(_axisBlockSize) + 3;
 
 /// How many configurations fill the viewport by default, and the zoom bounds.
 const int kDefaultVisibleConfigs = 10;
@@ -92,6 +104,10 @@ class _EntryChartsViewState extends State<EntryChartsView> {
       if (_followLatest) _offset = double.infinity; // clamped on next layout
     }
   }
+
+  /// The A+/A- setting. The widgets follow it already; the painted axis does
+  /// not, because a `TextPainter` defaults to no scaling.
+  TextScaler get _scaler => MediaQuery.textScalerOf(context);
 
   /// Pixels per configuration.
   ///
@@ -157,9 +173,17 @@ class _EntryChartsViewState extends State<EntryChartsView> {
       );
     }
 
+    final scaler = _scaler;
+    final factor = _boxFactor(scaler);
+    final gutter = _gutterWidth * factor;
+    // Half rate: the plot holds no text of its own, so it only has to keep
+    // pace with its tick labels. Growing it in full would push the table a
+    // screen further down at A+.
+    final panelHeight = _panelHeight * (1 + (factor - 1) / 2);
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        final viewport = math.max(80.0, constraints.maxWidth - _gutterWidth);
+        final viewport = math.max(80.0, constraints.maxWidth - gutter);
         final pxPerStep = _pxPerStep(viewport);
         // Clamp here rather than in setState: the viewport is only known now,
         // and `didUpdateWidget` parks the offset at infinity for "the end".
@@ -194,6 +218,8 @@ class _EntryChartsViewState extends State<EntryChartsView> {
                       pxPerStep,
                       offset,
                       viewport,
+                      gutter,
+                      panelHeight,
                     ),
                 ],
               ),
@@ -201,10 +227,10 @@ class _EntryChartsViewState extends State<EntryChartsView> {
             // The shared x axis, drawn once under the last panel.
             Row(
               children: [
-                const SizedBox(width: _gutterWidth),
+                SizedBox(width: gutter),
                 Expanded(
                   child: SizedBox(
-                    height: _axisHeight,
+                    height: _axisHeight(scaler),
                     child: CustomPaint(
                       painter: _XAxisPainter(
                         xs: xs,
@@ -212,13 +238,14 @@ class _EntryChartsViewState extends State<EntryChartsView> {
                         pxPerStep: pxPerStep,
                         offset: offset,
                         ink: theme.colorScheme.onSurfaceVariant,
+                        scaler: scaler,
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            _scrollbar(theme, viewport, offset),
+            _scrollbar(theme, viewport, offset, gutter),
           ],
         );
       },
@@ -230,7 +257,12 @@ class _EntryChartsViewState extends State<EntryChartsView> {
   /// The figure pans by drag and wheel, but with nothing on screen saying so a
   /// long session just looks truncated. Reduced to a thin spacer when
   /// everything already fits, so it never implies hidden data.
-  Widget _scrollbar(ThemeData theme, double viewport, double offset) {
+  Widget _scrollbar(
+    ThemeData theme,
+    double viewport,
+    double offset,
+    double gutter,
+  ) {
     final maxOff = _maxOffset(viewport);
     if (maxOff <= 0.5) return const SizedBox(height: 6);
     final thumbWidth = (viewport * viewport / _contentWidth(viewport)).clamp(
@@ -239,7 +271,7 @@ class _EntryChartsViewState extends State<EntryChartsView> {
     );
     final travel = math.max(1.0, viewport - thumbWidth);
     return Padding(
-      padding: const EdgeInsets.only(left: _gutterWidth, top: 6, bottom: 2),
+      padding: EdgeInsets.only(left: gutter, top: 6, bottom: 2),
       child: GestureDetector(
         // Thumb pixels to content pixels, so the thumb tracks the finger.
         onHorizontalDragUpdate: (d) =>
@@ -331,6 +363,8 @@ class _EntryChartsViewState extends State<EntryChartsView> {
     double pxPerStep,
     double offset,
     double viewport,
+    double gutter,
+    double panelHeight,
   ) {
     final names = panel.series.keys.toList();
     return Container(
@@ -362,7 +396,7 @@ class _EntryChartsViewState extends State<EntryChartsView> {
                 const SizedBox(width: 2),
                 Text(
                   panel.title,
-                  style: theme.textTheme.labelMedium?.copyWith(
+                  style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -395,10 +429,10 @@ class _EntryChartsViewState extends State<EntryChartsView> {
             // figure: plotted, it is a flat line mid-axis, which reads as a
             // measured mid-range value rather than as a constant.
             Padding(
-              padding: const EdgeInsets.only(left: _gutterWidth, bottom: 8),
+              padding: EdgeInsets.only(left: gutter, bottom: 8),
               child: Text(
                 panel.constantLabel!,
-                style: theme.textTheme.bodySmall?.copyWith(
+                style: theme.textTheme.bodyMedium?.copyWith(
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -407,8 +441,8 @@ class _EntryChartsViewState extends State<EntryChartsView> {
             Row(
               children: [
                 SizedBox(
-                  width: _gutterWidth,
-                  height: _panelHeight,
+                  width: gutter,
+                  height: panelHeight,
                   child: _YGutter(panel: panel, theme: theme),
                 ),
                 Expanded(
@@ -416,7 +450,7 @@ class _EntryChartsViewState extends State<EntryChartsView> {
                     behavior: HitTestBehavior.opaque,
                     onHorizontalDragUpdate: (d) => _pan(d.delta.dx, viewport),
                     child: SizedBox(
-                      height: _panelHeight,
+                      height: panelHeight,
                       child: CustomPaint(
                         painter: _PanelPainter(
                           panel: panel,
@@ -460,7 +494,7 @@ class _SeriesKey extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 4),
-      Text(name, style: const TextStyle(fontSize: 11)),
+      Text(name, style: Theme.of(context).textTheme.bodySmall),
     ],
   );
 }
@@ -513,9 +547,9 @@ class _YGutter extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(tickLabel(panel.yMax), style: theme.textTheme.labelSmall),
-          Text(tickLabel(mid), style: theme.textTheme.labelSmall),
-          Text(tickLabel(panel.yMin), style: theme.textTheme.labelSmall),
+          Text(tickLabel(panel.yMax), style: theme.textTheme.bodySmall),
+          Text(tickLabel(mid), style: theme.textTheme.bodySmall),
+          Text(tickLabel(panel.yMin), style: theme.textTheme.bodySmall),
         ],
       ),
     );
@@ -647,6 +681,7 @@ class _XAxisPainter extends CustomPainter {
     required this.pxPerStep,
     required this.offset,
     required this.ink,
+    required this.scaler,
   });
 
   final List<int> xs;
@@ -654,6 +689,7 @@ class _XAxisPainter extends CustomPainter {
   final double pxPerStep;
   final double offset;
   final Color ink;
+  final TextScaler scaler;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -666,8 +702,10 @@ class _XAxisPainter extends CustomPainter {
       ..strokeWidth = 1.6;
     canvas.drawLine(const Offset(0, 0), Offset(size.width, 0), axis);
 
-    // Thin out labels when zoomed out so they cannot overlap.
-    final every = math.max(1, (46 / pxPerStep).ceil());
+    // Thin out labels when zoomed out, by the drawn size, so they cannot
+    // overlap at any text scale.
+    final timeSize = scaler.scale(_axisTimeSize);
+    final every = math.max(1, (timeSize * _labelPitch / pxPerStep).ceil());
     for (var i = 0; i < xs.length; i++) {
       final x = (i + 0.5) * pxPerStep - offset;
       if (x < -20 || x > size.width + 20) continue;
@@ -680,15 +718,17 @@ class _XAxisPainter extends CustomPainter {
         Offset(x, 5),
         color: ink,
         align: TextAlign.center,
-        size: 9,
+        size: _axisTimeSize,
+        scaler: scaler,
       );
       drawChartText(
         canvas,
         '#${xs[i]}',
-        Offset(x, 16),
+        Offset(x, 5 + timeSize + 2),
         color: ink.withValues(alpha: 0.7),
         align: TextAlign.center,
-        size: 8,
+        size: _axisBlockSize,
+        scaler: scaler,
       );
     }
     canvas.restore();
@@ -700,5 +740,6 @@ class _XAxisPainter extends CustomPainter {
       old.labels != labels ||
       old.pxPerStep != pxPerStep ||
       old.offset != offset ||
-      old.ink != ink;
+      old.ink != ink ||
+      old.scaler != scaler;
 }

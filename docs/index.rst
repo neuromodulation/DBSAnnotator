@@ -77,10 +77,15 @@ At a glance
 
 .. toctree::
    :maxdepth: 2
+   :caption: Outputs
+
+   reports
+   output_format
+
+.. toctree::
+   :maxdepth: 2
    :caption: Reference
 
-   output_format
-   reports
    faq
    privacy
 

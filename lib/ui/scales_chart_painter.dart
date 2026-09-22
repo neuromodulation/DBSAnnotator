@@ -18,6 +18,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
+import '../core/brand_palette.dart';
 import '../report/report_data.dart';
 import 'chart_primitives.dart';
 

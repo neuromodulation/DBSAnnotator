@@ -25,6 +25,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../app_info.dart' show appVersion;
 import 'report_data.dart';
 import 'report_fonts.dart';
+import 'report_palette.dart';
 import 'report_sections.dart';
 import 'report_text.dart';
 
@@ -129,10 +130,7 @@ pw.Widget _electrodeCell(
             child: pw.Center(
               child: pw.Text(
                 '(not recorded)',
-                style: const pw.TextStyle(
-                  fontSize: 7,
-                  color: PdfColors.grey600,
-                ),
+                style: const pw.TextStyle(fontSize: 7, color: pdfInk),
               ),
             ),
           ),
@@ -150,10 +148,6 @@ typedef ElectrodeReportImages = ({
   Uint8List? finalLeft,
   Uint8List? finalRight,
 });
-
-/// Green row fills for the best / second-best block, from the shared tokens.
-const _bestFill = PdfColor.fromInt(kBestFill);
-const _secondFill = PdfColor.fromInt(kSecondFill);
 
 /// Legend + scale targets + disclaimer, shown under the table whenever a
 /// ranking was applied. Mirrors `report_common.add_table_legend`.
@@ -189,9 +183,9 @@ List<pw.Widget> _legendBlock(SessionReportData data, ReportTextSanitiser t) {
             fontWeight: pw.FontWeight.bold,
           ),
         ),
-        swatch(_bestFill, 'Highest aggregate index (rank 1)'),
+        swatch(pdfBestFill, 'Highest aggregate index (rank 1)'),
         pw.SizedBox(width: 14),
-        swatch(_secondFill, 'Second highest (rank 2)'),
+        swatch(pdfSecondFill, 'Second highest (rank 2)'),
       ],
     ),
     if (data.targetsText.isNotEmpty)
@@ -272,9 +266,9 @@ Future<ReportBytes> buildSessionPdf({
     final block = int.tryParse(data.tableData[i].first);
     if (block == null) continue;
     if (data.bestBlocks.contains(block)) {
-      rowFills[i + 1] = _bestFill;
+      rowFills[i + 1] = pdfBestFill;
     } else if (data.secondBlocks.contains(block)) {
-      rowFills[i + 1] = _secondFill;
+      rowFills[i + 1] = pdfSecondFill;
     }
   }
 
@@ -328,7 +322,7 @@ Future<ReportBytes> buildSessionPdf({
           'sub-${t(subjectId)}  |  ${data.sessionStamp}  |  '
           'DBS Annotator v$appVersion  |  '
           'Page ${context.pageNumber} of ${context.pagesCount}',
-          style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+          style: const pw.TextStyle(fontSize: 8, color: pdfInk),
         ),
       ),
       build: (context) => [
@@ -350,7 +344,7 @@ Future<ReportBytes> buildSessionPdf({
           'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion'
           '${data.sourceFile.isEmpty ? '' : '  |  Source: '
                     '${t(data.sourceFile)} (${data.rowCount} rows)'}',
-          style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700),
+          style: const pw.TextStyle(fontSize: 9, color: pdfInk),
         ),
         pw.SizedBox(height: 8),
 
@@ -361,8 +355,8 @@ Future<ReportBytes> buildSessionPdf({
             width: double.infinity,
             padding: const pw.EdgeInsets.all(6),
             decoration: pw.BoxDecoration(
-              color: PdfColors.grey100,
-              border: pw.Border.all(color: PdfColors.grey500, width: 0.8),
+              color: pdfPanelFill,
+              border: pw.Border.all(color: pdfRule, width: 0.8),
             ),
             child: pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -382,7 +376,7 @@ Future<ReportBytes> buildSessionPdf({
                               style: const pw.TextStyle(
                                 fontSize: 9,
                                 fontWeight: pw.FontWeight.bold,
-                                color: PdfColors.grey700,
+                                color: pdfInk,
                               ),
                             ),
                             for (final e in data.firstConfig.entries)
@@ -443,9 +437,7 @@ Future<ReportBytes> buildSessionPdf({
                   fontSize: 9,
                   fontWeight: pw.FontWeight.bold,
                 ),
-                headerDecoration: const pw.BoxDecoration(
-                  color: PdfColors.grey300,
-                ),
+                headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
                 cellAlignment: pw.Alignment.centerLeft,
                 columnWidths: const {
                   0: pw.FlexColumnWidth(4),
@@ -488,7 +480,7 @@ Future<ReportBytes> buildSessionPdf({
             // than silently omitting the section's main graphic.
             pw.Text(
               '(scales timeline chart unavailable)',
-              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600),
+              style: const pw.TextStyle(fontSize: 8, color: pdfInk),
             ),
           if (wantsTable && !data.hasRecording)
             pw.Text('No recording blocks in this session.')
@@ -498,9 +490,7 @@ Future<ReportBytes> buildSessionPdf({
                 fontSize: 8,
                 fontWeight: pw.FontWeight.bold,
               ),
-              headerDecoration: const pw.BoxDecoration(
-                color: PdfColors.grey300,
-              ),
+              headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
               cellStyle: cellStyle,
               cellAlignment: pw.Alignment.centerLeft,
               headers: sessionTableHeaders,
@@ -618,10 +608,7 @@ Future<ReportBytes> buildSessionPdf({
                   pw.Text(
                     'Orange = anode (+)   Blue = cathode (-)   Grey = inactive.   '
                     "A percentage is that contact's share of the total current.",
-                    style: const pw.TextStyle(
-                      fontSize: 7,
-                      color: PdfColors.grey700,
-                    ),
+                    style: const pw.TextStyle(fontSize: 7, color: pdfInk),
                   ),
                 ] else ...[
                   // Text fallback, no rasteriser available. Vendor nomenclature
@@ -742,15 +729,12 @@ Future<ReportBytes> buildSessionPdf({
                   padding: const pw.EdgeInsets.only(top: 14),
                   decoration: const pw.BoxDecoration(
                     border: pw.Border(
-                      top: pw.BorderSide(color: PdfColors.grey600, width: 0.8),
+                      top: pw.BorderSide(color: pdfInk, width: 0.8),
                     ),
                   ),
                   child: pw.Text(
                     label,
-                    style: const pw.TextStyle(
-                      fontSize: 8,
-                      color: PdfColors.grey700,
-                    ),
+                    style: const pw.TextStyle(fontSize: 8, color: pdfInk),
                   ),
                 ),
               ),

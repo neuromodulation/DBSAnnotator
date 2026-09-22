@@ -24,8 +24,7 @@ final Uri contactUri = Uri(scheme: 'mailto', path: contactEmail);
 
 const String publisher = 'Wyss Center for Bio and Neuroengineering';
 const String copyrightHolders =
-    'Massachusetts General Hospital, Harvard Medical School, and the Wyss '
-    'Center for Bio and Neuroengineering';
+    '$publisher, Massachusetts General Hospital, and Harvard Medical School';
 
 /// The launcher master, flattened onto white because iOS forbids alpha. Not
 /// what the app draws: see [markBlackAsset].
