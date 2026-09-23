@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../app_info.dart';
 import 'annotations_screen.dart';
-import 'longitudinal_screen.dart';
+import 'reports_screen.dart';
 import 'session_screen.dart';
-import 'single_session_report_screen.dart';
 import 'theme.dart';
 
 /// Launcher mirroring the desktop Step 0 mode selection, touch-first.
@@ -61,25 +60,17 @@ class HomeScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              const _SectionHeading('Reports'),
+              const _SectionHeading('Read'),
+              // One entry rather than two, because which of the old pair you
+              // needed depended on how many files you had, so the choice came
+              // before the information needed to make it.
               _WorkflowCard(
                 icon: Icons.description_outlined,
-                title: 'Single session report',
-                subtitle: 'Open one TSV → PDF or Word report',
+                title: 'Reports and datasets',
+                subtitle: 'Upload TSVs → reports, combined table, BIDS dataset',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => const SingleSessionReportScreen(),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _WorkflowCard(
-                icon: Icons.timeline,
-                title: 'Longitudinal review',
-                subtitle: 'Several sessions → change over visits',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => const LongitudinalScreen(),
+                    builder: (_) => const ReportsScreen(),
                   ),
                 ),
               ),

@@ -20,7 +20,7 @@ void main() {
     // Every entry point must stay reachable from the home screen.
     expect(find.text('Complete workflow'), findsOneWidget);
     expect(find.text('Annotations only'), findsOneWidget);
-    expect(find.text('Longitudinal review'), findsOneWidget);
+    expect(find.text('Reports and datasets'), findsOneWidget);
   });
 
   testWidgets('the About dialog carries the logo and version', (tester) async {

@@ -22,14 +22,12 @@ the top bar of every screen.
        contacts, scale ratings, side effects and notes.
    * - :doc:`Annotations only <annotations>`
      - You only want timestamped notes, with no stimulation data.
-   * - :doc:`Single session report <single_session_report>`
-     - You have a TSV and want its report, with no authoring.
-   * - :doc:`Longitudinal review <longitudinal>`
-     - You have several sessions for one patient and want to see change across
-       visits.
+   * - :doc:`Reports and datasets <reports>`
+     - You have one or more TSVs and want reports, a combined table or a BIDS
+       dataset, with no authoring.
 
-The first two *create* data. The last two only *read* it, so they are safe to
-open against a file you care about.
+The first two *create* data. The last only *reads* it, so it is safe to open
+against a file you care about.
 
 The top bar
 -----------

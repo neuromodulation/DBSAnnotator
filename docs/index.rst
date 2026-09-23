@@ -71,8 +71,7 @@ At a glance
    screens/home
    screens/complete_workflow
    screens/annotations
-   screens/single_session_report
-   screens/longitudinal
+   screens/reports
    screens/dialogs
 
 .. toctree::

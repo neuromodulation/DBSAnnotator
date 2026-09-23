@@ -25,11 +25,9 @@ already exists.
        contacts, scale ratings, side effects and notes.
    * - :doc:`Annotations only <screens/annotations>`
      - You only want timestamped notes, with no stimulation data.
-   * - :doc:`Single session report <screens/single_session_report>`
-     - You have a TSV and want its report, with no authoring.
-   * - :doc:`Longitudinal review <screens/longitudinal>`
-     - You have several sessions for one patient and want to see change across
-       visits.
+   * - :doc:`Reports and datasets <screens/reports>`
+     - You have one or more TSVs and want reports, a combined table or a BIDS
+       dataset, with no authoring.
 
 The first two *create* data. The last two only *read* it, so they are safe to
 open against a file you care about.

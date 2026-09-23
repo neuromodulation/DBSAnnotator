@@ -39,13 +39,15 @@ import 'package:dbs_annotator/report/report_sections.dart';
 import 'package:dbs_annotator/ui/annotations_screen.dart';
 import 'package:dbs_annotator/ui/electrode_view.dart';
 import 'package:dbs_annotator/ui/home_screen.dart';
-import 'package:dbs_annotator/ui/longitudinal_screen.dart';
 import 'package:dbs_annotator/ui/painter_font.dart';
 import 'package:dbs_annotator/ui/report_sections_dialog.dart';
 import 'package:dbs_annotator/ui/scale_slider.dart';
 import 'package:dbs_annotator/ui/session/entry_charts_view.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
-import 'package:dbs_annotator/ui/single_session_report_screen.dart';
+import 'package:dbs_annotator/core/annotation.dart';
+import 'package:dbs_annotator/core/session/tsv_kind.dart';
+import 'package:dbs_annotator/report/upload_actions.dart';
+import 'package:dbs_annotator/ui/reports_screen.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:dbs_annotator/ui/theme.dart';
 import 'package:flutter/material.dart';
@@ -637,21 +639,27 @@ Future<void> _seedRatings(WidgetTester tester) async {
   }
 }
 
-/// Two visits of one patient, for the longitudinal captures: the committed
-/// example with its dates shifted, so the chart plots real values twice.
-List<ImportedSessionFile> _visits({bool mismatchedPatients = false}) {
+/// Uploads for the report captures: the committed example, and for the
+/// multi-visit ones a second copy with its dates shifted so the chart plots
+/// real values twice.
+List<Uploaded> _visits({bool mismatchedPatients = false, int count = 2}) {
   final source = File(_fixture).readAsStringSync();
   return [
-    ImportedSessionFile(
+    (
       name: 'sub-01_ses-20260203_task-programming_run-01_beh.tsv',
+      kind: TsvKind.programming,
       rows: parseSessionTsv(source),
+      notes: const <Annotation>[],
     ),
-    ImportedSessionFile(
-      name: mismatchedPatients
-          ? 'sub-04_ses-20260918_task-programming_run-01_beh.tsv'
-          : 'sub-01_ses-20260918_task-programming_run-02_beh.tsv',
-      rows: parseSessionTsv(source.replaceAll('2026-06-26', '2026-09-18')),
-    ),
+    if (count > 1)
+      (
+        name: mismatchedPatients
+            ? 'sub-04_ses-20260918_task-programming_run-01_beh.tsv'
+            : 'sub-01_ses-20260918_task-programming_run-02_beh.tsv',
+        kind: TsvKind.programming,
+        rows: parseSessionTsv(source.replaceAll('2026-06-26', '2026-09-18')),
+        notes: const <Annotation>[],
+      ),
   ];
 }
 
@@ -1002,46 +1010,40 @@ void main() {
     await _shootFitted(tester, 'annotations_notes');
   });
 
-  // ---- Single session report -------------------------------------------
+  // ---- Reports and datasets ---------------------------------------------
 
-  testWidgets('single session report: empty', (tester) async {
+  testWidgets('reports: nothing uploaded', (tester) async {
     final contracts = await _contracts();
     await _pump(
       tester,
-      SingleSessionReportScreen(catalog: contracts.$1),
+      ReportsScreen(catalog: contracts.$1),
       size: const Size(_narrow, 1000),
     );
-    await _shootFitted(tester, 'report_empty', width: _narrow, height: 520);
+    await _shootFitted(tester, 'reports_empty', width: _narrow, height: 620);
   });
 
-  // ---- Longitudinal -----------------------------------------------------
-
-  testWidgets('longitudinal: empty', (tester) async {
+  testWidgets('reports: one session', (tester) async {
+    final contracts = await _contracts();
     await _pump(
       tester,
-      const LongitudinalScreen(),
-      size: const Size(_narrow, 1000),
+      ReportsScreen(catalog: contracts.$1, initialFiles: _visits(count: 1)),
     );
-    await _shootFitted(
-      tester,
-      'longitudinal_empty',
-      width: _narrow,
-      fallback: 420,
-    );
+    await _shootFitted(tester, 'reports_one_session', height: 900);
   });
 
-  testWidgets('longitudinal: populated', (tester) async {
-    await _pump(tester, LongitudinalScreen(initialFiles: _visits()));
-    await _shootFitted(tester, 'longitudinal_populated', height: 900);
+  testWidgets('reports: several visits', (tester) async {
+    await _pump(tester, ReportsScreen(initialFiles: _visits()));
+    await _shootFitted(tester, 'reports_visits', height: 900);
   });
 
-  testWidgets('longitudinal: patient mismatch', (tester) async {
+  testWidgets('reports: patient mismatch', (tester) async {
     // Combining two people into one longitudinal report is a safety problem,
-    // not a formatting one, so the banner is worth documenting on its own.
+    // not a formatting one, so the banner and the disabled action are worth
+    // documenting on their own.
     await _pump(
       tester,
-      LongitudinalScreen(initialFiles: _visits(mismatchedPatients: true)),
+      ReportsScreen(initialFiles: _visits(mismatchedPatients: true)),
     );
-    await _shootFitted(tester, 'longitudinal_mismatch', height: 900);
+    await _shootFitted(tester, 'reports_mismatch', height: 900);
   });
 }
