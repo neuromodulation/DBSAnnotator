@@ -282,6 +282,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           rows: _rows,
           scalePrefs: _targets,
           sourceFile: source,
+          notes: _notes,
         );
         final gfx = await renderReportGraphics(
           data,

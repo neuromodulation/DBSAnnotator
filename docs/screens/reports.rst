@@ -82,6 +82,21 @@ across several patients are ordinary things to want, so those stay available.
          disabled with its reason
    :width: 100%
 
+Notes alongside a session
+-------------------------
+
+Upload a ``task-notes`` file together with the session it belongs to and each
+note appears in the session data table, placed by its own clock time, with only
+the Time and Notes cells filled.
+
+It gets its own row rather than being written into a block's Notes cell,
+because a note carries no configuration: attaching it to one would assert it was
+recorded against stimulation settings the file never says it was. A note with no
+readable timestamp is left out, since there is nowhere on a time axis to put it.
+
+Nothing else in the report changes, and with no notes file the table is
+byte-identical to what it was.
+
 Exporting
 ---------
 
