@@ -207,6 +207,9 @@ class _SessionScreenState extends State<SessionScreen> {
   String? _modelName;
   // Chosen save path (from New/Open); when set, inserts autosave to it.
   String? _savePath;
+  // Working copy in the app's own storage, written on every insert whatever
+  // the picker returned, and dropped once the session has been exported.
+  String? _workingPath;
   // True when that path is an iOS sandbox copy rather than the user's own
   // file. See [pickedPathAutosavesToOriginal].
   bool _savePathIsSandboxCopy = false;
@@ -226,6 +229,66 @@ class _SessionScreenState extends State<SessionScreen> {
     loadUserPrefs().then((p) {
       if (mounted) setState(() => _prefs = p);
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
+  }
+
+  /// Offer back a session the app stopped in the middle of. Asking rather than
+  /// restoring silently: the clinician may have moved on to another patient.
+  Future<void> _offerRecovery() async {
+    final left = await unfinishedWork();
+    if (left.isEmpty || !mounted) return;
+    final file = left.first;
+    final String content;
+    try {
+      content = await file.readAsString();
+    } catch (_) {
+      return;
+    }
+    if (sniffTsvKind(content) != TsvKind.programming) return;
+    final recovered = SessionAuthoring()..loadExisting(content);
+    if (recovered.rows.isEmpty || !mounted) return;
+
+    final name = pickedBasename(file.path);
+    final keep = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unfinished session found'),
+        content: Text(
+          '$name was left open with ${blockCount(recovered.rows)} blocks '
+          'recorded. They were saved as you went, and can be reopened here.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reopen'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (keep != true) {
+      await discardWork(file.path);
+      return;
+    }
+    _invalidateEntryCharts();
+    final bids = BidsName.parse(name);
+    setState(() {
+      _authoring = recovered;
+      _workingPath = file.path;
+      // No _savePath: guessing it would autosave over a file not chosen here.
+      _savePath = null;
+      _savePathIsSandboxCopy = false;
+      if (bids != null) {
+        _subjectCtrl.text = bids.subject;
+        _runCtrl.text = bids.run;
+      }
+      _currentStep = 3;
+    });
+    _snack('Reopened $name. Export it to save it outside the app.');
   }
 
   // Chart data is derived from every inserted row, so it is cached and rebuilt
@@ -510,18 +573,34 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  /// If a save path was chosen (New/Open), rewrite the TSV to it after each
-  /// insert (desktop autosaves every entry). No-op when there is no path.
+  /// Write every entry to disk as it is inserted.
   ///
-  /// Goes through [SafeFileWriter], so overlapping inserts cannot interleave
-  /// and a crash mid-write cannot truncate the clinician's only copy.
+  /// The working copy is unconditional; [_savePath] is written too when the
+  /// picker returned a path `dart:io` can open, which on Android it does not.
+  /// Both go through [SafeFileWriter], so a crash mid-write leaves either the
+  /// previous complete file or the new one.
   Future<void> _autosave() async {
+    // Resolved here rather than only in New/Open, because the wizard lets the
+    // File step be skipped entirely: without this a whole visit recorded that
+    // way would be held in memory.
+    final work = _workingPath ?? await workingPath(_bidsName(_labels).filename);
+    _workingPath = work;
+    try {
+      await _writer.write(work, _authoring.serialize());
+    } catch (e) {
+      if (mounted) _snack('Could not save this entry: $e');
+      return;
+    }
     final path = _savePath;
     if (path == null) return;
     try {
       await _writer.write(path, _authoring.serialize());
     } catch (e) {
-      if (mounted) _snack('Autosave failed: $e');
+      if (mounted) {
+        _snack(
+          'Autosave to your file failed: $e. The entry is saved in the app.',
+        );
+      }
     }
   }
 
@@ -571,10 +650,12 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     final p = target.path;
     if (p != null) await _writeSidecar(p);
+    final work = await workingPath(name);
     if (!mounted) return;
     setState(() {
       _authoring = authoring;
       _savePath = p;
+      _workingPath = work;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(p);
       _subjectCtrl.text = subject;
       _runCtrl.text = run;
@@ -624,11 +705,13 @@ class _SessionScreenState extends State<SessionScreen> {
     final catalog = (await _contracts).$1;
     final named = electrodeModelIn(_authoring.rows);
     final unknownModel = named.isNotEmpty && !catalog.models.containsKey(named);
+    final work = await workingPath(picked.name);
 
     if (!mounted) return;
     setState(() {
       // Autosave future inserts back to the opened file (when a real path).
       _savePath = picked.path;
+      _workingPath = work;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
       if (bids != null) {
         _subjectCtrl.text = bids.subject;
@@ -705,6 +788,8 @@ class _SessionScreenState extends State<SessionScreen> {
       build: () async =>
           (bytes: utf8.encode(_authoring.serialize()), warning: null),
     );
+    // Exported, so there is nothing left to rescue.
+    await discardWork(_workingPath);
   }
 
   /// Export this session as a one-subject BIDS dataset (zipped).

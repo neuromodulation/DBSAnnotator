@@ -41,10 +41,19 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   int _currentStep = 0;
   // Chosen save path (from New/Open); when set, notes autosave to it.
   String? _savePath;
+  // Working copy in the app's own storage, written on every note whatever the
+  // picker returned, and dropped once the notes have been exported.
+  String? _workingPath;
 
   /// Anchors the iPadOS share popover to the export button. See
   /// [shareOriginFrom].
   final _exportKey = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
+  }
 
   @override
   void dispose() {
@@ -52,6 +61,65 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     _runCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
+  }
+
+  /// Offer back notes the app stopped in the middle of. Asking rather than
+  /// restoring silently: the user may have moved on to another patient.
+  Future<void> _offerRecovery() async {
+    final left = await unfinishedWork();
+    if (left.isEmpty || !mounted) return;
+    final file = left.first;
+    final String content;
+    try {
+      content = await file.readAsString();
+    } catch (_) {
+      return;
+    }
+    if (sniffTsvKind(content) != TsvKind.notes) return;
+    final loaded = parseAnnotations(content);
+    if (loaded.isEmpty || !mounted) return;
+
+    final name = pickedBasename(file.path);
+    final keep = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unfinished notes found'),
+        content: Text(
+          '$name was left open with ${loaded.length} notes recorded. They '
+          'were saved as you went, and can be reopened here.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reopen'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (keep != true) {
+      await discardWork(file.path);
+      return;
+    }
+    final bids = BidsName.parse(name);
+    setState(() {
+      _entries
+        ..clear()
+        ..addAll(loaded.reversed);
+      _workingPath = file.path;
+      // No _savePath: guessing it would autosave over a file not chosen here.
+      _savePath = null;
+      if (bids != null) {
+        _subjectCtrl.text = bids.subject;
+        _runCtrl.text = bids.run;
+      }
+      _currentStep = 1;
+    });
+    _snack('Reopened $name. Export it to save it outside the app.');
   }
 
   void _snack(String msg) =>
@@ -110,10 +178,12 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     }
     final p = target.path;
     if (p != null) await _writeSidecar(p);
+    final work = await workingPath(name);
     if (!mounted) return;
     setState(() {
       _entries.clear();
       _savePath = p;
+      _workingPath = work;
       _subjectCtrl.text = subject;
       _runCtrl.text = run;
       _currentStep = 1;
@@ -157,6 +227,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
 
     final loaded = parseAnnotations(content);
     final bids = BidsName.parse(picked.name);
+    final work = await workingPath(picked.name);
     if (!mounted) return;
     setState(() {
       _entries
@@ -164,6 +235,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         // File is oldest-first; the UI shows newest-first.
         ..addAll(loaded.reversed);
       _savePath = picked.path;
+      _workingPath = work;
       if (bids != null) {
         _subjectCtrl.text = bids.subject;
         _runCtrl.text = bids.run;
@@ -242,16 +314,34 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   /// Rewrite the TSV after each insert, as the desktop does. A no-op when no
   /// save path was chosen.
   ///
-  /// Goes through [SafeFileWriter] so overlapping inserts cannot interleave
-  /// and a crash mid-write cannot truncate the user's notes file.
+  /// Write every note to disk as it is added.
+  ///
+  /// The working copy is unconditional; [_savePath] is written too when the
+  /// picker returned a path `dart:io` can open, which on Android it does not.
+  /// Both go through [SafeFileWriter], so a crash mid-write leaves either the
+  /// previous complete file or the new one.
   Future<void> _autosave() async {
+    // The file is oldest-first; the UI list is newest-first.
+    final text = writeAnnotations(_entries.reversed.toList());
+    final work = _workingPath;
+    if (work != null) {
+      try {
+        await _writer.write(work, text);
+      } catch (e) {
+        if (mounted) _snack('Could not save this note: $e');
+        return;
+      }
+    }
     final path = _savePath;
     if (path == null) return;
     try {
-      // The file is oldest-first; the UI list is newest-first.
-      await _writer.write(path, writeAnnotations(_entries.reversed.toList()));
+      await _writer.write(path, text);
     } catch (e) {
-      if (mounted) _snack('Autosave failed: $e');
+      if (mounted) {
+        _snack(
+          'Autosave to your file failed: $e. The note is saved in the app.',
+        );
+      }
     }
   }
 
@@ -269,6 +359,8 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         warning: null,
       ),
     );
+    // Exported, so there is nothing left to rescue.
+    await discardWork(_workingPath);
   }
 
   /// Export these notes as a zipped one-subject BIDS dataset.
