@@ -85,11 +85,33 @@ across several patients are ordinary things to want, so those stay available.
 Exporting
 ---------
 
-Reports offer **PDF** or **Word**. For a session report the
-:ref:`report sections <dialog-report-sections>` dialog appears first, and the
-:ref:`scale targets <dialog-scale-targets>` can be set from there or from the
-button above the preview. For a notes file every section applies, so the dialog
-is skipped.
+Reports offer **PDF** or **Word**. Both report kinds show the
+:ref:`report sections <dialog-report-sections>` dialog first, with
+:ref:`scale targets <dialog-scale-targets>` reachable from inside it. For a
+notes file every section applies, so the dialog is skipped.
+
+The longitudinal chooser offers seven sections. Two of them are worth knowing
+about before you tick them:
+
+* **Electrode configuration** draws four lead diagrams per visit, so six visits
+  is roughly a page and a half of images. It is off by default, as on the
+  desktop.
+* **Session data** prints every configuration of every visit, grouped under a
+  per-visit subheading rather than given a visit column: the session table's
+  twelve widths are sized to their own headings, and a thirteenth broke them
+  mid-word.
+
+Scale targets do two things here, both **within** each visit. They band the
+best-scoring block of each visit in the session-scales figure, and they fix the
+y axis to the declared range instead of fitting it to the data, so a scale sits
+on the same axis at every visit and a drop between visits is a drop rather than
+a rescale. They deliberately do **not** rank visits against each other: the
+aggregate index is normalised within a session, so values from different visits
+were never on one scale. The clinical figure carries no bands for the same
+reason, and says so in its caption.
+
+A TSV records nothing about the targets used when its own report was made, so
+the longitudinal export asks for them again.
 
 A report is named from its source file's own BIDS entities with the data suffix
 replaced by ``_report``, so the two sort together in a directory listing:

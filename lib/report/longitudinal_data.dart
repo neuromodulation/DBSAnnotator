@@ -13,7 +13,14 @@ import '../core/session/longitudinal.dart'
     show extractPatientId, isScaleValueOmitted, splitScalePairs;
 import '../core/session/session_row.dart';
 import '../core/timestamps.dart';
-import 'report_data.dart' show ScalesChartSpec, coerceInt, trimZeros;
+import '../core/session/scale_scoring.dart';
+import 'report_data.dart'
+    show
+        ScalesChartSpec,
+        SessionReportData,
+        buildSessionReportData,
+        coerceInt,
+        trimZeros;
 
 /// One imported file: a visit.
 typedef LongitudinalVisit = ({
@@ -39,6 +46,11 @@ typedef LongitudinalVisit = ({
 
   /// The last recording row, i.e. the configuration in force at visit end.
   SessionRow? finalRow,
+
+  /// This visit built as if it were its own session report, which is where the
+  /// combined table, the electrode diagrams and the programming summary come
+  /// from: every field they need is already computed there.
+  SessionReportData session,
 });
 
 /// Everything the longitudinal builders render.
@@ -90,7 +102,11 @@ String _runOf(String filename) =>
     RegExp(r'run-([A-Za-z0-9]+)').firstMatch(filename)?.group(1) ?? '';
 
 /// Build one visit from a file's rows.
-LongitudinalVisit _visitOf(String filename, List<SessionRow> rows) {
+LongitudinalVisit _visitOf(
+  String filename,
+  List<SessionRow> rows,
+  List<ScalePref> scalePrefs,
+) {
   final initial = rows.where((r) => coerceInt(r.isInitial) == 1).toList();
   final recording = rows.where((r) => coerceInt(r.isInitial) != 1).toList();
 
@@ -144,6 +160,11 @@ LongitudinalVisit _visitOf(String filename, List<SessionRow> rows) {
     blocks: blocks,
     sessionScales: session,
     finalRow: recording.isEmpty ? null : recording.last,
+    session: buildSessionReportData(
+      rows: rows,
+      scalePrefs: scalePrefs.isEmpty ? null : scalePrefs,
+      sourceFile: filename,
+    ),
   );
 }
 
@@ -153,13 +174,19 @@ LongitudinalVisit _visitOf(String filename, List<SessionRow> rows) {
 LongitudinalReportData buildLongitudinalReportData({
   required Map<String, List<SessionRow>> files,
   DateTime? generatedAt,
+
+  /// Targets for the per-visit ranking, which the desktop asks for before this
+  /// report is built. A TSV records no memory of the targets used when its own
+  /// report was made, so they have to be supplied again here.
+  List<ScalePref> scalePrefs = const [],
 }) {
   final dt = generatedAt ?? DateTime.now();
   String two(int n) => n.toString().padLeft(2, '0');
   final generatedOn = '${dt.year}-${two(dt.month)}-${two(dt.day)}';
 
-  final visits = [for (final e in files.entries) _visitOf(e.key, e.value)]
-    ..sort((a, b) => a.date.compareTo(b.date));
+  final visits = [
+    for (final e in files.entries) _visitOf(e.key, e.value, scalePrefs),
+  ]..sort((a, b) => a.date.compareTo(b.date));
 
   // Patient identity. Mixing two people into one longitudinal report is a
   // safety problem, so it is surfaced rather than silently merged.
@@ -183,14 +210,23 @@ LongitudinalReportData buildLongitudinalReportData({
   }
 
   // Figure 2: session scales, one point per (visit, block).
+  //
+  // The bands mark the best-scoring block WITHIN each visit, which is what the
+  // desktop highlights. That is the only scope the aggregate index supports:
+  // it is normalised within a session, so ranking across visits would compare
+  // numbers that were never on one scale. See the clinical figure's caption.
   final sessionSeries = <String, Map<int, double>>{};
   final sessionLabels = <int, String>{};
+  final bestXs = <int>[];
+  final secondXs = <int>[];
   var x = 0;
   for (final visit in visits) {
     for (final (bi, block) in visit.blocks.indexed) {
       // A visit's first block carries the full `{date}_{run}_{block}` and the
       // rest only the block number, so a long session does not repeat its date.
       sessionLabels[x] = bi == 0 ? '${visit.label}_$block' : '$block';
+      if (visit.session.bestBlocks.contains(block)) bestXs.add(x);
+      if (visit.session.secondBlocks.contains(block)) secondXs.add(x);
       visit.sessionScales.forEach((name, byBlock) {
         final v = byBlock[block];
         if (v != null) (sessionSeries[name] ??= <int, double>{})[x] = v;
@@ -199,12 +235,18 @@ LongitudinalReportData buildLongitudinalReportData({
     }
   }
 
+  // Declared bounds when targets were given, so a scale sits on the same axis
+  // at every visit and a drop between visits is a drop rather than a rescale.
+  final declared = declaredScaleRange(parseScaleTargets(scalePrefs));
+
   ScalesChartSpec spec(
     Map<String, Map<int, double>> series,
     Map<int, String> labels,
     String title,
-    String xLabel,
-  ) {
+    String xLabel, {
+    List<int> best = const [],
+    List<int> second = const [],
+  }) {
     final xs = <int>{for (final m in series.values) ...m.keys}.toList()..sort();
     var lo = double.infinity;
     var hi = double.negativeInfinity;
@@ -221,18 +263,23 @@ LongitudinalReportData buildLongitudinalReportData({
       lo -= 1;
       hi += 1;
     }
+    if (declared != null) {
+      lo = declared.$1;
+      hi = declared.$2;
+    }
     return ScalesChartSpec(
       series: series,
       amplitude: const {},
       xs: xs,
       yMin: lo,
       yMax: hi,
-      // No index and no bands on either figure: the index is normalised
-      // WITHIN a session, so two visits' values share no scale. The desktop
-      // passes `show_general_index=False` for the same reason.
+      // No index SERIES on either figure: it is normalised within a session,
+      // so two visits' values share no scale. The desktop passes
+      // `show_general_index=False` for the same reason. The bands are a
+      // different matter: they mark the best block of one visit.
       aggregateIndex: const {},
-      bestXs: const [],
-      secondXs: const [],
+      bestXs: best,
+      secondXs: second,
       title: title,
       xLabel: xLabel,
       yLabel: 'Scale value',
@@ -289,6 +336,8 @@ LongitudinalReportData buildLongitudinalReportData({
       sessionLabels,
       'Session scales by visit and block',
       'Visit and block',
+      best: bestXs,
+      second: secondXs,
     ),
     visitTable: table,
     mismatchedPatients: ids.length <= 1 ? const [] : ids.skip(1).toList(),

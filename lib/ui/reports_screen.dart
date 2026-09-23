@@ -35,6 +35,7 @@ import '../report/annotations_report.dart';
 import '../report/entry_charts.dart';
 import '../report/longitudinal_data.dart';
 import '../report/longitudinal_pdf.dart';
+import '../report/longitudinal_sections.dart';
 import '../report/report_data.dart';
 import '../report/report_sections.dart';
 import '../report/session_docx.dart';
@@ -122,6 +123,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   UserPrefs _prefs = UserPrefs();
   List<ScalePref>? _targets;
   Set<ReportSection> _sections = kAllReportSections;
+  Set<LongitudinalSection> _longSections = kDefaultLongitudinalSections;
 
   @override
   void initState() {
@@ -323,8 +325,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Future<void> _longitudinalReport({required bool docx}) async {
+    // The desktop asks for both before exporting, and it has to: a TSV carries
+    // no record of the targets used when its own report was made.
+    final sections = await showLongitudinalSectionsDialog(
+      context,
+      _longSections,
+      onEditTargets: _editTargets,
+    );
+    if (sections == null || !mounted) return;
+    setState(() => _longSections = sections);
+
     final data = buildLongitudinalReportData(
       files: {for (final f in _sessions) f.name: f.rows},
+      scalePrefs: _targets ?? const [],
     );
     if (data.isEmpty) {
       _snack('The uploaded files contain no visits to report.');
@@ -342,13 +355,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
       build: () async {
         final clinical = await _chartPng(data.clinicalChart);
         final session = await _chartPng(data.sessionChart);
+        // Four leads a visit, so this is rendered only when asked for.
+        final leads = <String, ElectrodeReportImages>{};
+        if (sections.contains(LongitudinalSection.electrodes)) {
+          for (final visit in data.visits) {
+            final gfx = await renderReportGraphics(
+              visit.session,
+              _catalog?.models[electrodeModelIn(
+                _sessions.firstWhere((f) => f.name == visit.filename).rows,
+              )],
+              const {ReportSection.electrodes},
+            );
+            if (gfx.electrodes != null) leads[visit.filename] = gfx.electrodes!;
+          }
+        }
         if (docx) {
           return (
             bytes: buildLongitudinalDocx(
               data: data,
               clinicalChartPng: clinical,
               sessionChartPng: session,
+              electrodeImages: leads,
               pageSize: _letter ? DocxPageSize.letter : DocxPageSize.a4,
+              sections: sections,
             ),
             warning: null,
           );
@@ -357,7 +386,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
           data: data,
           clinicalChartPng: clinical,
           sessionChartPng: session,
+          electrodeImages: leads,
           pageFormat: _letter ? PdfPageFormat.letter : PdfPageFormat.a4,
+          sections: sections,
         );
         return (bytes: report.bytes, warning: _warn(report.lostCharacters));
       },

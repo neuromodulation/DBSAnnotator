@@ -7,36 +7,81 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../report/longitudinal_sections.dart';
 import '../report/report_sections.dart';
+
+/// One choosable section: whatever the caller's enum calls itself, plus the
+/// two strings the dialog shows. Generic so the session and longitudinal
+/// reports share one dialog rather than one each.
+typedef SectionChoice<T> = ({T value, String label, String description});
 
 /// Choose sections for an export. Returns the selection, or null if cancelled.
 ///
 /// [onEditTargets], when given, adds a "Scale targets…" action: the desktop
 /// keeps the scale-optimisation table inside its export dialog, and the targets
-/// are what the ranking in two of these sections is measured against, so this is
-/// the moment the user wants to check them.
+/// are what the ranking in some of these sections is measured against, so this
+/// is the moment the user wants to check them.
+Future<Set<T>?> showSectionsDialog<T>(
+  BuildContext context,
+  List<SectionChoice<T>> choices,
+  Set<T> selected, {
+  Future<void> Function()? onEditTargets,
+}) => showDialog<Set<T>>(
+  context: context,
+  builder: (_) => _SectionsDialog<T>(
+    choices: choices,
+    selected: selected,
+    onEditTargets: onEditTargets,
+  ),
+);
+
+/// The session report's chooser.
 Future<Set<ReportSection>?> showReportSectionsDialog(
   BuildContext context,
   Set<ReportSection> selected, {
   Future<void> Function()? onEditTargets,
-}) => showDialog<Set<ReportSection>>(
-  context: context,
-  builder: (_) =>
-      _ReportSectionsDialog(selected: selected, onEditTargets: onEditTargets),
+}) => showSectionsDialog<ReportSection>(
+  context,
+  [
+    for (final s in ReportSection.values)
+      (value: s, label: s.label, description: s.description),
+  ],
+  selected,
+  onEditTargets: onEditTargets,
 );
 
-class _ReportSectionsDialog extends StatefulWidget {
-  const _ReportSectionsDialog({required this.selected, this.onEditTargets});
+/// The longitudinal report's chooser.
+Future<Set<LongitudinalSection>?> showLongitudinalSectionsDialog(
+  BuildContext context,
+  Set<LongitudinalSection> selected, {
+  Future<void> Function()? onEditTargets,
+}) => showSectionsDialog<LongitudinalSection>(
+  context,
+  [
+    for (final s in LongitudinalSection.values)
+      (value: s, label: s.label, description: s.description),
+  ],
+  selected,
+  onEditTargets: onEditTargets,
+);
 
-  final Set<ReportSection> selected;
+class _SectionsDialog<T> extends StatefulWidget {
+  const _SectionsDialog({
+    required this.choices,
+    required this.selected,
+    this.onEditTargets,
+  });
+
+  final List<SectionChoice<T>> choices;
+  final Set<T> selected;
   final Future<void> Function()? onEditTargets;
 
   @override
-  State<_ReportSectionsDialog> createState() => _ReportSectionsDialogState();
+  State<_SectionsDialog<T>> createState() => _SectionsDialogState<T>();
 }
 
-class _ReportSectionsDialogState extends State<_ReportSectionsDialog> {
-  late final Set<ReportSection> _on = {...widget.selected};
+class _SectionsDialogState<T> extends State<_SectionsDialog<T>> {
+  late final Set<T> _on = {...widget.selected};
 
   @override
   Widget build(BuildContext context) {
@@ -50,19 +95,20 @@ class _ReportSectionsDialogState extends State<_ReportSectionsDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final s in ReportSection.values)
+              for (final c in widget.choices)
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
                   dense: true,
-                  value: _on.contains(s),
-                  title: Text(s.label),
+                  value: _on.contains(c.value),
+                  title: Text(c.label),
                   subtitle: Text(
-                    s.description,
+                    c.description,
                     style: theme.textTheme.bodySmall,
                   ),
-                  onChanged: (v) =>
-                      setState(() => v == true ? _on.add(s) : _on.remove(s)),
+                  onChanged: (v) => setState(
+                    () => v == true ? _on.add(c.value) : _on.remove(c.value),
+                  ),
                 ),
             ],
           ),
