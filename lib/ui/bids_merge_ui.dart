@@ -13,11 +13,17 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../core/bids_dataset.dart';
 import '../core/bids_merge.dart';
 import '../core/safe_file.dart';
+
+/// Whether a picked directory can be written to. False on the tablets, where
+/// it is a security-scoped path or a `content://` URI `dart:io` cannot open.
+bool get canWriteChosenFolder =>
+    !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
 /// A dataset bigger than this is not something to round-trip through a tablet's
 /// memory. Real DBS datasets carry imaging and run to gigabytes.

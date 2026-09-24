@@ -9,11 +9,9 @@
 library;
 
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 
@@ -100,11 +98,6 @@ Widget _timelineChart(
     child: const SizedBox.expand(),
   );
 }
-
-/// Whether a picked directory can be written to. False on the tablets, where
-/// it is a security-scoped path or a `content://` URI `dart:io` cannot open.
-bool get canWriteChosenFolder =>
-    !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key, this.catalog, this.initialFiles});

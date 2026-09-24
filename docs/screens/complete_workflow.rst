@@ -19,10 +19,30 @@ Step 0: File
 
    The File step, with an existing session opened.
 
-Enter the **patient ID** and **run number**, then choose where to save. The app
-composes the :doc:`BIDS filename <../output_format>` and creates the file
-straight away, along with its ``.json`` sidecar, so every later insert has
-somewhere to go.
+Enter the **patient ID** and **run number**, then choose where to save. **New**
+asks whether this visit is a loose TSV or goes straight into a BIDS dataset.
+
+**A loose TSV** goes wherever you choose. The app composes the
+:doc:`BIDS filename <../output_format>` and creates the file straight away,
+along with its ``.json`` sidecar, so every later insert has somewhere to go.
+
+**Into a dataset** asks for the dataset folder and for the session label,
+proposed as today's date but editable: ``ses-YYYYMMDD`` is this app's
+convention, and plenty of studies use ``ses-preop`` or ``ses-3mo``. The visit is
+filed at its BIDS path when the **first block is inserted**, not when the file
+is created: a dataset holding a header-only TSV that no ``scans.tsv`` lists is
+one that does not validate, and before the first block there is nothing to file.
+From then on every insert rewrites it in place, and the dataset index files stay
+consistent. It goes through the same rules as
+:ref:`adding to a dataset <dataset-merge-rules>`, so your
+``dataset_description.json`` and ``participants.tsv`` columns are safe, and a
+visit already filed there is refused rather than overwritten. Desktop only:
+iPadOS and Android cannot give an app a writable folder, so only the loose file
+is offered there.
+
+Whichever you choose, **every entry is also written to a working copy inside the
+app** as you record, so a crash or a closed window loses nothing. The app offers
+that copy back the next time you open this workflow.
 
 *Open* loads an existing session instead, and appends to it. The status line
 under the buttons reports what was found: the row count, and the block and

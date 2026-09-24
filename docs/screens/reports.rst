@@ -118,6 +118,8 @@ every file that will be added, every index file that will gain rows, everything
 left unchanged, and anything refused. This is the only operation in the app that
 writes to data it did not create, and it has no undo.
 
+.. _dataset-merge-rules:
+
 The rules it follows, and why each one exists:
 
 .. list-table::
