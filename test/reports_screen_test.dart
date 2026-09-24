@@ -48,10 +48,11 @@ void main() {
       'Longitudinal report',
       'Combined table (TSV)',
       'BIDS dataset (zip)',
+      'Add to an existing dataset',
     ]) {
       expect(find.text(label), findsOneWidget, reason: label);
     }
-    expect(find.text('Upload a TSV first.'), findsNWidgets(4));
+    expect(find.text('Upload a TSV first.'), findsNWidgets(5));
     for (final button in tester.widgetList<OutlinedButton>(
       find.byType(OutlinedButton),
     )) {

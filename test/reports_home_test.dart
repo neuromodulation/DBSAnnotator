@@ -91,7 +91,7 @@ void main() {
       // set above what it is, not below what it replaced.
       expect(
         code,
-        lessThan(760),
+        lessThan(900),
         reason: 'code lines excluding comments and blanks: $code',
       );
 
@@ -110,6 +110,9 @@ void main() {
         'buildAggregate(',
         'exportBidsDataset(',
         'unavailableReason(',
+        'planBidsMerge(',
+        'readDatasetDirectory(',
+        'confirmMerge(',
       ]) {
         expect(text, contains(shared), reason: shared);
       }

@@ -34,6 +34,11 @@ enum ReportAction {
 
   final String label;
   final String description;
+
+  /// What the button says. The merge does not export anything: it writes into
+  /// a dataset the user already has, and a button that says otherwise invites
+  /// the tap it should not get.
+  String get verb => this == ReportAction.addToDataset ? 'Add' : 'Export';
 }
 
 List<Uploaded> _programming(List<Uploaded> files) =>
@@ -50,6 +55,8 @@ List<Uploaded> withBidsEntities(List<Uploaded> files) =>
 ///
 /// [canWriteFolder] is false on iPadOS and Android, where a picked directory is
 /// a security-scoped path or a `content://` URI that `dart:io` cannot write.
+/// It changes how a dataset is merged, not whether it can be: those platforms
+/// take the existing dataset as a zip and give a new one back.
 String? unavailableReason(
   ReportAction action,
   List<Uploaded> files, {
@@ -82,9 +89,6 @@ String? unavailableReason(
 
     case ReportAction.bidsDataset:
     case ReportAction.addToDataset:
-      if (action == ReportAction.addToDataset && !canWriteFolder) {
-        return 'Only on desktop: a tablet cannot write into a chosen folder.';
-      }
       if (withBidsEntities(files).isEmpty) {
         return 'No uploaded filename carries a sub- entity.';
       }

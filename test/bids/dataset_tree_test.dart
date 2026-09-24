@@ -28,9 +28,11 @@ import 'package:dbs_annotator/app_info.dart';
 import 'package:dbs_annotator/core/annotation.dart';
 import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/bids_dataset.dart';
+import 'package:dbs_annotator/core/bids_merge.dart';
 import 'package:dbs_annotator/core/bids_sidecar.dart';
 import 'package:dbs_annotator/core/session/aggregate.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/ui/bids_export.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -213,6 +215,50 @@ void main() {
     final root = Directory(dir);
     if (root.existsSync()) root.deleteSync(recursive: true);
     for (final file in buildTree()) {
+      final out = File('$dir/${file.path}');
+      await out.parent.create(recursive: true);
+      await out.writeAsString(file.content);
+    }
+
+    // Then MERGE a further visit into it, so what the validator judges is a
+    // merged tree and not just a freshly built one. A merge that unions
+    // participants.tsv or a scans.tsv wrongly produces a dataset that is
+    // broken in exactly the way only a validator catches.
+    final extra = buildBidsDataset(
+      [
+        datasetEntry(
+          name: const BidsName(
+            subject: '99',
+            session: '20260401',
+            task: 'programming',
+            run: '01',
+          ),
+          tsv: serializeSessionTsv(const [
+            SessionRow(
+              blockId: '1',
+              isInitial: '0',
+              acqTime: '2026-04-01T09:00:00+00:00',
+            ),
+          ]),
+          contract: contract,
+          kind: 'session_tsv',
+          acqTime: '2026-04-01T09:00:00+00:00',
+        ),
+      ],
+      appName: appName,
+      appVersion: appVersion,
+      repoUrl: repoUrl,
+    );
+    final existing = [
+      for (final f in buildTree()) (path: f.path, content: f.content),
+    ];
+    final plan = planBidsMerge(existing, extra);
+    expect(
+      plan.refused,
+      isEmpty,
+      reason: 'a new subject collides with nothing',
+    );
+    for (final file in plan.write) {
       final out = File('$dir/${file.path}');
       await out.parent.create(recursive: true);
       await out.writeAsString(file.content);

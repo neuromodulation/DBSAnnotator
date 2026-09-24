@@ -107,20 +107,19 @@ void main() {
     );
   });
 
-  test('a tablet cannot write into a chosen folder', () {
-    expect(
-      unavailableReason(ReportAction.addToDataset, [
-        session(a),
-      ], canWriteFolder: false),
-      startsWith('Only on desktop'),
-    );
-    expect(
-      unavailableReason(ReportAction.bidsDataset, [
-        session(a),
-      ], canWriteFolder: false),
-      isNull,
-      reason: 'a zip still works everywhere',
-    );
+  test('a tablet can still merge, by zip rather than by folder', () {
+    // The platform decides HOW a dataset is merged, not whether it can be:
+    // iPadOS and Android take the dataset as a zip and give a new one back.
+    for (final action in [
+      ReportAction.bidsDataset,
+      ReportAction.addToDataset,
+    ]) {
+      expect(
+        unavailableReason(action, [session(a)], canWriteFolder: false),
+        isNull,
+        reason: action.name,
+      );
+    }
   });
 
   test('a filename with no sub- entity cannot become a dataset path', () {

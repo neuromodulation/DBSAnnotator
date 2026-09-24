@@ -1,9 +1,10 @@
 /// "Export BIDS dataset": the whole tree, as one zip.
 ///
-/// A zip rather than a directory picker because it is the one shape that works
-/// identically on all five platforms. `exportFile` already hands a single file
-/// to a desktop Save-As dialog or an iPad share sheet, whereas writing a
-/// directory would need its own permissions and mobile failure modes.
+/// A new dataset is always a zip: it is the one shape that works identically on
+/// all five platforms, and `exportFile` already hands a single file to a
+/// desktop Save-As dialog or an iPad share sheet. Writing a directory needs its
+/// own permissions and has mobile failure modes, which is why only the merge
+/// does it, and only on the desktop. See `bids_merge_ui.dart`.
 library;
 
 import 'dart:convert';

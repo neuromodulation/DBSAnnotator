@@ -46,6 +46,8 @@ What each upload enables
      - Two or more session TSVs
    * - BIDS dataset (zip)
      - At least one file whose name carries a ``sub-`` entity
+   * - Add to an existing dataset
+     - As above
 
 An action that is unavailable is greyed out **and says why**, in place of its
 description. A control that accepts the tap and then refuses in a snackbar makes
@@ -96,6 +98,53 @@ readable timestamp is left out, since there is nowhere on a time axis to put it.
 
 Nothing else in the report changes, and with no notes file the table is
 byte-identical to what it was.
+
+Adding to a dataset you already have
+------------------------------------
+
+**Add to an existing dataset** folds the uploaded files into a BIDS dataset you
+already have, rather than producing a separate one to reconcile by hand. It
+offers both ways of doing that, so the choice is yours:
+
+* **Add** writes into the folder you choose. This is the point of the feature,
+  and it is desktop only: iPadOS and Android cannot give an app a writable
+  folder, so the button is disabled there and says why.
+* **Export** takes the dataset as a zip and gives a merged zip back, leaving the
+  original untouched. Available everywhere, and the safe way to see what a merge
+  produces before letting it near the real thing.
+
+**Nothing is written until you have seen what will happen.** A dialog lists
+every file that will be added, every index file that will gain rows, everything
+left unchanged, and anything refused. This is the only operation in the app that
+writes to data it did not create, and it has no undo.
+
+The rules it follows, and why each one exists:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 66
+
+   * - Files
+     - What happens
+   * - ``dataset_description.json``, ``README``, ``participants.json``
+     - Written only if missing. Yours carry the study's authors, licence and
+       DOI; the app's would replace them with a generated stub.
+   * - ``participants.tsv``, ``*_scans.tsv``
+     - Unioned, never replaced. Every column you have is kept, so ``age``,
+       ``sex`` or ``diagnosis`` survive, and a new subject is appended with
+       those cells empty.
+   * - ``sub-*/ses-*/beh/*``
+     - Added only. A path that already exists is **refused and named**, because
+       overwriting it would replace recorded clinical data.
+   * - Everything else
+     - Untouched. Other datatypes, derivatives and anything you keep alongside
+       are never even read.
+
+Merging the same files twice does nothing the second time.
+
+A zip merge is refused above 200 MB: a dataset carrying imaging cannot be
+round-tripped through a tablet's memory, and the desktop folder path has no such
+limit.
 
 Exporting
 ---------

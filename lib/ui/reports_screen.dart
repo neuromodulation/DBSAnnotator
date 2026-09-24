@@ -21,6 +21,7 @@ import '../app_info.dart';
 import '../core/annotation.dart';
 import '../core/bids.dart';
 import '../core/bids_dataset.dart';
+import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
 import '../core/electrode/electrode_model.dart';
 import '../core/prefs/user_prefs.dart';
@@ -42,6 +43,7 @@ import '../report/session_docx.dart';
 import '../report/session_pdf.dart';
 import '../report/upload_actions.dart';
 import 'bids_export.dart';
+import 'bids_merge_ui.dart';
 import 'report_images.dart';
 import 'report_sections_dialog.dart';
 import 'save_target.dart';
@@ -433,14 +435,121 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
   }
 
-  Future<void> _exportBids() async {
+  /// Fold the uploaded files into a BIDS dataset the user already has.
+  ///
+  /// The plan is shown and confirmed before a byte is written: this is the one
+  /// action here that touches data the app did not create, and it has no undo.
+  Future<void> _addToDataset({required bool inPlace}) async {
     final Map<String, dynamic> contract;
     try {
       contract = await loadTsvContract();
     } catch (e) {
-      if (mounted) _snack('BIDS export failed: $e');
+      if (mounted) _snack('Could not read the TSV contract: $e');
       return;
     }
+    final built = _datasetFiles(contract);
+    if (built.files.isEmpty) {
+      if (mounted) {
+        _snack('No uploaded file carries BIDS entities in its name.');
+      }
+      return;
+    }
+
+    // Writing into the folder, or reading a zip and giving a merged one back.
+    final target = inPlace ? await _pickFolderTarget() : await _pickZipTarget();
+    if (target == null || !mounted) return;
+
+    final plan = planBidsMerge(target.existing, built.files);
+    if (plan.write.isEmpty) {
+      _snack(
+        plan.refused.isEmpty
+            ? 'That dataset already has these files.'
+            : 'Nothing to add: ${plan.refused.length} already recorded there.',
+      );
+      return;
+    }
+    if (!await confirmMerge(context, plan, target.label) || !mounted) return;
+
+    try {
+      await target.apply(plan);
+    } catch (e) {
+      if (mounted) _snack('The merge stopped partway: $e');
+      return;
+    }
+    if (mounted) _snack(describeMergePlan(plan));
+  }
+
+  /// The chosen dataset, and how to write the merge back into it.
+  Future<_MergeTarget?> _pickFolderTarget() async {
+    final root = await pickDatasetFolder();
+    if (root == null) return null;
+    try {
+      final existing = await readDatasetDirectory(root);
+      return (
+        existing: existing,
+        label: root,
+        apply: (MergePlan plan) => applyMergeToDirectory(root, plan),
+      );
+    } catch (e) {
+      if (mounted) _snack('Could not read that folder: $e');
+      return null;
+    }
+  }
+
+  Future<_MergeTarget?> _pickZipTarget() async {
+    final PlatformFile? picked;
+    try {
+      picked = await FilePicker.pickFile(type: FileType.any);
+    } catch (e) {
+      if (mounted) _snack('Could not open the file picker. ($e)');
+      return null;
+    }
+    if (picked == null) return null;
+    final size = await picked.length();
+    if (size > kMaxMergeZipBytes) {
+      // Decoding a dataset that carries imaging would run a tablet out of
+      // memory, so it is refused with its size rather than attempted.
+      if (mounted) {
+        _snack(
+          'That dataset is ${(size / (1024 * 1024)).round()} MB. '
+          'Merging a zip works up to '
+          '${kMaxMergeZipBytes ~/ (1024 * 1024)} MB; use the desktop app.',
+        );
+      }
+      return null;
+    }
+    try {
+      final bytes = await picked.readAsBytes();
+      final existing = readDatasetZip(bytes);
+      final name = picked.name;
+      return (
+        existing: existing,
+        label: name,
+        apply: (MergePlan plan) async {
+          if (!mounted) return;
+          await exportFile(
+            context,
+            filename: '${name.replaceAll(RegExp(r'\.zip$'), '')}-merged.zip',
+            anchor: _exportKey,
+            failureLabel: 'Merged dataset export failed',
+            build: () async =>
+                (bytes: mergedZip(existing, plan), warning: null),
+          );
+        },
+      );
+    } catch (e) {
+      if (mounted) _snack('Could not read that dataset: $e');
+      return null;
+    }
+  }
+
+  /// The dataset the uploaded files describe: its entries, the whole file
+  /// list, and the names left out for want of BIDS entities.
+  ///
+  /// Shared by the zip export and the merge, so the two cannot disagree about
+  /// what a dataset made from this upload contains.
+  ({List<DatasetEntry> entries, List<DatasetFile> files, List<String> skipped})
+  _datasetFiles(Map<String, dynamic> contract) {
     final entries = <DatasetEntry>[];
     final skipped = <String>[];
     for (final file in _files) {
@@ -452,6 +561,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final isSession = file.kind == TsvKind.programming;
       entries.add(
         datasetEntry(
+          // Re-emitted with the current suffix and column names, so a 0.4.x
+          // `_events.tsv` lands in the dataset as a valid `_beh.tsv`.
           name: BidsName(
             subject: name.subject,
             session: name.session,
@@ -471,15 +582,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
       );
     }
-    if (!mounted) return;
     if (entries.isEmpty) {
-      _snack('No uploaded file carries BIDS entities in its name.');
-      return;
+      return (entries: entries, files: const [], skipped: skipped);
     }
+
+    // The combined table goes where BIDS puts a cross-session derivation: its
+    // own directory under `derivatives/`, with its own dataset_description.
     final aggregate = buildAggregate([
       for (final f in _sessions) (filename: f.name, rows: f.rows),
     ]);
-    final extraFiles = <DatasetFile>[
+    final files = <DatasetFile>[
+      ...buildBidsDataset(
+        entries,
+        appName: appName,
+        appVersion: appVersion,
+        repoUrl: repoUrl,
+      ),
       if (aggregate.rowCount > 0) ...[
         derivativeDescription(
           dir: aggregateDerivativeDir,
@@ -498,16 +616,36 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
       ],
     ];
+    return (entries: entries, files: files, skipped: skipped);
+  }
 
+  Future<void> _exportBids() async {
+    final Map<String, dynamic> contract;
+    try {
+      contract = await loadTsvContract();
+    } catch (e) {
+      if (mounted) _snack('BIDS export failed: $e');
+      return;
+    }
+    final built = _datasetFiles(contract);
+    if (!mounted) return;
+    if (built.entries.isEmpty) {
+      _snack('No uploaded file carries BIDS entities in its name.');
+      return;
+    }
     await exportBidsDataset(
       context,
       anchor: _exportKey,
-      entries: entries,
-      extraFiles: extraFiles,
+      entries: built.entries,
+      extraFiles: [
+        for (final f in built.files)
+          if (f.path.startsWith('$aggregateDerivativeDir/')) f,
+      ],
     );
-    if (mounted && skipped.isNotEmpty) {
+    if (mounted && built.skipped.isNotEmpty) {
       _snack(
-        'Skipped (no BIDS entities in the filename): ${skipped.join(', ')}',
+        'Skipped (no BIDS entities in the filename): '
+        '${built.skipped.join(', ')}',
       );
     }
   }
@@ -640,36 +778,49 @@ class _ReportsScreenState extends State<ReportsScreen> {
       for (final action in _shown)
         _ActionRow(
           action: action,
-          // Null means enabled.
           reason: unavailableReason(
             action,
             _files,
             canWriteFolder: canWriteChosenFolder,
           ),
-          onRun: switch (action) {
-            ReportAction.sessionReport => _sessionReport,
-            ReportAction.longitudinalReport => _longitudinalReport,
-            ReportAction.aggregateTsv => null,
-            ReportAction.bidsDataset => null,
-            ReportAction.addToDataset => null,
-          },
-          onSingle: switch (action) {
-            ReportAction.aggregateTsv => _exportAggregate,
-            ReportAction.bidsDataset => _exportBids,
-            _ => null,
-          },
+          buttons: _buttonsFor(action),
         ),
     ],
   );
 
-  /// `addToDataset` is deliberately absent until the merge exists: an action
-  /// that cannot run is worse than one that is not offered.
-  static const _shown = [
-    ReportAction.sessionReport,
-    ReportAction.longitudinalReport,
-    ReportAction.aggregateTsv,
-    ReportAction.bidsDataset,
-  ];
+  _ActionButton _btn(
+    String label,
+    Future<void> Function() run, [
+    String? unavailable,
+  ]) => (label: label, run: run, unavailable: unavailable);
+
+  List<_ActionButton> _buttonsFor(ReportAction action) => switch (action) {
+    ReportAction.sessionReport => [
+      _btn('PDF', () => _sessionReport(docx: false)),
+      _btn('Word', () => _sessionReport(docx: true)),
+    ],
+    ReportAction.longitudinalReport => [
+      _btn('PDF', () => _longitudinalReport(docx: false)),
+      _btn('Word', () => _longitudinalReport(docx: true)),
+    ],
+    ReportAction.aggregateTsv => [_btn('Export', _exportAggregate)],
+    ReportAction.bidsDataset => [_btn('Export', _exportBids)],
+    // Both ways, so the choice is the user's rather than the platform's:
+    // writing into the folder is the point, and a merged zip is the dry run
+    // that leaves the original dataset untouched.
+    ReportAction.addToDataset => [
+      _btn(
+        'Add',
+        () => _addToDataset(inPlace: true),
+        canWriteChosenFolder
+            ? null
+            : 'A tablet cannot be given a writable folder. Use Export.',
+      ),
+      _btn('Export', () => _addToDataset(inPlace: false)),
+    ],
+  };
+
+  static const _shown = ReportAction.values;
 
   Widget _preview(ThemeData theme) {
     if (_files.isEmpty) {
@@ -753,22 +904,29 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
 /// One offered action: what it makes, and either the buttons to make it or the
 /// reason it cannot be made.
+/// One button on an action row: what it says, what it does, and why it is off
+/// when it is. A per-button reason exists because the two ways of merging do
+/// not have the same platform support.
+typedef _ActionButton = ({
+  String label,
+  Future<void> Function() run,
+  String? unavailable,
+});
+
+/// One offered action: what it makes, and either the buttons to make it or the
+/// reason it cannot be made.
 class _ActionRow extends StatelessWidget {
   const _ActionRow({
     required this.action,
     required this.reason,
-    required this.onRun,
-    required this.onSingle,
+    required this.buttons,
   });
 
   final ReportAction action;
+
+  /// Null when the upload supports this action at all.
   final String? reason;
-
-  /// Reports, which offer two formats.
-  final Future<void> Function({required bool docx})? onRun;
-
-  /// Everything else, which has one output.
-  final Future<void> Function()? onSingle;
+  final List<_ActionButton> buttons;
 
   @override
   Widget build(BuildContext context) {
@@ -797,23 +955,28 @@ class _ActionRow extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          if (onRun != null) ...[
-            OutlinedButton(
-              onPressed: enabled ? () => onRun!(docx: false) : null,
-              child: const Text('PDF'),
+          for (final button in buttons) ...[
+            Tooltip(
+              message: button.unavailable ?? '',
+              child: OutlinedButton(
+                onPressed: enabled && button.unavailable == null
+                    ? button.run
+                    : null,
+                child: Text(button.label),
+              ),
             ),
             const SizedBox(width: 8),
-            OutlinedButton(
-              onPressed: enabled ? () => onRun!(docx: true) : null,
-              child: const Text('Word'),
-            ),
-          ] else
-            OutlinedButton(
-              onPressed: enabled ? onSingle : null,
-              child: const Text('Export'),
-            ),
+          ],
         ],
       ),
     );
   }
 }
+
+/// A dataset chosen for a merge: what it already holds, what to call it in the
+/// confirmation, and how to write the merge back.
+typedef _MergeTarget = ({
+  List<DatasetFile> existing,
+  String label,
+  Future<void> Function(MergePlan plan) apply,
+});
