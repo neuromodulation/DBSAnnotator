@@ -13,9 +13,11 @@ class AmplitudeSplit extends StatefulWidget {
     required this.total,
     required this.decimals,
     required this.onChanged,
+    this.initial = const [],
   });
 
   final List<String> cathodes;
+  final List<double> initial;
   final double total;
   final int decimals;
   final ValueChanged<List<double>> onChanged;
@@ -34,7 +36,7 @@ class _AmplitudeSplitState extends State<AmplitudeSplit> {
   @override
   void initState() {
     super.initState();
-    _reset();
+    _reset(seed: widget.initial);
     _notifyLater();
   }
 
@@ -60,9 +62,15 @@ class _AmplitudeSplitState extends State<AmplitudeSplit> {
     return true;
   }
 
-  void _reset() {
+  /// A step change remounts this widget, so the stored split is restored
+  /// rather than replaced by an equal one. A new cathode set starts equal.
+  void _reset({List<double> seed = const []}) {
     final n = widget.cathodes.length;
-    _pct = List<double>.filled(n, n == 0 ? 0 : 100 / n);
+    final valid =
+        seed.length == n && (seed.fold(0.0, (a, b) => a + b) - 100).abs() < 0.5;
+    _pct = valid
+        ? List<double>.of(seed)
+        : List<double>.filled(n, n == 0 ? 0 : 100 / n);
     _ctrls = [
       for (var i = 0; i < n; i++) TextEditingController(text: _fmtPct(_pct[i])),
     ];

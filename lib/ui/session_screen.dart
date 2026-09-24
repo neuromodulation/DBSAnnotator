@@ -1368,6 +1368,7 @@ class _SessionScreenState extends State<SessionScreen> {
               cathodes: _cathodesFor(side, model),
               total: double.tryParse(side.amp.text.trim()) ?? 0,
               decimals: limits.amplitudeDecimals,
+              initial: side.ampSplit,
               onChanged: (pct) => side.ampSplit = pct,
             ),
           ),

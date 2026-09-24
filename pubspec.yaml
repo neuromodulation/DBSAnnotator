@@ -101,11 +101,15 @@ flutter_launcher_icons:
   # iOS forbids alpha in app icons, so flatten onto white.
   remove_alpha_ios: true
   background_color_ios: "#FFFFFF"
+  # Desktop icons sit on the taskbar or dock, where a white square reads as a
+  # tile; the mark there is on its own white disc instead.
   windows:
     generate: true
+    image_path: "assets/icon/desktop_icon.png"
     icon_size: 256
   macos:
     generate: true
+    image_path: "assets/icon/desktop_icon.png"
 
 # Windows MSIX packaging. Two commands, one config:
 #

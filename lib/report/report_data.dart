@@ -272,7 +272,7 @@ List<String> _paramKey(SessionRow r) => [
 /// belongs here. Rounding matters: files written before [encodeAmplitude] was
 /// fixed hold independently-rounded parts, so a 5.0 mA setting is stored as
 /// `1.67_1.67_1.67` and sums to 5.01, a precision no IPG has.
-String _amplitudeCell(String raw) {
+String amplitudeCell(String raw) {
   final text = raw.trim();
   if (!text.contains('_')) return text;
   final parts = _amplitudeParts(text);
@@ -282,7 +282,7 @@ String _amplitudeCell(String raw) {
 
 /// Frequency / pulse-width cell: integer-valued numbers lose the ".0",
 /// everything else (including unit-bearing text) is verbatim.
-String _numCell(String raw) {
+String numCell(String raw) {
   final text = raw.trim();
   final v = double.tryParse(text);
   if (v != null && v == v.roundToDouble()) return '${v.toInt()}';
@@ -918,8 +918,8 @@ Map<String, String> _lastConfigLines(SessionRow? r) {
     if (cathodes.isEmpty && anodes.isEmpty) return '';
     final total = _paramRange([amp], splitSum: true);
     final dose = total == null ? '' : ' = ${trimZeros(total.$2)} mA';
-    final f = freq.trim().isEmpty ? '' : ', ${_numCell(freq)} Hz';
-    final p = pw.trim().isEmpty ? '' : ', ${_numCell(pw)} \u00B5s';
+    final f = freq.trim().isEmpty ? '' : ', ${numCell(freq)} Hz';
+    final p = pw.trim().isEmpty ? '' : ', ${numCell(pw)} \u00B5s';
     return '$cathodes-'
         '${anodes.isEmpty ? '' : ' / $anodes+'}$dose$f$p';
   }
@@ -1186,14 +1186,14 @@ SessionReportData buildSessionReportData({
       left ? [_clock(first), if (gap.isNotEmpty) '($gap)'].join('\n') : '',
       left ? 'L' : 'R',
       first.programId,
-      _numCell(left ? first.leftStimFreq : first.rightStimFreq),
+      numCell(left ? first.leftStimFreq : first.rightStimFreq),
       contactsWithCurrent(left ? first.leftAnode : first.rightAnode, ''),
       contactsWithCurrent(
         left ? first.leftCathode : first.rightCathode,
         left ? first.leftAmplitude : first.rightAmplitude,
       ),
-      _amplitudeCell(left ? first.leftAmplitude : first.rightAmplitude),
-      _numCell(left ? first.leftPulseWidth : first.rightPulseWidth),
+      amplitudeCell(left ? first.leftAmplitude : first.rightAmplitude),
+      numCell(left ? first.leftPulseWidth : first.rightPulseWidth),
       left ? scales : '',
       left ? indexCell : '',
       left ? first.notes : '',
