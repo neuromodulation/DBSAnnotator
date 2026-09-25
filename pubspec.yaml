@@ -32,7 +32,7 @@ dependencies:
     sdk: flutter
   # TSV read/write with RFC4180 quoting so fields with embedded newlines
   # (notes, newline-separated scale_name/scale_value) round-trip like Python csv.
-  csv: ^6.0.0
+  csv: ^8.0.0
   path_provider: ^2.1.4
   file_picker: ^12.2.0
   share_plus: ^13.3.0
