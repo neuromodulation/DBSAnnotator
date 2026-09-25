@@ -167,14 +167,13 @@ about before you tick them:
   twelve widths are sized to their own headings, and a thirteenth broke them
   mid-word.
 
-Scale targets do two things here, both **within** each visit. They band the
-best-scoring block of each visit in the session-scales figure, and they fix the
-y axis to the declared range instead of fitting it to the data, so a scale sits
-on the same axis at every visit and a drop between visits is a drop rather than
-a rescale. They deliberately do **not** rank visits against each other: the
-aggregate index is normalised within a session, so values from different visits
-were never on one scale. The clinical figure carries no bands for the same
-reason, and says so in its caption.
+Scale targets do two things here. They mark the two best configurations
+across **all** visits together, banded in the session-scales figure and shaded in
+the per-visit tables, and they fix the y axis to the declared range instead of
+fitting it to the data, so a scale sits on the same axis at every visit and a
+drop between visits is a drop rather than a rescale. The ranking is meaningful
+across visits because every visit's index is computed against the same targets
+and declared ranges. The clinical figure carries no bands.
 
 A TSV records nothing about the targets used when its own report was made, so
 the longitudinal export asks for them again.

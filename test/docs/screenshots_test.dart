@@ -34,8 +34,17 @@ import 'package:dbs_annotator/core/electrode/geometry.dart';
 import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
 import 'package:dbs_annotator/core/session/authoring.dart';
 import 'package:dbs_annotator/core/session/scale_presets.dart';
+import 'package:dbs_annotator/core/session/scale_scoring.dart';
+import 'package:dbs_annotator/core/session/session_row.dart'
+    show electrodeModelIn;
 import 'package:dbs_annotator/core/session/session_file.dart';
+import 'package:dbs_annotator/report/longitudinal_data.dart';
+import 'package:dbs_annotator/report/longitudinal_pdf.dart';
+import 'package:dbs_annotator/report/report_data.dart';
 import 'package:dbs_annotator/report/report_sections.dart';
+import 'package:dbs_annotator/report/session_pdf.dart';
+import 'package:dbs_annotator/ui/report_images.dart';
+import 'package:dbs_annotator/ui/scales_chart_painter.dart';
 import 'package:dbs_annotator/ui/annotations_screen.dart';
 import 'package:dbs_annotator/ui/electrode_view.dart';
 import 'package:dbs_annotator/ui/home_screen.dart';
@@ -639,11 +648,29 @@ Future<void> _seedRatings(WidgetTester tester) async {
   }
 }
 
+/// The follow-up visit: the example months later, with lower clinical totals
+/// and a few session ratings moved, so the longitudinal figures and the
+/// change column show a real change rather than a copy.
+const _followUp = {
+  '2026-02-03': '2026-09-18',
+  '\tY-BOCS\t28\t': '\tY-BOCS\t21\t',
+  '\tY-BOCS-o\t15\t': '\tY-BOCS-o\t11\t',
+  '\tY-BOCS-c\t13\t': '\tY-BOCS-c\t10\t',
+  '\tMADRS\t24\t': '\tMADRS\t17\t',
+  '\tObsessions\t8.00\t': '\tObsessions\t6.00\t',
+  '\tCompulsions\t7.50\t': '\tCompulsions\t5.50\t',
+  '\tObsessions\t7.00\t': '\tObsessions\t5.25\t',
+  '\tObsessions\t2.75\t': '\tObsessions\t2.00\t',
+};
+
 /// Uploads for the report captures: the committed example, and for the
-/// multi-visit ones a second copy with its dates shifted so the chart plots
-/// real values twice.
+/// multi-visit ones the follow-up visit above.
 List<Uploaded> _visits({bool mismatchedPatients = false, int count = 2}) {
   final source = File(_fixture).readAsStringSync();
+  final followUp = _followUp.entries.fold(
+    source,
+    (text, e) => text.replaceAll(e.key, e.value),
+  );
   return [
     (
       name: 'sub-01_ses-20260203_task-programming_run-01_beh.tsv',
@@ -657,7 +684,7 @@ List<Uploaded> _visits({bool mismatchedPatients = false, int count = 2}) {
             ? 'sub-04_ses-20260918_task-programming_run-01_beh.tsv'
             : 'sub-01_ses-20260918_task-programming_run-02_beh.tsv',
         kind: TsvKind.programming,
-        rows: parseSessionTsv(source.replaceAll('2026-06-26', '2026-09-18')),
+        rows: parseSessionTsv(followUp),
         notes: const <Annotation>[],
       ),
   ];
@@ -1045,5 +1072,59 @@ void main() {
       ReportsScreen(initialFiles: _visits(mismatchedPatients: true)),
     );
     await _shootFitted(tester, 'reports_mismatch', height: 900);
+  });
+
+  // ---- Reports ----------------------------------------------------------
+  //
+  // The PDFs are written to build/docs_reports/ and rasterised into
+  // docs/_static/reports/ by tool/report_screenshots.py, which also crops each
+  // section by its heading. Dart has no PDF rasteriser; PyMuPDF does.
+
+  testWidgets('reports: session and longitudinal PDFs', (tester) async {
+    final out = Directory('build/docs_reports')..createSync(recursive: true);
+    final catalog = (await _contracts()).$1;
+    final visits = _visits();
+    final prefs = defaultScalePrefsFor([
+      for (final v in visits) ...v.rows.where((r) => r.isInitial.trim() != '1'),
+    ]);
+
+    final session = buildSessionReportData(
+      rows: visits.first.rows,
+      scalePrefs: prefs,
+      sourceFile: visits.first.name,
+    );
+    final gfx = await tester.runAsync(
+      () => renderReportGraphics(
+        session,
+        catalog.models[electrodeModelIn(visits.first.rows)],
+        kAllReportSections,
+      ),
+    );
+    final sessionPdf = await tester.runAsync(
+      () => buildSessionPdf(
+        data: session,
+        subjectId: _subjectId,
+        electrodeImages: gfx!.electrodes,
+        chartPng: gfx.chart,
+      ),
+    );
+    File('${out.path}/session_report.pdf').writeAsBytesSync(sessionPdf!.bytes);
+
+    final longitudinal = buildLongitudinalReportData(
+      files: {for (final v in visits) v.name: v.rows},
+      scalePrefs: prefs,
+    );
+    final longitudinalPdf = await tester.runAsync(() async {
+      return buildLongitudinalPdf(
+        data: longitudinal,
+        clinicalChartPng: await renderScalesChartPng(
+          longitudinal.clinicalChart,
+        ),
+        sessionChartPng: await renderScalesChartPng(longitudinal.sessionChart),
+      );
+    });
+    File(
+      '${out.path}/longitudinal_report.pdf',
+    ).writeAsBytesSync(longitudinalPdf!.bytes);
   });
 }

@@ -15,15 +15,20 @@ import '../app_info.dart' show appVersion;
 import 'docx_ooxml.dart';
 import 'longitudinal_data.dart';
 import 'longitudinal_sections.dart';
-import 'report_data.dart'
-    show ReportBytes, sessionTableColumnWeights, sessionTableHeaders;
-import 'session_pdf.dart' show ElectrodeReportImages, kElectrodeCellGapPt;
+import 'report_data.dart' show ReportBytes;
+import 'session_pdf.dart'
+    show
+        ElectrodeReportImages,
+        electrodeCellWidth,
+        reportGrid,
+        kElectrodeGroupGapPt,
+        kElectrodePairGapPt;
 import 'report_fonts.dart';
 import 'report_palette.dart';
 import 'report_text.dart';
 
 /// Relative column widths for [longitudinalTableHeaders].
-const _tableWeights = <double>[6, 12, 34, 7, 22, 9];
+const _tableWeights = <double>[9, 15, 33, 9, 34];
 
 /// Page margins, matching the session report so a clinician filing both does
 /// not get two different geometries for one patient.
@@ -138,9 +143,7 @@ Future<ReportBytes> buildLongitudinalPdf({
             if (clinicalChartPng != null) ...[
               _fitWidth(clinicalChartPng, format.availableWidth),
               pw.Text(
-                'Figure 1. Clinical scale scores, one assessment per visit. '
-                'No aggregate index is shown: it is normalised within a session, '
-                'so values from different visits were never on one scale.',
+                'Figure 1. Clinical scale scores, one assessment per visit.',
                 style: const pw.TextStyle(
                   fontSize: 8,
                   fontStyle: pw.FontStyle.italic,
@@ -192,9 +195,8 @@ Future<ReportBytes> buildLongitudinalPdf({
               },
             ),
             pw.Text(
-              'Change is against the previous visit that recorded the same '
-              'scale. The programme shown is the last configuration recorded at '
-              'that visit, which is not necessarily one a clinician confirmed.',
+              'The programme shown is the last configuration recorded at that '
+              'visit, which is not necessarily one a clinician confirmed.',
               style: const pw.TextStyle(fontSize: 8),
             ),
           ],
@@ -206,7 +208,9 @@ Future<ReportBytes> buildLongitudinalPdf({
             ..._sessionTable(data, t),
 
           // (e) Per-visit lead diagrams, the section that adds pages.
-          if (sections.contains(LongitudinalSection.electrodes))
+          // No heading over nothing: the drawings are only rendered on request.
+          if (sections.contains(LongitudinalSection.electrodes) &&
+              electrodeImages.isNotEmpty)
             ..._electrodes(data, electrodeImages, format, t),
 
           // (f) Per-visit parameter ranges.
@@ -286,9 +290,7 @@ Uint8List buildLongitudinalDocx({
           )
           ..write(
             docxPara(
-              'Figure 1. Clinical scale scores, one assessment per visit. '
-              'No aggregate index is shown: it is normalised within a session, '
-              'so values from different visits were never on one scale.',
+              'Figure 1. Clinical scale scores, one assessment per visit.',
               size: 16,
             ),
           );
@@ -332,7 +334,6 @@ Uint8List buildLongitudinalDocx({
         )
         ..write(
           docxPara(
-            'Change is against the previous visit that recorded the same scale. '
             'The programme shown is the last configuration recorded at that '
             'visit, which is not necessarily one a clinician confirmed.',
             size: 16,
@@ -348,16 +349,24 @@ Uint8List buildLongitudinalDocx({
           ..write(docxHeading2(_visitLabel(v)))
           ..write(
             docxTable(
-              sessionTableHeaders,
-              v.session.tableData,
-              weights: sessionTableColumnWeights,
+              v.session.tableHeaders,
+              data.tableRowsFor(v),
+              weights: v.session.tableWeights,
+              lightInsideH: true,
+              rowRules: _blockStarts(v.session.tableRows),
+              rowFills: {
+                for (final e in data.rowFillsFor(v).entries)
+                  e.key: docxHex(e.value),
+              },
               contentTwips: pageSize.contentWidthTwips,
             ),
           );
       }
+      if (_anyShaded(data)) body.write(docxPara(kVisitRankingLegend, size: 16));
     }
 
-    if (sections.contains(LongitudinalSection.electrodes)) {
+    if (sections.contains(LongitudinalSection.electrodes) &&
+        electrodeImages.isNotEmpty) {
       body.write(docxHeading('Electrode configuration'));
       for (final v in data.visits) {
         final gfx = electrodeImages[v.filename];
@@ -382,15 +391,24 @@ Uint8List buildLongitudinalDocx({
       body.write(docxHeading('Programming summary'));
       for (final v in data.visits) {
         body.write(docxHeading2(_visitLabel(v)));
-        for (final line in [
-          'Configurations tested: ${v.session.numConfigs} '
-              '(${v.session.numDistinctConfigs} distinct settings)',
-          'Amplitude: L: ${v.session.ampL} | R: ${v.session.ampR}',
-          'Frequency: L: ${v.session.freqL} | R: ${v.session.freqR}',
-          'Pulse width: L: ${v.session.pwL} | R: ${v.session.pwR}',
-        ]) {
-          body.write(docxPara('  • $line', size: 16));
-        }
+        body
+          ..write(
+            docxTable(
+              null,
+              v.session.extentRows,
+              weights: const [3, 2],
+              contentTwips: pageSize.contentWidthTwips * 3 ~/ 5,
+            ),
+          )
+          ..write(docxPara(''))
+          ..write(
+            docxTable(
+              const ['', 'Left', 'Right'],
+              v.session.parameterRows,
+              weights: const [1, 3, 3],
+              contentTwips: pageSize.contentWidthTwips,
+            ),
+          );
       }
     }
 
@@ -439,8 +457,8 @@ List<pw.Widget> _sessionTable(
         style: const pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
       ),
       pw.TableHelper.fromTextArray(
-        headers: sessionTableHeaders,
-        data: t.rows(v.session.tableData),
+        headers: v.session.tableHeaders,
+        data: t.rows(data.tableRowsFor(v)),
         cellStyle: const pw.TextStyle(fontSize: 7),
         headerStyle: const pw.TextStyle(
           fontSize: 7,
@@ -449,12 +467,43 @@ List<pw.Widget> _sessionTable(
         headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
         cellAlignment: pw.Alignment.centerLeft,
         columnWidths: {
-          for (final (i, w) in sessionTableColumnWeights.indexed)
+          for (final (i, w) in v.session.tableWeights.indexed)
             i: pw.FlexColumnWidth(w),
+        },
+        border: const pw.TableBorder(
+          left: pw.BorderSide(),
+          right: pw.BorderSide(),
+          top: pw.BorderSide(),
+          bottom: pw.BorderSide(),
+          verticalInside: pw.BorderSide(),
+          horizontalInside: pw.BorderSide(color: pdfRule, width: 0.4),
+        ),
+        // Header is row 0, so data row i is table row i + 1.
+        cellDecoration: (col, dynamic cell, row) {
+          final fill = data.rowFillsFor(v)[row - 1];
+          return pw.BoxDecoration(
+            color: fill == null ? null : PdfColor.fromInt(fill),
+            border: _blockStarts(v.session.tableRows).contains(row - 1)
+                ? const pw.Border(top: pw.BorderSide(width: 1.2))
+                : null,
+          );
         },
       ),
     ],
+  if (_anyShaded(data)) ...[
+    pw.SizedBox(height: 4),
+    pw.Text(kVisitRankingLegend, style: const pw.TextStyle(fontSize: 8)),
+  ],
 ];
+
+bool _anyShaded(LongitudinalReportData data) => data.rankedBlocks.isNotEmpty;
+
+/// Data-row indices where a new block starts, after the first: a block is
+/// its L and R rows, so only the boundary between blocks gets a heavy rule.
+Set<int> _blockStarts(List<List<String>> rows) => {
+  for (var i = 1; i < rows.length; i++)
+    if (rows[i].first != rows[i - 1].first) i,
+};
 
 /// (e) Per-visit lead diagrams. Four images a visit, so this is the section
 /// that turns a three-page report into a ten-page one.
@@ -464,7 +513,7 @@ List<pw.Widget> _electrodes(
   PdfPageFormat format,
   ReportTextSanitiser t,
 ) {
-  final leadWidth = format.availableWidth / 4 - kElectrodeCellGapPt;
+  final leadWidth = electrodeCellWidth(format.availableWidth);
   return [
     pw.SizedBox(height: 12),
     pw.Header(level: 1, text: 'Electrode configuration'),
@@ -483,16 +532,20 @@ List<pw.Widget> _electrodes(
             ),
             pw.Row(
               children: [
-                for (final (label, png) in [
+                for (final (i, (label, png)) in [
                   ('Initial L', gfx.initLeft),
                   ('Initial R', gfx.initRight),
                   ('Last L', gfx.finalLeft),
                   ('Last R', gfx.finalRight),
-                ])
+                ].indexed)
                   pw.Container(
                     width: leadWidth,
-                    margin: const pw.EdgeInsets.only(
-                      right: kElectrodeCellGapPt,
+                    margin: pw.EdgeInsets.only(
+                      right: i == 1
+                          ? kElectrodeGroupGapPt
+                          : i == 3
+                          ? 0
+                          : kElectrodePairGapPt,
                     ),
                     child: pw.Column(
                       children: [
@@ -534,18 +587,23 @@ List<pw.Widget> _summary(LongitudinalReportData data, ReportTextSanitiser t) =>
                 fontWeight: pw.FontWeight.bold,
               ),
             ),
-            for (final line in [
-              'Configurations tested: ${v.session.numConfigs} '
-                  '(${v.session.numDistinctConfigs} distinct settings)',
-              'Amplitude: L: ${v.session.ampL} | R: ${v.session.ampR}',
-              'Frequency: L: ${v.session.freqL} | R: ${v.session.freqR}',
-              'Pulse width: L: ${v.session.pwL} | R: ${v.session.pwR}',
-            ])
-              pw.Bullet(
-                text: t(line),
-                style: const pw.TextStyle(fontSize: 8),
-                bulletSize: 1.5,
-              ),
+            pw.SizedBox(height: 2),
+            // Same tables as the session report's summary.
+            reportGrid(v.session.extentRows, t, header: false, fontSize: 8),
+            pw.SizedBox(height: 3),
+            reportGrid(
+              [
+                ['', 'Left', 'Right'],
+                ...v.session.parameterRows,
+              ],
+              t,
+              fontSize: 8,
+              widths: const {
+                0: pw.FixedColumnWidth(62),
+                1: pw.FlexColumnWidth(),
+                2: pw.FlexColumnWidth(),
+              },
+            ),
           ],
         ),
     ];

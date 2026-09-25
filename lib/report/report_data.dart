@@ -8,6 +8,7 @@ library;
 import 'dart:typed_data';
 
 import '../core/annotation.dart';
+import '../core/brand_palette.dart' show kBestFill, kSecondFill;
 import '../core/session/longitudinal.dart'
     show isScaleValueOmitted, scaleTimeline, splitScalePairs;
 import '../core/session/scale_scoring.dart';
@@ -415,7 +416,7 @@ const sessionTableHeaders = [
 /// headings mid-word into "Blo ck", "Sid e", "Gro up".
 const sessionTableColumnWeights = <double>[
   7, // Block (an 8 pt bold heading needs ~33 pt with padding; 6 gives 31)
-  8, // Time
+  10, // Time: "09:03:20" at 8 pt needs ~36 pt inside the padding; 8 broke it
   6, // Side
   7, // Group
   6, // Freq (Hz), wraps to two lines by design
@@ -425,8 +426,23 @@ const sessionTableColumnWeights = <double>[
   5, // PW (us)
   15, // Scales
   8, // Index ("0.430" over "(rank 6)")
-  13, // Notes, where the slack comes from: wrapping prose is normal
+  11, // Notes, where the slack comes from: wrapping prose is normal
 ];
+
+/// A signed change: "-5", "+0.25", or "0" for none, never "+0".
+String _signed(double d) => d == 0 ? '0' : '${d > 0 ? '+' : ''}${_num(d)}';
+
+/// Whole values without decimals, otherwise at most two.
+String _num(double v) {
+  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
+  var out = v.toStringAsFixed(2);
+  while (out.endsWith('0')) {
+    out = out.substring(0, out.length - 1);
+  }
+  return out;
+}
+
+final int _indexColumn = sessionTableHeaders.indexOf('Index');
 
 /// A built report, plus whether any character had to be replaced to render it.
 ///
@@ -465,6 +481,8 @@ class ScalesChartSpec {
     required this.yMin,
     required this.yMax,
     required this.amplitude,
+    this.frequency = const {},
+    this.pulseWidth = const {},
     required this.aggregateIndex,
     required this.bestXs,
     required this.secondXs,
@@ -490,7 +508,11 @@ class ScalesChartSpec {
   /// clinical meaning and the figure cannot be read as dose-response.
   final Map<String, Map<int, double>> amplitude;
 
-  /// Aggregate index per x, on a fixed 0..1 right axis. Empty when no targets.
+  /// Frequency (Hz) and pulse width (µs) per side, per x, under the dose, as
+  /// the live view in the app draws them.
+  final Map<String, Map<int, double>> frequency, pulseWidth;
+
+  /// Aggregate index per x, on its own fixed 0..1 panel. Empty when no targets.
   final Map<int, double> aggregateIndex;
 
   /// x positions to band green: EVERY block of the best-scoring setting, and
@@ -531,7 +553,6 @@ class SessionReportData {
     required this.firstConfig,
     required this.configChanges,
     required this.replicateSpread,
-    required this.anomalies,
     required this.numDistinctConfigs,
     required this.hasInitial,
     required this.initScales,
@@ -556,7 +577,6 @@ class SessionReportData {
     required this.targetsText,
     required this.hasTargets,
     required this.blockIndex,
-    required this.observations,
     required this.response,
     required this.scalesRated,
     required this.initialRow,
@@ -628,12 +648,6 @@ class SessionReportData {
   /// different blocks in one clinical document is indefensible.
   final List<int> bestBlocks, secondBlocks;
 
-  /// Things about this session a reader should not have to notice unaided: the
-  /// same stimulation rated more than once (so a "second best" may be a repeat
-  /// rather than a rival), and identical ratings under different stimulation
-  /// (where a re-rating cannot be told from values carried forward).
-  final List<String> anomalies;
-
   /// The largest index spread between repeat ratings of one setting, or null
   /// when nothing was rated twice. See [rankingResolutionNote].
   final double? replicateSpread;
@@ -669,11 +683,6 @@ class SessionReportData {
   /// settings" would assert a decision the data does not contain.
   final Map<String, String> lastConfig;
 
-  /// One line per block that carries a note: block, time, parameters, note.
-  /// The notes column holds the only adverse-event data the format captures, so
-  /// it gets its own section rather than only a 14 %-wide table cell.
-  final List<String> observations;
-
   /// Per scale: its first and last recorded value and the delta. Without it the
   /// clinical bottom line of the encounter appears nowhere in three pages.
   final List<({String name, double first, double last})> response;
@@ -686,24 +695,37 @@ class SessionReportData {
 
   /// Caption for the session-scales figure. The chart is one click out of a
   /// .docx, so it has to carry its own n and explain its green bands.
-  String get figureCaption {
-    final rated = scalesRated.values.fold<int>(0, (a, b) => a + b);
-    final scales = chart.series.length;
-    return 'Figure 1. Session scales by rated block. '
-        '${chart.xs.length} block${chart.xs.length == 1 ? '' : 's'} x '
-        '$scales scale${scales == 1 ? '' : 's'} '
-        '($rated of ${chart.xs.length * scales} rated). '
-        '${hasTargets ? 'Green bands: highest and second-highest aggregate '
-                  'index (right axis, 0-1; 1 = best).' : 'No scale targets were set, '
-                  'so no ranking is shown.'}';
-  }
+  String get figureCaption =>
+      'Figure 1. Session scales by rated block. '
+      '${hasTargets ? 'Middle panel: aggregate index (0-1; 1 = best); green '
+                'bands mark the highest and second-highest.' : 'No scale '
+                'targets were set, so no ranking is shown.'}'
+      '${chart.amplitude.values.any((m) => m.isNotEmpty) ? ' Below: amplitude, '
+                'frequency and pulse width per side.' : ''}';
 
-  /// The TSV stores no anchors, administration method or rater, so the document
-  /// must not imply a provenance it cannot support.
-  String get instrumentNote =>
-      'Session scales are point ratings recorded during the session, printed '
-      'as recorded. The source data carries no scale anchors, administration '
-      'method or rater, so those cannot be reproduced from this document.';
+  /// The response as a grid, one column per scale: short enough to sit on
+  /// page one next to what was tried, and read down a column per scale.
+  List<List<String>> get responseGrid => response.isEmpty
+      ? const []
+      : [
+          ['', for (final r in response) r.name],
+          ['First', for (final r in response) _num(r.first)],
+          ['Last', for (final r in response) _num(r.last)],
+          ['Change', for (final r in response) _signed(r.last - r.first)],
+        ];
+
+  /// The parameters tried, one side per column.
+  List<List<String>> get parameterRows => [
+    ['Amplitude', ampL, ampR],
+    ['Frequency', freqL, freqR],
+    ['Pulse width', pwL, pwR],
+  ];
+
+  /// The size of the session, as label and value.
+  List<List<String>> get extentRows => [
+    ['Annotation span (first to last entry)', span],
+    ['Configurations tested', configCountText(this)],
+  ];
 
   /// How the index is computed, for the legend. Printing the modes alone left
   /// the equal weighting invisible, and equal weighting is a clinical
@@ -732,6 +754,37 @@ class SessionReportData {
 
   bool get hasRecording => tableData.isNotEmpty;
 
+  /// Data-row index to the fill of its ranked setting, for every format and
+  /// every report that prints this table.
+  Map<int, int> get rowFills => {
+    for (final (i, row) in tableData.indexed)
+      if (int.tryParse(row.first) case final block?)
+        if (bestBlocks.contains(block))
+          i: kBestFill
+        else if (secondBlocks.contains(block))
+          i: kSecondFill,
+  };
+
+  /// The table as printed: with no targets nothing is ranked, so the Index
+  /// column would be blank and read as missing data. Its width goes to Notes.
+  List<String> get tableHeaders => hasTargets
+      ? sessionTableHeaders
+      : [
+          for (final h in sessionTableHeaders)
+            if (h != 'Index') h,
+        ];
+
+  List<double> get tableWeights {
+    if (hasTargets) return sessionTableColumnWeights;
+    final w = List<double>.of(sessionTableColumnWeights);
+    w.last += w.removeAt(_indexColumn);
+    return w;
+  }
+
+  List<List<String>> get tableRows => hasTargets
+      ? tableData
+      : [for (final r in tableData) List.of(r)..removeAt(_indexColumn)];
+
   /// The encounter, for the header/footer: "2026-06-26, 09:12-11:40". ASCII on
   /// purpose: with no Unicode TTF bundled the PDF falls back to Helvetica,
   /// which cannot draw an en dash, and the sanitiser only runs over user text.
@@ -752,6 +805,8 @@ ScalesChartSpec buildScalesChartSpec({
   /// Omit to fall back to ranking each block on its own.
   Map<int, String> settingOf = const {},
   Map<String, Map<int, double>> amplitude = const {},
+  Map<String, Map<int, double>> frequency = const {},
+  Map<String, Map<int, double>> pulseWidth = const {},
   String title = 'Session Scales Timeline',
   String xLabel = 'Block',
   String yLabel = 'Scale Value',
@@ -794,6 +849,8 @@ ScalesChartSpec buildScalesChartSpec({
   return ScalesChartSpec(
     series: timeline,
     amplitude: amplitude,
+    frequency: frequency,
+    pulseWidth: pulseWidth,
     xs: sortedXs,
     yMin: yMin,
     yMax: yMax,
@@ -1063,49 +1120,29 @@ SessionReportData buildSessionReportData({
     put('Left', entry.value.first.leftAmplitude);
     put('Right', entry.value.first.rightAmplitude);
   }
+  final frequencySeries = <String, Map<int, double>>{};
+  final pulseWidthSeries = <String, Map<int, double>>{};
+  for (final entry in blocks.entries) {
+    final r = entry.value.first;
+    for (final (series, side, raw) in [
+      (frequencySeries, 'Left', r.leftStimFreq),
+      (frequencySeries, 'Right', r.rightStimFreq),
+      (pulseWidthSeries, 'Left', r.leftPulseWidth),
+      (pulseWidthSeries, 'Right', r.rightPulseWidth),
+    ]) {
+      final v = double.tryParse(raw.trim());
+      if (v != null) (series[side] ??= <int, double>{})[entry.key] = v;
+    }
+  }
 
   final chart = buildScalesChartSpec(
     timeline: timeline,
     prefs: prefs,
     settingOf: settingOf,
     amplitude: amplitudeSeries,
+    frequency: frequencySeries,
+    pulseWidth: pulseWidthSeries,
   );
-
-  final anomalies = <String>[];
-  {
-    final blocksPerSetting = <String, List<int>>{};
-    settingOf.forEach(
-      (block, key) => (blocksPerSetting[key] ??= []).add(block),
-    );
-    for (final e in blocksPerSetting.entries) {
-      if (e.value.length < 2) continue;
-      final list = e.value..sort();
-      anomalies.add(
-        'Blocks ${list.join(', ')} record the same stimulation '
-        'setting, so their ratings are repeats rather than separate '
-        'configurations.',
-      );
-    }
-    // The mirror image: same ratings, different stimulation.
-    final byRatings = <String, List<int>>{};
-    for (final entry in blocks.entries) {
-      final key = _collectScalePairs(
-        entry.value,
-      ).map((p) => '${p.name}=${p.value}').join('|');
-      if (key.isEmpty) continue;
-      (byRatings[key] ??= []).add(entry.key);
-    }
-    for (final e in byRatings.entries) {
-      if (e.value.length < 2) continue;
-      final list = e.value..sort();
-      if (list.map((b) => settingOf[b]).toSet().length < 2) continue;
-      anomalies.add(
-        'Blocks ${list.join(', ')} carry identical ratings under '
-        'different stimulation settings; the record does not distinguish a '
-        're-rating from values carried forward.',
-      );
-    }
-  }
 
   // Table shading and chart bands from ONE ranking, so they cannot disagree.
   final bestBlocks = chart.bestXs;
@@ -1118,25 +1155,10 @@ SessionReportData buildSessionReportData({
   // indistinguishable from white and from each other.
   final rankOf = rankBlocks(chart.aggregateIndex);
 
-  final scalesRated = <int, int>{};
-  final observations = <String>[];
-  for (final entry in blocks.entries) {
-    scalesRated[entry.key] = _collectScalePairs(entry.value).length;
-    final first = entry.value.first;
-    final note = first.notes.trim();
-    if (note.isEmpty) continue;
-    final where = [
-      if (_clock(first).isNotEmpty) _clock(first),
-      if (first.leftAmplitude.trim().isNotEmpty)
-        'L ${lateralText(tokensOf(first)!, left: true)}',
-      if (first.rightAmplitude.trim().isNotEmpty)
-        'R ${lateralText(tokensOf(first)!, left: false)}',
-    ].join(', ');
-    observations.add(
-      'Block ${entry.key}'
-      '${where.isEmpty ? '' : ' ($where)'}: $note',
-    );
-  }
+  final scalesRated = <int, int>{
+    for (final entry in blocks.entries)
+      entry.key: _collectScalePairs(entry.value).length,
+  };
 
   // First-to-last delta per session scale, the response half of a dose-response
   // record.
@@ -1252,7 +1274,6 @@ SessionReportData buildSessionReportData({
     lastConfig: _lastConfigLines(latestFinal),
     firstConfig: _lastConfigLines(latestInit),
     configChanges: _configChanges(latestInit, latestFinal),
-    observations: observations,
     response: response,
     scalesRated: scalesRated,
     numDistinctConfigs: numDistinctConfigs,
@@ -1260,7 +1281,6 @@ SessionReportData buildSessionReportData({
     bestBlocks: bestBlocks,
     secondBlocks: secondBlocks,
     replicateSpread: spread,
-    anomalies: anomalies,
     targetsText: hasTargets ? _targetsText(prefs) : kNoTargetsText,
     hasTargets: hasTargets,
     blockIndex: chart.aggregateIndex,

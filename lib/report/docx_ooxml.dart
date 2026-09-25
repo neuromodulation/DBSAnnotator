@@ -149,14 +149,17 @@ String docxRow(
 }) =>
     '<w:tr>${cells.indexed.map((e) => docxCell(e.$2, bold: header, fill: header ? docxHex(kHeaderFill) : fill, topRule: topRule, widthTwips: e.$1 < widths.length ? widths[e.$1] : null, vMerge: vMerges[e.$1] ?? DocxVMerge.none)).join()}</w:tr>';
 
-/// A bordered table with a shaded header row. [rowFills] and [rowRules] are
-/// keyed by data-row index.
+/// A bordered table with a shaded header row, or none when [headers] is null.
+/// [rowFills] and [rowRules] are keyed by data-row index. [lightInsideH] draws
+/// the lines between rows thin and grey, leaving [rowRules] as the only heavy
+/// horizontal rules.
 String docxTable(
-  List<String> headers,
+  List<String>? headers,
   List<List<String>> rows, {
   Map<int, String> rowFills = const {},
   Set<int> rowRules = const {},
   Set<int> mergeDownColumns = const {},
+  bool lightInsideH = false,
   required List<double> weights,
   required int contentTwips,
 }) {
@@ -166,11 +169,15 @@ String docxTable(
     '<w:tblBorders>',
   );
   for (final side in ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']) {
-    b.write('<w:$side w:val="single" w:sz="4" w:space="0" w:color="auto"/>');
+    final light = lightInsideH && side == 'insideH';
+    b.write(
+      '<w:$side w:val="single" w:sz="${light ? 2 : 4}" w:space="0" '
+      'w:color="${light ? docxHex(kRuleColor) : 'auto'}"/>',
+    );
   }
   b.write('</w:tblBorders>');
   b.write(docxTblGrid(widths));
-  b.write(docxRow(headers, header: true, widths: widths));
+  if (headers != null) b.write(docxRow(headers, header: true, widths: widths));
   for (var i = 0; i < rows.length; i++) {
     // Merge a column downwards while column 0 (the block id) is unchanged: a
     // block's scales and notes are written on its first lateral row only, and

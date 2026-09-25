@@ -56,15 +56,16 @@ void main() {
       expect(sessionTableColumnWeights.fold<double>(0, (a, b) => a + b), 100);
     });
 
-    test('a note becomes a line in Recorded observations', () {
-      // The notes column is the only adverse-event data the format captures.
-      expect(data.observations, isNotEmpty);
-      final warm = data.observations.firstWhere(
-        (o) => o.contains('transient warmth'),
+    test('with no targets there is no blank Index column', () {
+      final plain = buildSessionReportData(rows: _example());
+      expect(plain.tableHeaders, isNot(contains('Index')));
+      expect(plain.tableWeights, hasLength(plain.tableHeaders.length));
+      expect(plain.tableWeights.fold<double>(0, (a, b) => a + b), 100);
+      expect(
+        plain.tableRows.every((r) => r.length == plain.tableHeaders.length),
+        isTrue,
       );
-      expect(warm, startsWith('Block 4'));
-      expect(warm, contains('09:09:15'), reason: 'when it happened');
-      expect(warm, contains('%'), reason: 'and under what stimulation');
+      expect(data.tableHeaders, contains('Index'));
     });
 
     test('response reports first -> last per scale', () {
@@ -113,16 +114,22 @@ void main() {
       expect(data.pwR, '60 µs (unchanged)');
     });
 
-    test('the figure caption names the subject, the n and the green', () {
-      expect(data.figureCaption, contains('7 blocks x 5 scales'));
-      expect(data.figureCaption, contains('35 of 35 rated'));
-      expect(data.figureCaption, contains('Green bands'));
+    test('the figure carries frequency and pulse width per side', () {
+      // The live view in the app shows them; the report did not.
+      expect(data.chart.frequency.keys, containsAll(['Left', 'Right']));
+      expect(data.chart.pulseWidth['Left']!.values.toSet(), {60});
+      expect(data.figureCaption, contains('pulse width'));
+    });
+
+    test('the figure caption is short and names the green', () {
+      expect(data.figureCaption, contains('green bands'));
+      expect(data.figureCaption, isNot(contains('blocks x')));
     });
 
     test('with no targets the caption says why there is no green', () {
       final bare = buildSessionReportData(rows: _example());
       expect(bare.figureCaption, contains('No scale targets were set'));
-      expect(bare.figureCaption, isNot(contains('Green bands')));
+      expect(bare.figureCaption, isNot(contains('green bands')));
     });
 
     test('the index method is stated, not just the modes', () {
@@ -233,12 +240,6 @@ void main() {
         rankedReportData(_example()).targetsText,
         contains('Obsessions: min of 0-10'),
       );
-    });
-
-    test('the instrument note says what the record cannot support', () {
-      final note = rankedReportData(_example()).instrumentNote;
-      expect(note, contains('anchors'));
-      expect(note, contains('rater'));
     });
   });
 

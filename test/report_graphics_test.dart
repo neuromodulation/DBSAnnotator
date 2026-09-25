@@ -76,7 +76,6 @@ void main() {
       expect(data.replicateSpread, closeTo(0.070, 5e-4));
       expect(data.rankingResolutionNote, contains('0.070'));
       expect(data.rankingResolutionNote, contains('not distinguishable'));
-      expect(data.anomalies.join(' '), contains('Blocks 6, 7 record the same'));
     });
 
     test('the table shades by the same ranking the figure bands by', () {

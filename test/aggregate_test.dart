@@ -287,4 +287,17 @@ void main() {
       );
     });
   });
+
+  test('visits are ordered by when they happened, not by their label', () {
+    // `ses-postop` sorts before `ses-preop` alphabetically, the wrong way round.
+    const pre = 'sub-01_ses-preop_task-programming_run-01_beh.tsv';
+    const post = 'sub-01_ses-postop_task-programming_run-01_beh.tsv';
+    final out = buildAggregate([
+      (filename: post, rows: _rows('06-15')),
+      (filename: pre, rows: _rows('02-03')),
+    ]);
+    final files = parseTsvRecords(out.tsv).map((r) => r['source_file']);
+    expect(files.first, pre);
+    expect(files.last, post);
+  });
 }

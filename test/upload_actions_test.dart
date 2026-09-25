@@ -144,4 +144,19 @@ void main() {
       '1 session and 1 notes file',
     );
   });
+
+  test('uploads are ordered by patient, then earliest to latest', () {
+    Uploaded at(String name, String when) => (
+      name: name,
+      kind: TsvKind.programming,
+      rows: [SessionRow(blockId: '1', isInitial: '0', acqTime: when)],
+      notes: const <Annotation>[],
+    );
+    final picked = [
+      at(b, '2026-03-10T09:00:00'),
+      at(other, '2026-01-01T09:00:00'),
+      at(a, '2026-02-03T09:00:00'),
+    ];
+    expect(chronological(picked).map((f) => f.name), [a, b, other]);
+  });
 }

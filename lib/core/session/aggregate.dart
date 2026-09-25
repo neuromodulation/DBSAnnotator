@@ -75,6 +75,15 @@ AggregateResult buildAggregate(List<AggregateSource> sources) {
       continue;
     }
 
+    // When the visit happened, not what it was labelled: `ses-preop` and
+    // `ses-3mo` sort alphabetically the wrong way round. UTC, so the string
+    // order is the time order.
+    DateTime? first;
+    for (final row in source.rows) {
+      final at = row.timestamp;
+      if (at != null && (first == null || at.isBefore(first))) first = at;
+    }
+    final started = first?.toUtc().toIso8601String() ?? '';
     final participant = 'sub-${BidsName.label(name.subject)}';
     final session = 'ses-${BidsName.label(name.session)}';
     final run = BidsName.index(name.run);
@@ -83,7 +92,7 @@ AggregateResult buildAggregate(List<AggregateSource> sources) {
 
     for (final row in source.rows) {
       keyed.add((
-        key: [participant, session, run],
+        key: [participant, started, session, run],
         seq: keyed.length,
         record: <String, String>{
           'participant_id': participant,
@@ -96,7 +105,9 @@ AggregateResult buildAggregate(List<AggregateSource> sources) {
     }
   }
 
-  // Ordered so the same inputs in any order give byte-identical output.
+  // Patient, then the visit's first recorded time, so the table reads from
+  // the earliest visit to the most recent; and the same inputs in any order
+  // give byte-identical output.
   keyed.sort((a, b) {
     for (var i = 0; i < a.key.length; i++) {
       final c = a.key[i].compareTo(b.key[i]);

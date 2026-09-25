@@ -201,6 +201,11 @@ void drawRotatedChartText(
   /// Anchor the text's start at [at] instead of its centre, so a rotated tick
   /// label hangs down from its tick rather than straddling the axis.
   bool anchorTop = false,
+
+  /// Any angle in radians, overriding [clockwise]; with [anchorEnd] the text
+  /// finishes at [at], which is how a slanted tick label meets its tick.
+  double? angle,
+  bool anchorEnd = false,
   TextScaler scaler = TextScaler.noScaling,
 }) {
   final p = chartTextPainter(
@@ -213,7 +218,8 @@ void drawRotatedChartText(
   canvas
     ..save()
     ..translate(at.dx, at.dy)
-    ..rotate(clockwise ? math.pi / 2 : -math.pi / 2);
-  p.paint(canvas, Offset(anchorTop ? 0 : -p.width / 2, -p.height / 2));
+    ..rotate(angle ?? (clockwise ? math.pi / 2 : -math.pi / 2));
+  final dx = anchorEnd ? -p.width : (anchorTop ? 0.0 : -p.width / 2);
+  p.paint(canvas, Offset(dx, -p.height / 2));
   canvas.restore();
 }

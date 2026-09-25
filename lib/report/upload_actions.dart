@@ -20,6 +20,40 @@ typedef Uploaded = ({
   List<Annotation> notes,
 });
 
+/// The earliest instant recorded in [file], or null when none parses.
+DateTime? earliestRecorded(Uploaded file) {
+  DateTime? first;
+  for (final at in [
+    for (final r in file.rows) r.timestamp,
+    for (final n in file.notes) DateTime.tryParse(n.acqTime),
+  ]) {
+    if (at != null && (first == null || at.isBefore(first))) first = at;
+  }
+  return first;
+}
+
+/// [files] ordered by patient, then from the earliest visit to the most
+/// recent, so every preview, report and combined table reads the same way
+/// whatever order the files were picked in. A file with no readable time goes
+/// last within its patient.
+List<Uploaded> chronological(Iterable<Uploaded> files) {
+  String patient(Uploaded f) =>
+      BidsName.label(BidsName.parse(f.name)?.subject ?? '');
+  final keyed = [
+    for (final (i, f) in files.indexed) (i: i, f: f, at: earliestRecorded(f)),
+  ];
+  keyed.sort((a, b) {
+    final byPatient = patient(a.f).compareTo(patient(b.f));
+    if (byPatient != 0) return byPatient;
+    if (a.at != null && b.at != null && a.at != b.at) {
+      return a.at!.compareTo(b.at!);
+    }
+    if ((a.at == null) != (b.at == null)) return a.at == null ? 1 : -1;
+    return a.i.compareTo(b.i);
+  });
+  return [for (final k in keyed) k.f];
+}
+
 enum ReportAction {
   sessionReport('Single session report', 'One visit, as PDF or Word.'),
   longitudinalReport('Longitudinal report', 'Change across visits.'),

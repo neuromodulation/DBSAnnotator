@@ -49,7 +49,17 @@ class _PanelSpec {
     required this.series,
     required this.ticks,
     this.mono = false,
-  });
+  }) : note = null;
+
+  /// A parameter that never changed, stated in a thin panel instead of
+  /// plotted as a flat line: "130 Hz, unchanged (both sides)".
+  const _PanelSpec.note(this.label, String this.note)
+    : weight = 0,
+      yMin = 0,
+      yMax = 1,
+      series = const {},
+      ticks = 1,
+      mono = false;
 
   /// Share of the available height, relative to the other panels.
   final double weight;
@@ -62,6 +72,56 @@ class _PanelSpec {
 
   /// Draw as one heavy black line with diamond markers, for the index panel.
   final bool mono;
+
+  final String? note;
+}
+
+/// Height of a stated-parameter panel, in logical px.
+const _notePanelHeight = 16.0;
+
+/// Extra raster height per parameter panel, so adding them does not squeeze
+/// the scales panel.
+const _plottedPanelExtra = 64.0;
+
+/// A frequency or pulse-width panel: stated when constant, plotted otherwise,
+/// absent when nothing was recorded.
+_PanelSpec? _parameterPanel(Map<String, Map<int, double>> raw, String unit) {
+  final series = {
+    for (final e in raw.entries)
+      if (e.value.isNotEmpty) e.key: e.value,
+  };
+  if (series.isEmpty) return null;
+  final values = {for (final m in series.values) ...m.values};
+  if (values.length == 1) {
+    final v = values.single;
+    final text = v == v.roundToDouble() ? '${v.toInt()}' : '$v';
+    return _PanelSpec.note(
+      unit,
+      '$text $unit, unchanged${series.length > 1 ? ' (both sides)' : ''}',
+    );
+  }
+  return _PanelSpec(
+    weight: 1.0,
+    yMin: 0,
+    yMax: ScalesChartPainter._niceMax(series),
+    label: unit,
+    series: series,
+    ticks: 2,
+  );
+}
+
+/// The raster size the report embeds: the base figure, plus room for each
+/// plotted parameter panel. A stated one is thin enough to share the base
+/// height, which keeps the usual figure on the report's first page.
+Size reportChartSize(ScalesChartSpec spec) {
+  var extra = 0.0;
+  for (final raw in [spec.frequency, spec.pulseWidth]) {
+    final panel = _parameterPanel(raw, '');
+    if (panel != null && panel.note == null) {
+      extra += _plottedPanelExtra + _panelGap;
+    }
+  }
+  return Size(800, 376 + extra);
 }
 
 class ScalesChartPainter extends CustomPainter {
@@ -87,7 +147,7 @@ class ScalesChartPainter extends CustomPainter {
       _padLeft,
       band.padTop,
       size.width - 20,
-      size.height - _padBottom,
+      size.height - _bottomPad(),
     );
     if (area.width <= 10 || area.height <= 40) return;
 
@@ -116,7 +176,9 @@ class ScalesChartPainter extends CustomPainter {
           weight: 1.0,
           yMin: 0,
           yMax: 1,
-          label: 'Aggregate index',
+          // The short panels cannot fit a long rotated label without it
+          // running into the next panel's; the caption names them in full.
+          label: 'Index',
           series: {'Aggregate Index': spec.aggregateIndex},
           ticks: 2,
           mono: true,
@@ -127,19 +189,24 @@ class ScalesChartPainter extends CustomPainter {
           // Dose is a magnitude; a non-zero-based axis exaggerates a change.
           yMin: 0,
           yMax: _niceMax(spec.amplitude),
-          label: 'Amplitude (mA)',
+          label: 'mA',
           series: spec.amplitude,
           ticks: 2,
         ),
+      ?_parameterPanel(spec.frequency, 'Hz'),
+      ?_parameterPanel(spec.pulseWidth, 'µs'),
     ];
 
     final totalWeight = panels.fold<double>(0, (a, p) => a + p.weight);
     final gaps = _panelGap * (panels.length - 1);
-    final usable = area.height - gaps;
+    final fixed = panels.where((p) => p.note != null).length * _notePanelHeight;
+    final usable = area.height - gaps - fixed;
     var top = area.top;
     final rects = <Rect>[];
     for (final p in panels) {
-      final h = usable * p.weight / totalWeight;
+      final h = p.note != null
+          ? _notePanelHeight
+          : usable * p.weight / totalWeight;
       rects.add(Rect.fromLTRB(area.left, top, area.right, top + h));
       top += h + _panelGap;
     }
@@ -197,6 +264,26 @@ class ScalesChartPainter extends CustomPainter {
     double Function(num) xPos,
   ) {
     if (plot.height <= 6) return;
+    if (panel.note case final note?) {
+      drawChartText(
+        canvas,
+        note,
+        Offset(plot.left + 6, plot.center.dy),
+        anchorY: 0.5,
+        size: 10,
+        color: ink,
+      );
+      drawChartText(
+        canvas,
+        panel.label,
+        Offset(plot.left - 7, plot.center.dy),
+        align: TextAlign.right,
+        anchorY: 0.5,
+        size: 10,
+        color: ink,
+      );
+      return;
+    }
     final span = math.max(panel.yMax - panel.yMin, 1e-9);
     double yPos(double v) =>
         plot.bottom - ((v - panel.yMin) / span) * plot.height;
@@ -278,6 +365,21 @@ class ScalesChartPainter extends CustomPainter {
     }
   }
 
+  /// Long labels are rotated; horizontally they overlap after three visits.
+  bool get _rotateTicks =>
+      spec.xTickLabels.values.any((label) => label.length > 4);
+
+  /// Room under the plot. Slanted tick labels hang down by their own length
+  /// times sin 45, so the margin grows with the longest one rather than
+  /// clipping it into the axis title.
+  double _bottomPad() {
+    if (!_rotateTicks) return _padBottom;
+    final longest = spec.xTickLabels.values
+        .map((l) => (chartTextPainter(l, color: ink, size: 8)..layout()).width)
+        .fold(0.0, math.max);
+    return math.max(_padBottom, 8 + longest * math.sqrt1_2 + 34);
+  }
+
   /// The shared x axis, under the bottom panel.
   void _paintXAxis(
     Canvas canvas,
@@ -288,9 +390,7 @@ class ScalesChartPainter extends CustomPainter {
     final axis = Paint()
       ..color = ink
       ..strokeWidth = 1.2;
-    // Long labels are rotated; horizontally they overlap after three visits.
-    final labelled = spec.xTickLabels.isNotEmpty;
-    final rotate = labelled && spec.xTickLabels.values.any((l) => l.length > 4);
+    final rotate = _rotateTicks;
     for (final x in spec.xs) {
       final px = xPos(x);
       canvas.drawLine(
@@ -300,14 +400,15 @@ class ScalesChartPainter extends CustomPainter {
       );
       final label = spec.xTickLabels[x] ?? '$x';
       if (rotate) {
+        // At 45 degrees, reading left to right and ending at its tick.
         drawRotatedChartText(
           canvas,
           label,
           Offset(px, plot.bottom + 8),
           size: 8,
           color: ink,
-          clockwise: true,
-          anchorTop: true,
+          angle: -math.pi / 4,
+          anchorEnd: true,
         );
       } else {
         drawChartText(
@@ -608,16 +709,17 @@ class ChartTopBand {
 /// there is nothing to plot, so callers can fall back to a text line.
 Future<Uint8List?> renderScalesChartPng(
   ScalesChartSpec spec, {
-  Size size = const Size(800, 376),
+  Size? size,
   double pixelRatio = 3.0,
 }) async {
   if (spec.isEmpty) return null;
+  final canvasSize = size ?? reportChartSize(spec);
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder)..scale(pixelRatio);
-  ScalesChartPainter(spec: spec).paint(canvas, size);
+  ScalesChartPainter(spec: spec).paint(canvas, canvasSize);
   final image = await recorder.endRecording().toImage(
-    (size.width * pixelRatio).round(),
-    (size.height * pixelRatio).round(),
+    (canvasSize.width * pixelRatio).round(),
+    (canvasSize.height * pixelRatio).round(),
   );
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
   image.dispose();
