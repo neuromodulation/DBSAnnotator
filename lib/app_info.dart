@@ -4,7 +4,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:url_launcher/url_launcher.dart';
 
 /// App identity, mirroring the desktop `config.py` values.
-const String appName = 'DBS Annotator';
+const String appName = 'Wyss DBS Annotator';
 
 /// Restates `version:` from pubspec.yaml, the source of truth; reading the
 /// pubspec at runtime would need a native plugin. The value reaches report

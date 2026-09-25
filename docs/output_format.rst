@@ -141,7 +141,7 @@ machine-readable part of a zone name is the offset, and that is already inside
    Older files store the timestamp as ``date`` + ``time`` plus a ``timezone``
    cell holding a platform-supplied display name, such as the Windows spelling
    ``W. Europe Daylight Time +0200``, which no date parser accepts. **You do
-   not need to handle that.** Open such a file in DBS Annotator and export it:
+   not need to handle that.** Open such a file in Wyss DBS Annotator and export it:
    the app composes ``acq_time`` out of those three cells as it reads them,
    offset included, and writes back only ``acq_time``.
 
@@ -276,7 +276,7 @@ would mislead anyone reading a table that combines several sessions.
 
 .. note::
 
-   Compatibility runs **one way**. DBS Annotator reads the files written by the
+   Compatibility runs **one way**. Wyss DBS Annotator reads the files written by the
    0.4.x desktop application, in every spelling above. What it writes is meant
    for this app and for analysis, and carries no ``session_ID``, ``date``,
    ``time`` or ``timezone``, so that retired desktop application cannot read a

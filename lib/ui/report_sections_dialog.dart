@@ -23,12 +23,14 @@ typedef SectionChoice<T> = ({T value, String label, String description});
 /// is the moment the user wants to check them.
 Future<Set<T>?> showSectionsDialog<T>(
   BuildContext context,
+  String title,
   List<SectionChoice<T>> choices,
   Set<T> selected, {
   Future<void> Function()? onEditTargets,
 }) => showDialog<Set<T>>(
   context: context,
   builder: (_) => _SectionsDialog<T>(
+    title: title,
     choices: choices,
     selected: selected,
     onEditTargets: onEditTargets,
@@ -42,6 +44,7 @@ Future<Set<ReportSection>?> showReportSectionsDialog(
   Future<void> Function()? onEditTargets,
 }) => showSectionsDialog<ReportSection>(
   context,
+  'Session report sections',
   [
     for (final s in ReportSection.values)
       (value: s, label: s.label, description: s.description),
@@ -57,6 +60,7 @@ Future<Set<LongitudinalSection>?> showLongitudinalSectionsDialog(
   Future<void> Function()? onEditTargets,
 }) => showSectionsDialog<LongitudinalSection>(
   context,
+  'Longitudinal report sections',
   [
     for (final s in LongitudinalSection.values)
       (value: s, label: s.label, description: s.description),
@@ -67,11 +71,13 @@ Future<Set<LongitudinalSection>?> showLongitudinalSectionsDialog(
 
 class _SectionsDialog<T> extends StatefulWidget {
   const _SectionsDialog({
+    required this.title,
     required this.choices,
     required this.selected,
     this.onEditTargets,
   });
 
+  final String title;
   final List<SectionChoice<T>> choices;
   final Set<T> selected;
   final Future<void> Function()? onEditTargets;
@@ -87,7 +93,7 @@ class _SectionsDialogState<T> extends State<_SectionsDialog<T>> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return AlertDialog(
-      title: const Text('Report sections'),
+      title: Text(widget.title),
       content: SizedBox(
         width: 480,
         child: SingleChildScrollView(

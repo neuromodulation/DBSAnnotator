@@ -110,15 +110,25 @@ Report sections
          section
    :width: 100%
 
-Appears when you export a session report, before the save dialog.
+Appears when you export a report, before the save dialog. Each report kind has
+its own list, and the dialog title says which one you are choosing for:
 
-Chooses which sections the document contains. Each has a one-line description of
-what it adds. **Export** is disabled while nothing is checked, because a report
-of a title page alone is not a document anyone wants. **Scale targets…** opens
-the dialog above without losing the selection, since the ranking those targets
-drive is what two of these sections show.
+* **Session report sections**: baseline, session scales figure, session data
+  table, electrode configuration and programming summary.
+* **Longitudinal report sections**: clinical scales by visit, visits table,
+  session scales by visit and block, combined session data table, electrode
+  configuration, programming summary and source files. The session data table,
+  the electrodes and the programming summary start unticked, because they are
+  the sections that add pages; tick them to include them.
 
-The selection is remembered for the next export.
+Each section has a one-line description of what it adds. **Export** is disabled
+while nothing is checked, because a report of a title page alone is not a
+document anyone wants. **Scale targets…** opens the dialog above without losing
+the selection, since the ranking those targets drive is what several of these
+sections show.
+
+The selection is remembered for the next export, separately for each report
+kind.
 
 .. _dialog-about:
 

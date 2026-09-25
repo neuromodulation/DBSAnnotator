@@ -12,7 +12,7 @@ library;
 
 import 'dart:typed_data';
 
-import '../app_info.dart' show appVersion;
+import '../app_info.dart' show appName, appVersion;
 import 'docx_ooxml.dart';
 import '../core/brand_palette.dart';
 import 'report_data.dart';
@@ -149,13 +149,13 @@ Uint8List buildSessionDocx({
   final body = StringBuffer();
 
   // (a) Title + patient + generated-on.
-  body.write(docxPara('DBS Annotator - Session report', bold: true, size: 40));
+  body.write(docxPara('$appName - Session report', bold: true, size: 40));
   body.write(
     docxPara('Patient: sub-$subjectId    Session: ${data.sessionStamp}'),
   );
   body.write(
     docxPara(
-      'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion'
+      'Generated on: ${data.generatedOn} by $appName v$appVersion'
       '${data.sourceFile.isEmpty ? '' : '  |  Source: ${data.sourceFile} '
                 '(${data.rowCount} rows)'}',
       size: 18,
@@ -210,6 +210,9 @@ Uint8List buildSessionDocx({
         );
       } else {
         body.write(docxPara('(no baseline scales)'));
+      }
+      if (data.initNotes.isNotEmpty) {
+        body.write(docxPara('Notes: ${data.initNotes}', size: 18));
       }
     }
   }
@@ -409,6 +412,6 @@ Uint8List buildSessionDocx({
     createdDate: data.generatedOn,
     footerPrefix:
         'sub-$subjectId  |  ${data.sessionStamp}  |  '
-        'DBS Annotator v$appVersion  |  Page ',
+        '$appName v$appVersion  |  Page ',
   );
 }

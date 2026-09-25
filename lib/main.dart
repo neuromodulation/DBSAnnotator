@@ -104,7 +104,7 @@ class DbsAnnotatorApp extends StatelessWidget {
       builder: (context, mode, _) => ValueListenableBuilder<double>(
         valueListenable: textScale,
         builder: (context, scale, _) => MaterialApp(
-          title: 'DBS Annotator',
+          title: appName,
           debugShowCheckedModeBanner: false,
           theme: dbsTheme(Brightness.light),
           darkTheme: dbsTheme(Brightness.dark),

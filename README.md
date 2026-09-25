@@ -1,4 +1,4 @@
-# DBS Annotator
+# Wyss DBS Annotator
 
 [![CI](https://github.com/neuromodulation/DBSAnnotator/actions/workflows/ci.yml/badge.svg)](https://github.com/neuromodulation/DBSAnnotator/actions/workflows/ci.yml)
 [![Docs](https://readthedocs.org/projects/dbs-annotator/badge/?version=latest)](https://dbs-annotator.readthedocs.io/)
@@ -12,7 +12,7 @@ psychiatrist, who tries stimulation configurations and settles on one that works
 That takes a visit or several, and the parameters go on being adapted over months
 or years.
 
-DBS Annotator documents those visits: the stimulation parameters tried on each
+Wyss DBS Annotator documents those visits: the stimulation parameters tried on each
 contact, the clinical and session scale ratings at each configuration, side
 effects, and free-text notes, written to **BIDS tab-separated files** that go
 straight into analysis. It also produces clinician-readable **PDF and Word
@@ -141,7 +141,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Citing
 
-If you use DBS Annotator in published work, please cite it; see
+If you use Wyss DBS Annotator in published work, please cite it; see
 [CITATION.cff](CITATION.cff).
 
 ## License

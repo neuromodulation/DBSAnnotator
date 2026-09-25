@@ -1,7 +1,7 @@
 Installation
 ============
 
-DBS Annotator runs on tablets and on the desktop from a single codebase. How you
+Wyss DBS Annotator runs on tablets and on the desktop from a single codebase. How you
 install it depends on the platform, and the honest state of each is below.
 
 .. note::

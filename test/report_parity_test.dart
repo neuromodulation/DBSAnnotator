@@ -131,9 +131,9 @@ void main() {
     expect(order, orderedEquals([...order]..sort()));
   });
 
-  test('the baseline note is not printed under the baseline table', () {
+  test('the baseline note is printed under the baseline table', () {
     expect(data.initNotes, isNotEmpty);
-    expect(docx, isNot(contains(data.initNotes)));
+    expect(docx, contains('Notes: ${data.initNotes}'));
   });
 
   test('page 1 carries the response to the visit', () {

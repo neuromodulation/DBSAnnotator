@@ -46,7 +46,7 @@ Baseline assessment
 ~~~~~~~~~~~~~~~~~~~
 
 The clinical scores recorded before stimulation changes began, as a compact
-two-column table.
+two-column table, with the note entered for the initial configuration under it.
 
 .. figure:: _static/reports/session_report_baseline.png
    :alt: The baseline assessment table

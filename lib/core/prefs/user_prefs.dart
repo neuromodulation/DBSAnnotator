@@ -23,6 +23,7 @@ class UserPrefs {
     this.entryVisibleConfigs,
     this.entryTableExpanded,
     this.reportSections,
+    this.longitudinalSections,
   });
 
   /// Stimulation quick-pick lists (override `limits.json` stimulation_presets).
@@ -57,6 +58,11 @@ class UserPrefs {
   /// section. Persisted so a dropped section stays dropped on the next export.
   List<String>? reportSections;
 
+  /// The longitudinal report's sections, by [LongitudinalSection.name]; null
+  /// means its defaults. Kept apart from [reportSections]: the two reports
+  /// have different sections.
+  List<String>? longitudinalSections;
+
   factory UserPrefs.fromJson(Map<String, dynamic> j) {
     List<num>? nums(String k) => (j[k] as List?)?.map((e) => e as num).toList();
     return UserPrefs(
@@ -85,6 +91,9 @@ class UserPrefs {
       reportSections: (j['report_sections'] as List?)
           ?.map((e) => e as String)
           .toList(),
+      longitudinalSections: (j['longitudinal_sections'] as List?)
+          ?.map((e) => e as String)
+          .toList(),
     );
   }
 
@@ -101,6 +110,8 @@ class UserPrefs {
       'entry_visible_configs': entryVisibleConfigs,
     if (entryTableExpanded != null) 'entry_table_expanded': entryTableExpanded,
     if (reportSections != null) 'report_sections': reportSections,
+    if (longitudinalSections != null)
+      'longitudinal_sections': longitudinalSections,
   };
 }
 

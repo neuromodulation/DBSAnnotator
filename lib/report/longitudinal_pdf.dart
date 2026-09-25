@@ -11,7 +11,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import '../app_info.dart' show appVersion;
+import '../app_info.dart' show appName, appVersion;
 import 'docx_ooxml.dart';
 import 'longitudinal_data.dart';
 import 'longitudinal_sections.dart';
@@ -85,7 +85,7 @@ Future<ReportBytes> buildLongitudinalPdf({
         margin: const pw.EdgeInsets.only(top: 6),
         child: pw.Text(
           'sub-${t(data.patientId)}  |  ${data.visits.length} visits'
-          '${span.isEmpty ? '' : ', $span'}  |  DBS Annotator v$appVersion'
+          '${span.isEmpty ? '' : ', $span'}  |  $appName v$appVersion'
           '  |  Page ${context.pageNumber} of ${context.pagesCount}',
           style: const pw.TextStyle(fontSize: 8, color: pdfInk),
         ),
@@ -94,7 +94,7 @@ Future<ReportBytes> buildLongitudinalPdf({
         pw.Header(
           level: 0,
           child: pw.Text(
-            'DBS Annotator - Longitudinal report',
+            '$appName - Longitudinal report',
             style: const pw.TextStyle(
               fontSize: 20,
               fontWeight: pw.FontWeight.bold,
@@ -106,7 +106,7 @@ Future<ReportBytes> buildLongitudinalPdf({
           'Visits: ${data.visits.length}${span.isEmpty ? '' : '    $span'}',
         ),
         pw.Text(
-          'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion',
+          'Generated on: ${data.generatedOn} by $appName v$appVersion',
           style: const pw.TextStyle(fontSize: 9, color: pdfInk),
         ),
 
@@ -250,9 +250,7 @@ Uint8List buildLongitudinalDocx({
       : '${data.visits.first.date} to ${data.visits.last.date}';
 
   final body = StringBuffer()
-    ..write(
-      docxPara('DBS Annotator - Longitudinal report', bold: true, size: 40),
-    )
+    ..write(docxPara('$appName - Longitudinal report', bold: true, size: 40))
     ..write(
       docxPara(
         'Patient: sub-${data.patientId}    '
@@ -261,7 +259,7 @@ Uint8List buildLongitudinalDocx({
     )
     ..write(
       docxPara(
-        'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion',
+        'Generated on: ${data.generatedOn} by $appName v$appVersion',
         size: 18,
       ),
     );
@@ -431,7 +429,7 @@ Uint8List buildLongitudinalDocx({
     createdDate: data.generatedOn,
     footerPrefix:
         'sub-${data.patientId}  |  ${data.visits.length} visits'
-        '${span.isEmpty ? '' : ', $span'}  |  DBS Annotator v$appVersion'
+        '${span.isEmpty ? '' : ', $span'}  |  $appName v$appVersion'
         '  |  Page ',
   );
 }

@@ -643,7 +643,7 @@ jobs:
           name: >-
             ${{ contains(github.ref_name, '-rc')
                 && format('{0}: dry run, do not publish', github.ref_name)
-                || format('DBS Annotator {0}', github.ref_name) }}
+                || format('Wyss DBS Annotator {0}', github.ref_name) }}
           files: dist/*
           fail_on_unmatched_files: true
           generate_release_notes: true

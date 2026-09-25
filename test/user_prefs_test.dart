@@ -25,6 +25,17 @@ void main() {
     expect(back.stimAmplitudes, isNull);
   });
 
+  test('the two reports remember their sections separately', () {
+    final back = UserPrefs.fromJson(
+      UserPrefs(
+        reportSections: ['baseline'],
+        longitudinalSections: ['electrodes', 'summary'],
+      ).toJson(),
+    );
+    expect(back.reportSections, ['baseline']);
+    expect(back.longitudinalSections, ['electrodes', 'summary']);
+  });
+
   test('empty prefs serialize to an empty object and read back empty', () {
     expect(UserPrefs().toJson(), isEmpty);
     expect(UserPrefs.fromJson(const {}).programs, isNull);

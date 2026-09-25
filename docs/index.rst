@@ -1,5 +1,5 @@
-DBS Annotator
-=============
+Wyss DBS Annotator
+==================
 
 .. image:: _static/logo.png
    :alt: Wyss Center
@@ -16,7 +16,7 @@ psychiatrist, who tries stimulation configurations and settles on one that works
 That takes a visit or several, and the parameters go on being adapted over months
 or years.
 
-DBS Annotator documents those visits: the stimulation parameters tried on each
+Wyss DBS Annotator documents those visits: the stimulation parameters tried on each
 contact, the clinical and session scale ratings at every configuration, side
 effects, and free-text notes, written to :doc:`BIDS tab-separated files
 <output_format>` that go straight into analysis. It also produces
@@ -35,7 +35,7 @@ At a glance
 -----------
 
 .. image:: _static/screenshots/home.png
-   :alt: The DBS Annotator home screen, showing the Record and Reports sections
+   :alt: The Wyss DBS Annotator home screen, showing the Record and Reports sections
    :width: 100%
 
 

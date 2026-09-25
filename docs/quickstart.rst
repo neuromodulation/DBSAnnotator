@@ -4,7 +4,7 @@ Quick start
 Opening the app
 ---------------
 
-Launch DBS Annotator as you would any other app on the device. The home screen
+Launch Wyss DBS Annotator as you would any other app on the device. The home screen
 offers four entries, in two groups:
 
 **Record** is for a session happening now; **Reports** is for a file that
