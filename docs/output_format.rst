@@ -1,5 +1,5 @@
-Data format
-===========
+Data files (TSV and BIDS)
+=========================
 
 Everything the app records is written as **tab-separated text**, with a JSON
 sidecar beside it describing every column. There is no proprietary container, no

@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:dbs_annotator/core/session/scale_scoring.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/report/longitudinal_data.dart';
@@ -95,14 +96,55 @@ void main() {
     expect(data.patientId, '07');
   });
 
-  test('the clinical figure has one point per VISIT, labelled date_run', () {
+  test('the clinical figure has one point per VISIT, labelled by date', () {
     final chart = data.clinicalChart;
     expect(chart.series.keys, ['UPDRS-III']);
     // Two visits, so two x positions: not two blocks, and not a block index
     // concatenated across files.
     expect(chart.xs, [0, 1]);
-    expect(chart.xTickLabels[0], '20260101_01');
-    expect(chart.xTickLabels[1], '20260615_02');
+    expect(chart.xTickLabels[0], '2026-01-01');
+    expect(chart.xTickLabels[1], '2026-06-15');
+  });
+
+  test('session targets bound the session figure, never the clinical one', () {
+    // A 0-10 session-scale range applied to UPDRS-III 40 drew an empty chart.
+    final ranked = buildLongitudinalReportData(
+      files: _twoVisits(),
+      scalePrefs: const [
+        (name: 'Tremor', min: 0, max: 10, mode: ScaleMode.min, custom: null),
+      ],
+    );
+    expect(ranked.sessionChart.yMax, 10);
+    expect(ranked.clinicalChart.yMin, 0);
+    expect(ranked.clinicalChart.yMax, greaterThanOrEqualTo(40));
+  });
+
+  test('with targets, two configurations are marked across all visits', () {
+    final ranked = buildLongitudinalReportData(
+      files: _twoVisits(),
+      scalePrefs: const [
+        (name: 'Tremor', min: 0, max: 10, mode: ScaleMode.min, custom: null),
+      ],
+    );
+    // Not two per visit: the ranking runs over every visit together.
+    final marked = [
+      for (final fills in ranked.rankedBlocks.values) ...fills.values,
+    ];
+    expect(marked.toSet().length, 2, reason: 'one best, one second');
+    expect(ranked.sessionChart.bestXs, isNotEmpty);
+    expect(ranked.sessionChart.secondXs, isNotEmpty);
+    // The table prints the same overall rank the shading shows: the first
+    // visit's best block is second overall, so it must not read "rank 1".
+    final first = ranked.visits.first;
+    final col = first.session.tableHeaders.indexOf('Index');
+    final cells = [
+      for (final r in ranked.tableRowsFor(first))
+        if (r[col].isNotEmpty) r[col],
+    ];
+    expect(cells.any((c) => c.contains('(rank 2)')), isTrue);
+    expect(cells.any((c) => c.contains('(rank 1)')), isFalse);
+    // Without targets nothing is ranked.
+    expect(data.rankedBlocks, isEmpty);
   });
 
   test('neither figure carries an index or bands', () {
@@ -134,56 +176,39 @@ void main() {
     expect(data.visitTable[0][1], '2026-01-01');
     expect(data.visitTable[0][3], '2', reason: 'two blocks');
     expect(data.visitTable[0][4], 'UPDRS-III: 40');
-    expect(data.visitTable[0][5], '-', reason: 'no previous visit');
     expect(data.visitTable[1][4], 'UPDRS-III: 28');
-    expect(data.visitTable[1][5], '-12');
     expect(data.visitTable[1][2], contains('3.5 mA'));
     expect(data.visitTable[1][2], contains('Group B'));
+    // Left and Right on their own lines of one cell, read down not across.
+    final lines = data.visitTable[1][2].split('\n');
+    expect(lines[0], startsWith('Left: '));
+    expect(lines[1], startsWith('Right: '));
   });
 
-  test('a scale change is rendered without float artifacts', () {
-    // The per-visit table prints the change in the primary clinical scale,
-    // which is a subtraction: `v.toString()` on it renders a UPDRS-III falling
-    // 40.0 to 36.4 as "-3.6000000000000014" in a document filed in a patient
-    // record. Both reports share report_data's trimZeros, capped at two
-    // decimals because the scales step in 0.25.
-    final artifact = buildLongitudinalReportData(
+  test('every clinical scale is listed, one per line', () {
+    SessionRow baseline(String day, String name, String value) => SessionRow(
+      acqTime:
+          '2026-$day'
+          'T09:00:00',
+      blockId: '0',
+      isInitial: '1',
+      scaleName: name,
+      scaleValue: value,
+    );
+    final two = buildLongitudinalReportData(
       files: {
-        'sub-07_ses-20260101_task-programming_run-01_beh.tsv': const [
-          SessionRow(
-            acqTime: '2026-01-01T09:00:00',
-            blockId: '0',
-            isInitial: '1',
-            scaleName: 'UPDRS-III',
-            scaleValue: '40.0',
-          ),
+        'sub-07_ses-20260101_task-programming_run-01_beh.tsv': [
+          baseline('01-01', 'Y-BOCS', '28'),
+          baseline('01-01', 'MADRS', '24'),
         ],
-        'sub-07_ses-20260615_task-programming_run-01_beh.tsv': const [
-          SessionRow(
-            acqTime: '2026-06-15T09:00:00',
-            blockId: '0',
-            isInitial: '1',
-            scaleName: 'UPDRS-III',
-            scaleValue: '36.4',
-          ),
+        'sub-07_ses-20260615_task-programming_run-01_beh.tsv': [
+          baseline('06-15', 'Y-BOCS', '21'),
+          baseline('06-15', 'MADRS', '17'),
         ],
       },
-      generatedAt: DateTime(2026, 7, 1),
     );
-    final deltas = artifact.visitTable.map((r) => r.last).toList();
-    expect(
-      deltas.first,
-      '-',
-      reason: 'the first visit has nothing to differ from',
-    );
-    expect(deltas.last, '-3.6');
-    for (final cell in deltas) {
-      expect(
-        cell.length,
-        lessThan(8),
-        reason: 'no float artifact ("-3.6000000000000014") in a clinical table',
-      );
-    }
+    // Not one scale picked on some rule: all of them, one per line.
+    expect(two.visitTable.last[4], 'Y-BOCS: 21\nMADRS: 17');
   });
 
   test('a mixed-patient import is reported, not silently merged', () {

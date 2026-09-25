@@ -88,8 +88,6 @@ void main() {
       'Electrode configuration',
       'Programming summary',
       'Response (first to last rated block)',
-      'Recorded observations',
-      'Data notes',
       'Attestation',
     ]) {
       expect(docx, contains(heading), reason: 'Word is missing "$heading"');
@@ -114,17 +112,42 @@ void main() {
     expect(docx, contains(data.ampL));
     expect(docx, contains(data.freqL));
     expect(docx, contains(data.targetsText));
-    expect(docx, contains(data.instrumentNote));
     expect(docx, contains(data.figureCaption.substring(0, 40)));
-    for (final line in data.observations) {
-      expect(docx, contains(line));
-    }
-    for (final line in data.anomalies) {
-      expect(docx, contains(line));
-    }
     for (final line in data.configChanges) {
       expect(docx, contains(line));
     }
+  });
+
+  test('Word explains the index it shades by, in the PDF legend order', () {
+    // Word shaded rows by an index it never defined, and put the disclaimer
+    // mid-list. The order is the PDF's: targets, notes, method, disclaimer.
+    final order = [
+      'Scale targets:',
+      data.rankingResolutionNote!,
+      data.indexMethod,
+      kRankingDisclaimer,
+    ].map(docx.indexOf).toList();
+    expect(order, everyElement(greaterThanOrEqualTo(0)));
+    expect(order, orderedEquals([...order]..sort()));
+  });
+
+  test('the baseline note is not printed under the baseline table', () {
+    expect(data.initNotes, isNotEmpty);
+    expect(docx, isNot(contains(data.initNotes)));
+  });
+
+  test('page 1 carries the response to the visit', () {
+    // One column per scale, read down: first, last, change.
+    expect(data.responseGrid.map((r) => r.first), [
+      '',
+      'First',
+      'Last',
+      'Change',
+    ]);
+    expect(data.responseGrid.first.skip(1), [
+      for (final r in data.response) r.name,
+    ]);
+    expect(docx.indexOf('Change'), lessThan(docx.indexOf('Baseline')));
   });
 
   test('both formats build from the same data without throwing', () async {

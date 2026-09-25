@@ -9,6 +9,7 @@
 /// assert the same false comparability.
 library;
 
+import '../core/brand_palette.dart' show kBestFill, kSecondFill;
 import '../core/session/longitudinal.dart'
     show extractPatientId, isScaleValueOmitted, splitScalePairs;
 import '../core/session/session_row.dart';
@@ -63,6 +64,8 @@ class LongitudinalReportData {
     required this.sessionChart,
     required this.visitTable,
     required this.mismatchedPatients,
+    this.rankedBlocks = const {},
+    this.overallRanks = const {},
   });
 
   final String patientId;
@@ -84,17 +87,55 @@ class LongitudinalReportData {
   /// people, which is a safety issue, not a formatting one.
   final List<String> mismatchedPatients;
 
+  /// Visit filename to block to fill: the highest and second-highest
+  /// aggregate index across every visit together, so the whole report marks
+  /// two configurations rather than two per visit.
+  final Map<String, Map<int, int>> rankedBlocks;
+
+  /// Visit filename to block to its rank across every visit, which is what
+  /// the tables print: a per-visit rank beside cross-visit shading would say
+  /// two different things about one row.
+  final Map<String, Map<int, int>> overallRanks;
+
+  /// [visit]'s session table with the Index cell carrying the overall rank.
+  List<List<String>> tableRowsFor(LongitudinalVisit visit) {
+    final col = visit.session.tableHeaders.indexOf('Index');
+    final ranks = overallRanks[visit.filename] ?? const {};
+    if (col < 0) return visit.session.tableRows;
+    return [
+      for (final row in visit.session.tableRows)
+        if (ranks[int.tryParse(row.first)] case final rank?
+            when row[col].isNotEmpty)
+          [...row]..[col] = '${row[col].split('\n').first}\n(rank $rank)'
+        else
+          row,
+    ];
+  }
+
+  /// Data-row index of [visit]'s session table to its fill.
+  Map<int, int> rowFillsFor(LongitudinalVisit visit) {
+    final fills = rankedBlocks[visit.filename] ?? const {};
+    return {
+      for (final (i, row) in visit.session.tableData.indexed)
+        i: ?fills[int.tryParse(row.first)],
+    };
+  }
+
   bool get isEmpty => visits.isEmpty;
 }
 
+/// Printed under the per-visit session tables when any row is shaded.
+const kVisitRankingLegend =
+    'Green rows: the highest (darker) and second-highest aggregate index '
+    'across all visits, against the same scale targets.';
+
 /// Column headers for [LongitudinalReportData.visitTable].
 const longitudinalTableHeaders = [
-  'Visit',
+  '# visit',
   'Date',
   'Programme at visit end',
   'Blocks',
-  'Primary clinical scale',
-  'Change',
+  'Clinical scales',
 ];
 
 /// The `run-` entity of a BIDS filename, or ''.
@@ -202,8 +243,12 @@ LongitudinalReportData buildLongitudinalReportData({
   // Figure 1: clinical scales, one point per visit.
   final clinicalSeries = <String, Map<int, double>>{};
   final clinicalLabels = <int, String>{};
+  final dates = [for (final v in visits) v.date];
   for (final (i, visit) in visits.indexed) {
-    clinicalLabels[i] = visit.label;
+    // The date alone; the run only when two visits share a day.
+    clinicalLabels[i] = dates.where((d) => d == visit.date).length > 1
+        ? '${visit.date} run ${visit.run}'
+        : visit.date;
     visit.clinicalScales.forEach((name, v) {
       (clinicalSeries[name] ??= <int, double>{})[i] = v;
     });
@@ -211,27 +256,44 @@ LongitudinalReportData buildLongitudinalReportData({
 
   // Figure 2: session scales, one point per (visit, block).
   //
-  // The bands mark the best-scoring block WITHIN each visit, which is what the
-  // desktop highlights. That is the only scope the aggregate index supports:
-  // it is normalised within a session, so ranking across visits would compare
-  // numbers that were never on one scale. See the clinical figure's caption.
+  // The bands mark the two best configurations across all visits. Every
+  // visit's index is normalised into the same declared scale ranges and
+  // oriented by the same targets, so the values are on one scale.
   final sessionSeries = <String, Map<int, double>>{};
   final sessionLabels = <int, String>{};
-  final bestXs = <int>[];
-  final secondXs = <int>[];
+  final globalIndex = <int, double>{};
+  final visitBlockAt = <int, (String, int)>{};
   var x = 0;
   for (final visit in visits) {
     for (final (bi, block) in visit.blocks.indexed) {
       // A visit's first block carries the full `{date}_{run}_{block}` and the
       // rest only the block number, so a long session does not repeat its date.
       sessionLabels[x] = bi == 0 ? '${visit.label}_$block' : '$block';
-      if (visit.session.bestBlocks.contains(block)) bestXs.add(x);
-      if (visit.session.secondBlocks.contains(block)) secondXs.add(x);
+      if (visit.session.chart.aggregateIndex[block] case final v?) {
+        globalIndex[x] = v;
+        visitBlockAt[x] = (visit.filename, block);
+      }
       visit.sessionScales.forEach((name, byBlock) {
         final v = byBlock[block];
         if (v != null) (sessionSeries[name] ??= <int, double>{})[x] = v;
       });
       x++;
+    }
+  }
+
+  final globalRanks = rankBlocks(globalIndex);
+  final bestXs = blocksAtRank(globalRanks, 1);
+  final secondXs = blocksAtRank(globalRanks, 2);
+  final rankedBlocks = <String, Map<int, int>>{};
+  final overallRanks = <String, Map<int, int>>{};
+  globalRanks.forEach((at, rank) {
+    final (file, block) = visitBlockAt[at]!;
+    (overallRanks[file] ??= {})[block] = rank;
+  });
+  for (final (xs, fill) in [(bestXs, kBestFill), (secondXs, kSecondFill)]) {
+    for (final at in xs) {
+      final (file, block) = visitBlockAt[at]!;
+      (rankedBlocks[file] ??= {})[block] = fill;
     }
   }
 
@@ -246,6 +308,8 @@ LongitudinalReportData buildLongitudinalReportData({
     String xLabel, {
     List<int> best = const [],
     List<int> second = const [],
+    bool declaredBounds = false,
+    bool zeroBased = false,
   }) {
     final xs = <int>{for (final m in series.values) ...m.keys}.toList()..sort();
     var lo = double.infinity;
@@ -263,7 +327,12 @@ LongitudinalReportData buildLongitudinalReportData({
       lo -= 1;
       hi += 1;
     }
-    if (declared != null) {
+    // A clinical total is a magnitude: an axis starting at 13 puts the lowest
+    // score on the axis line and exaggerates every change.
+    if (zeroBased && lo > 0) lo = 0;
+    // The targets describe the session scales only; a clinical total such as
+    // Y-BOCS 28 would fall off a 0-10 axis.
+    if (declaredBounds && declared != null) {
       lo = declared.$1;
       hi = declared.$2;
     }
@@ -273,10 +342,9 @@ LongitudinalReportData buildLongitudinalReportData({
       xs: xs,
       yMin: lo,
       yMax: hi,
-      // No index SERIES on either figure: it is normalised within a session,
-      // so two visits' values share no scale. The desktop passes
-      // `show_general_index=False` for the same reason. The bands are a
-      // different matter: they mark the best block of one visit.
+      // No index series on either figure, as the desktop passes
+      // `show_general_index=False`; the bands carry the ranking, two
+      // configurations across all visits.
       aggregateIndex: const {},
       bestXs: best,
       secondXs: second,
@@ -287,38 +355,22 @@ LongitudinalReportData buildLongitudinalReportData({
     );
   }
 
-  // The per-visit table. Its primary clinical scale is the one recorded at the
-  // most visits; ties go to the alphabetically first, so the choice is stable
-  // across exports.
-  final counts = <String, int>{};
-  for (final v in visits) {
-    for (final name in v.clinicalScales.keys) {
-      counts[name] = (counts[name] ?? 0) + 1;
-    }
-  }
-  String? primary;
-  var best = 0;
-  for (final name in counts.keys.toList()..sort()) {
-    if (counts[name]! > best) {
-      best = counts[name]!;
-      primary = name;
-    }
-  }
-
+  // The per-visit table: every clinical scale recorded at the visit, one per
+  // line.
   final table = <List<String>>[];
-  double? previous;
   for (final (i, visit) in visits.indexed) {
-    final score = primary == null ? null : visit.clinicalScales[primary];
-    final delta = (score != null && previous != null) ? score - previous : null;
+    final scores = visit.clinicalScales;
     table.add([
       '${i + 1}',
       visit.date.isEmpty ? 'unknown' : visit.date,
       _programmeText(visit.finalRow),
       '${visit.blocks.length}',
-      score == null ? '-' : '${primary!}: ${trimZeros(score)}',
-      delta == null ? '-' : '${delta > 0 ? '+' : ''}${trimZeros(delta)}',
+      scores.isEmpty
+          ? '-'
+          : [
+              for (final e in scores.entries) '${e.key}: ${trimZeros(e.value)}',
+            ].join('\n'),
     ]);
-    if (score != null) previous = score;
   }
 
   return LongitudinalReportData(
@@ -328,19 +380,24 @@ LongitudinalReportData buildLongitudinalReportData({
     clinicalChart: spec(
       clinicalSeries,
       clinicalLabels,
-      'Clinical scales by visit',
-      'Visit (date_run)',
+      // No title in the figure: the section heading above it already says it.
+      '',
+      'Visit (date)',
+      zeroBased: true,
     ),
     sessionChart: spec(
       sessionSeries,
       sessionLabels,
-      'Session scales by visit and block',
+      '',
       'Visit and block',
       best: bestXs,
       second: secondXs,
+      declaredBounds: true,
     ),
     visitTable: table,
     mismatchedPatients: ids.length <= 1 ? const [] : ids.skip(1).toList(),
+    rankedBlocks: rankedBlocks,
+    overallRanks: overallRanks,
   );
 }
 
@@ -357,9 +414,11 @@ String _programmeText(SessionRow? r) {
   }
 
   final group = r.programId.trim();
-  return 'L ${side(r.leftAmplitude, r.leftStimFreq, r.leftPulseWidth)}   '
-      'R ${side(r.rightAmplitude, r.rightStimFreq, r.rightPulseWidth)}'
-      '${group.isEmpty ? '' : '   Group $group'}';
+  return [
+    'Left: ${side(r.leftAmplitude, r.leftStimFreq, r.leftPulseWidth)}',
+    'Right: ${side(r.rightAmplitude, r.rightStimFreq, r.rightPulseWidth)}',
+    if (group.isNotEmpty) 'Group $group',
+  ].join('\n');
 }
 
 /// Sum a possibly-split amplitude, at the device's 0.1 mA resolution.

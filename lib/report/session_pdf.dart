@@ -40,9 +40,39 @@ import 'report_text.dart';
 const _marginSide = 36.0; // 0.5 in
 const _marginEnd = 54.0; // 0.75 in
 
-/// Horizontal gap between electrode cells, in POINTS. The Word builder converts
-/// it to px at 96 dpi, so the leads are the same physical size in both.
-const kElectrodeCellGapPt = 6.0;
+/// Gaps in the four-lead grid, in POINTS: narrow between Left and Right of one
+/// configuration, wide between Initial and Final, so the grid reads as two
+/// pairs rather than four leads. The Word builder uses the same proportions.
+const kElectrodePairGapPt = 4.0;
+const kElectrodeGroupGapPt = 36.0;
+
+/// One lead's width when four share [available] points.
+double electrodeCellWidth(double available) =>
+    (available - kElectrodeGroupGapPt - 2 * kElectrodePairGapPt) / 4;
+
+/// A compact bordered grid; the first row is the header when [header] is set.
+/// Without [widths] the table is only as wide as its content.
+pw.Widget reportGrid(
+  List<List<String>> rows,
+  ReportTextSanitiser t, {
+  bool header = true,
+  Map<int, pw.TableColumnWidth>? widths,
+  double fontSize = 9,
+}) => pw.TableHelper.fromTextArray(
+  headers: header ? [for (final c in rows.first) t(c)] : null,
+  headerCount: header ? 1 : 0,
+  data: [
+    for (final r in rows.skip(header ? 1 : 0)) [for (final c in r) t(c)],
+  ],
+  cellStyle: pw.TextStyle(fontSize: fontSize),
+  headerStyle: pw.TextStyle(fontSize: fontSize, fontWeight: pw.FontWeight.bold),
+  headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
+  cellAlignment: pw.Alignment.centerLeft,
+  cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+  border: pw.TableBorder.all(color: pdfRule, width: 0.5),
+  columnWidths: widths,
+  tableWidth: widths == null ? pw.TableWidth.min : pw.TableWidth.max,
+);
 
 /// "Scales rated per block: 5 throughout." / "..: 3-5, so blocks are not
 /// directly comparable." Null when nothing was rated.
@@ -62,19 +92,6 @@ String? _ratedNote(SessionReportData data) {
 /// One lead's configuration in words, for the caption under its drawing.
 String _leadDetail(LateralTokens? tokens, bool left) =>
     tokens == null ? '' : lateralText(tokens, left: left);
-
-/// One decimal unless the value is whole, so a delta reads "-5", not "-5.0".
-String _num(double v) {
-  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
-  var out = v.toStringAsFixed(2);
-  while (out.endsWith('0')) {
-    out = out.substring(0, out.length - 1);
-  }
-  return out;
-}
-
-/// A signed delta: "-5", "+0.25", or "0" for no change, never "+0".
-String _delta(double v) => v == 0 ? '0' : '${v > 0 ? '+' : ''}${_num(v)}';
 
 /// A PNG scaled to exactly [width] points, height following its aspect ratio.
 ///
@@ -172,8 +189,25 @@ List<pw.Widget> _legendBlock(SessionReportData data, ReportTextSanitiser t) {
       pw.Text(label, style: const pw.TextStyle(fontSize: 9)),
     ],
   );
+  // One widget, so a page break cannot separate the disclaimer from the
+  // shading it qualifies: the block moves to the next page whole.
   return [
     pw.SizedBox(height: 4),
+    pw.Inseparable(
+      child: pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: _legendLines(data, t, swatch),
+      ),
+    ),
+  ];
+}
+
+List<pw.Widget> _legendLines(
+  SessionReportData data,
+  ReportTextSanitiser t,
+  pw.Widget Function(PdfColor, String) swatch,
+) {
+  return [
     pw.Row(
       children: [
         pw.Text(
@@ -261,16 +295,10 @@ Future<ReportBytes> buildSessionPdf({
     }
   }
 
-  final rowFills = <int, PdfColor>{};
-  for (var i = 0; i < data.tableData.length; i++) {
-    final block = int.tryParse(data.tableData[i].first);
-    if (block == null) continue;
-    if (data.bestBlocks.contains(block)) {
-      rowFills[i + 1] = pdfBestFill;
-    } else if (data.secondBlocks.contains(block)) {
-      rowFills[i + 1] = pdfSecondFill;
-    }
-  }
+  // Header is table row 0, so data row i is table row i + 1.
+  final rowFills = {
+    for (final e in data.rowFills.entries) e.key + 1: PdfColor.fromInt(e.value),
+  };
 
   // Unicode theme when the IBM Plex assets are bundled; null means built-in
   // Helvetica, which can only encode Latin-1. dart_pdf does not throw on an
@@ -280,7 +308,7 @@ Future<ReportBytes> buildSessionPdf({
   final fonts = await loadReportFonts();
   final theme = fonts.theme;
   final t = ReportTextSanitiser(coverage: fonts.coverage);
-  final tableData = t.rows(data.tableData);
+  final tableData = t.rows(data.tableRows);
   // An /Info dictionary, so the file says what it is, who made it and when
   // once it reaches a document system and its name is no longer the only clue.
   final title = 'DBS session report - sub-$subjectId - ${data.sessionDate}';
@@ -307,7 +335,7 @@ Future<ReportBytes> buildSessionPdf({
   // A quarter of the content width per lead, less a little breathing room: the
   // same budget the Word builder uses. The height is only needed for the
   // missing-lead placeholder, and follows the renderer's 900x1920 aspect.
-  final leadWidth = format.availableWidth / 4 - kElectrodeCellGapPt;
+  final leadWidth = electrodeCellWidth(format.availableWidth);
   final leadHeight = leadWidth * 1920 / 900;
   doc.addPage(
     pw.MultiPage(
@@ -413,6 +441,10 @@ Future<ReportBytes> buildSessionPdf({
                   for (final line in data.configChanges)
                     pw.Text(t(line), style: const pw.TextStyle(fontSize: 9)),
                 ],
+                if (data.responseGrid.isNotEmpty) ...[
+                  pw.SizedBox(height: 4),
+                  reportGrid(data.responseGrid, t, fontSize: 8),
+                ],
               ],
             ),
           ),
@@ -426,31 +458,12 @@ Future<ReportBytes> buildSessionPdf({
             pw.Text('No baseline (is_initial = 1) rows recorded.')
           else ...[
             if (data.initScales.isNotEmpty)
-              pw.TableHelper.fromTextArray(
-                headers: const ['Scale', 'Score'],
-                data: [
-                  for (final pair in data.initScales)
-                    [t(pair.name), t(pair.value)],
-                ],
-                cellStyle: const pw.TextStyle(fontSize: 9),
-                headerStyle: const pw.TextStyle(
-                  fontSize: 9,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-                headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
-                cellAlignment: pw.Alignment.centerLeft,
-                columnWidths: const {
-                  0: pw.FlexColumnWidth(4),
-                  1: pw.FlexColumnWidth(1),
-                },
-                // A quarter of the page is plenty for a scale list; full width
-                // would strand the two columns at opposite edges.
-                tableWidth: pw.TableWidth.min,
-              ),
-            if (data.initNotes.isNotEmpty)
-              pw.Text('Notes: ${t(data.initNotes)}'),
-            if (data.initScales.isEmpty && data.initNotes.isEmpty)
-              pw.Text('(no baseline scales or notes)'),
+              reportGrid([
+                ['Scale', 'Score'],
+                for (final pair in data.initScales) [pair.name, pair.value],
+              ], t)
+            else
+              pw.Text('(no baseline scales)'),
           ],
           pw.SizedBox(height: 8),
         ],
@@ -458,24 +471,36 @@ Future<ReportBytes> buildSessionPdf({
         // Graph and table are independent sections, so the heading appears only
         // when at least one of them does.
         if (wantsChart || wantsTable) ...[
-          pw.Header(level: 1, text: 'Session data'),
-          if (wantsChart && chartPng != null) ...[
-            // Size explicitly to the content width, preserving the aspect
-            // ratio. A bare pw.Image lays the PNG out at its PIXEL size, and
-            // the chart is rasterised at 3x for print, so that is ~1128 pt tall
-            // and dart_pdf throws "Widget won't fit into the page".
-            _fitWidth(chartPng, format.availableWidth),
-            // Extracted from a .docx the figure travels alone, so the caption
-            // carries subject, session, n and what the green means.
-            pw.Text(
-              t(data.figureCaption),
-              style: const pw.TextStyle(
-                fontSize: 8,
-                fontStyle: pw.FontStyle.italic,
+          if (wantsChart && chartPng != null)
+            // Heading, figure and caption as one block, so a page break can
+            // never leave the heading alone at the foot of a page. A bare
+            // Column may span pages; Inseparable is what keeps it whole.
+            pw.Inseparable(
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Header(level: 1, text: 'Session data'),
+                  // Size explicitly to the content width, preserving the aspect
+                  // ratio. A bare pw.Image lays the PNG out at its PIXEL size,
+                  // and the chart is rasterised at 3x for print, so that is
+                  // ~1128 pt tall and dart_pdf throws "Widget won't fit".
+                  _fitWidth(chartPng, format.availableWidth),
+                  // Extracted from a .docx the figure travels alone, so the
+                  // caption carries subject, session, n and what the green means.
+                  pw.Text(
+                    t(data.figureCaption),
+                    style: const pw.TextStyle(
+                      fontSize: 8,
+                      fontStyle: pw.FontStyle.italic,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                ],
               ),
-            ),
-            pw.SizedBox(height: 8),
-          ] else if (wantsChart && !data.chart.isEmpty)
+            )
+          else
+            pw.Header(level: 1, text: 'Session data'),
+          if (wantsChart && chartPng == null && !data.chart.isEmpty)
             // The screen didn't rasterise one (headless caller); say so rather
             // than silently omitting the section's main graphic.
             pw.Text(
@@ -493,10 +518,20 @@ Future<ReportBytes> buildSessionPdf({
               headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
               cellStyle: cellStyle,
               cellAlignment: pw.Alignment.centerLeft,
-              headers: sessionTableHeaders,
+              headers: data.tableHeaders,
               data: tableData,
+              // The line between a block's own L and R rows is light; the
+              // block boundary is the heavy rule drawn by cellDecoration.
+              border: const pw.TableBorder(
+                left: pw.BorderSide(),
+                right: pw.BorderSide(),
+                top: pw.BorderSide(),
+                bottom: pw.BorderSide(),
+                verticalInside: pw.BorderSide(),
+                horizontalInside: pw.BorderSide(color: pdfRule, width: 0.4),
+              ),
               columnWidths: {
-                for (final (i, w) in sessionTableColumnWeights.indexed)
+                for (final (i, w) in data.tableWeights.indexed)
                   i: pw.FlexColumnWidth(w),
               },
               // Green shading for the best / second-best blocks, plus a heavy
@@ -534,110 +569,117 @@ Future<ReportBytes> buildSessionPdf({
         // four leads cannot be split: a merged Initial/Final header at the foot
         // of one page with its figures on the next reads as a printing fault.
         if (sections.contains(ReportSection.electrodes))
-          pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Header(level: 1, text: 'Electrode configuration'),
-              if (!data.hasElectrodeConfig)
-                pw.Text('No electrode configuration recorded.')
-              else ...[
-                if (data.electrodeModel.isNotEmpty)
-                  pw.Text('Electrode model: ${t(data.electrodeModel)}'),
-                pw.SizedBox(height: 4),
-                if (hasElectrodeImages) ...[
-                  // ONE row of four leads under a merged Initial/Final
-                  // header, as Word lays it out. Two stacked rows cost ~380 pt
-                  // of height and break the section across pages; 4 x ~114 pt
-                  // of width fits in 482 pt.
-                  pw.Row(
-                    children: [
-                      for (final title in [
-                        'Initial settings',
-                        'Final settings',
-                      ])
-                        pw.SizedBox(
-                          width: leadWidth * 2,
-                          child: pw.Text(
-                            title,
-                            textAlign: pw.TextAlign.center,
-                            style: const pw.TextStyle(
-                              fontWeight: pw.FontWeight.bold,
+          pw.Inseparable(
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Header(level: 1, text: 'Electrode configuration'),
+                if (!data.hasElectrodeConfig)
+                  pw.Text('No electrode configuration recorded.')
+                else ...[
+                  if (data.electrodeModel.isNotEmpty)
+                    pw.Text('Electrode model: ${t(data.electrodeModel)}'),
+                  pw.SizedBox(height: 4),
+                  if (hasElectrodeImages) ...[
+                    // ONE row of four leads under a merged Initial/Final
+                    // header, as Word lays it out. Two stacked rows cost ~380 pt
+                    // of height and break the section across pages; 4 x ~114 pt
+                    // of width fits in 482 pt.
+                    pw.Row(
+                      children: [
+                        for (final (i, title) in [
+                          'Initial settings',
+                          'Last recorded settings',
+                        ].indexed) ...[
+                          if (i > 0) pw.SizedBox(width: kElectrodeGroupGapPt),
+                          pw.SizedBox(
+                            width: leadWidth * 2 + kElectrodePairGapPt,
+                            child: pw.Text(
+                              title,
+                              textAlign: pw.TextAlign.center,
+                              style: const pw.TextStyle(
+                                fontWeight: pw.FontWeight.bold,
+                              ),
                             ),
                           ),
+                        ],
+                      ],
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        _electrodeCell(
+                          'Left',
+                          ei.initLeft,
+                          leadWidth,
+                          imageHeight: leadHeight,
+                          detail: t(_leadDetail(data.initialTokens, true)),
                         ),
-                    ],
-                  ),
-                  pw.SizedBox(height: 2),
-                  pw.Row(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      _electrodeCell(
-                        'Left',
-                        ei.initLeft,
-                        leadWidth,
-                        imageHeight: leadHeight,
-                        detail: t(_leadDetail(data.initialTokens, true)),
-                      ),
-                      _electrodeCell(
-                        'Right',
-                        ei.initRight,
-                        leadWidth,
-                        imageHeight: leadHeight,
-                        detail: t(_leadDetail(data.initialTokens, false)),
-                      ),
-                      _electrodeCell(
-                        'Left',
-                        ei.finalLeft,
-                        leadWidth,
-                        imageHeight: leadHeight,
-                        detail: t(_leadDetail(data.finalTokens, true)),
-                      ),
-                      _electrodeCell(
-                        'Right',
-                        ei.finalRight,
-                        leadWidth,
-                        imageHeight: leadHeight,
-                        detail: t(_leadDetail(data.finalTokens, false)),
-                      ),
-                    ],
-                  ),
-                  // A key, because the drawing encodes polarity by COLOUR
-                  // alone: useless on a mono printer or to a colour-blind
-                  // reader.
-                  pw.SizedBox(height: 3),
-                  pw.Text(
-                    'Orange = anode (+)   Blue = cathode (-)   Grey = inactive.   '
-                    "A percentage is that contact's share of the total current.",
-                    style: const pw.TextStyle(fontSize: 7, color: pdfInk),
-                  ),
-                ] else ...[
-                  // Text fallback, no rasteriser available. Vendor nomenclature
-                  // here too: `E2b_E2c` is an internal identifier, and printing
-                  // it here and `2b(3.3)` elsewhere describes one lead two
-                  // ways.
-                  for (final pair in [
-                    ('Initial settings', data.initialTokens),
-                    ('Last recorded settings', data.finalTokens),
-                  ])
-                    if (pair.$2 != null) ...[
-                      pw.SizedBox(height: 4),
-                      pw.Text(
-                        pair.$1,
-                        style: const pw.TextStyle(
-                          fontWeight: pw.FontWeight.bold,
+                        pw.SizedBox(width: kElectrodePairGapPt),
+                        _electrodeCell(
+                          'Right',
+                          ei.initRight,
+                          leadWidth,
+                          imageHeight: leadHeight,
+                          detail: t(_leadDetail(data.initialTokens, false)),
                         ),
-                      ),
-                      pw.Text(
-                        '  Left:   ${t(lateralText(pair.$2!, left: true))}',
-                      ),
-                      pw.Text(
-                        '  Right:  ${t(lateralText(pair.$2!, left: false))}',
-                      ),
-                    ],
+                        pw.SizedBox(width: kElectrodeGroupGapPt),
+                        _electrodeCell(
+                          'Left',
+                          ei.finalLeft,
+                          leadWidth,
+                          imageHeight: leadHeight,
+                          detail: t(_leadDetail(data.finalTokens, true)),
+                        ),
+                        pw.SizedBox(width: kElectrodePairGapPt),
+                        _electrodeCell(
+                          'Right',
+                          ei.finalRight,
+                          leadWidth,
+                          imageHeight: leadHeight,
+                          detail: t(_leadDetail(data.finalTokens, false)),
+                        ),
+                      ],
+                    ),
+                    // A key, because the drawing encodes polarity by COLOUR
+                    // alone: useless on a mono printer or to a colour-blind
+                    // reader.
+                    pw.SizedBox(height: 3),
+                    pw.Text(
+                      'Orange = anode (+)   Blue = cathode (-)   Grey = inactive.   '
+                      "A percentage is that contact's share of the total current.",
+                      style: const pw.TextStyle(fontSize: 7, color: pdfInk),
+                    ),
+                  ] else ...[
+                    // Text fallback, no rasteriser available. Vendor nomenclature
+                    // here too: `E2b_E2c` is an internal identifier, and printing
+                    // it here and `2b(3.3)` elsewhere describes one lead two
+                    // ways.
+                    for (final pair in [
+                      ('Initial settings', data.initialTokens),
+                      ('Last recorded settings', data.finalTokens),
+                    ])
+                      if (pair.$2 != null) ...[
+                        pw.SizedBox(height: 4),
+                        pw.Text(
+                          pair.$1,
+                          style: const pw.TextStyle(
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.Text(
+                          '  Left:   ${t(lateralText(pair.$2!, left: true))}',
+                        ),
+                        pw.Text(
+                          '  Right:  ${t(lateralText(pair.$2!, left: false))}',
+                        ),
+                      ],
+                  ],
                 ],
+                pw.SizedBox(height: 8),
               ],
-              pw.SizedBox(height: 8),
-            ],
+            ),
           ),
 
         if (sections.contains(ReportSection.summary)) ...[
@@ -645,67 +687,39 @@ Future<ReportBytes> buildSessionPdf({
           if (!data.hasRows)
             pw.Text('No session data available.')
           else ...[
-            pw.Text('Annotation span (first to last entry): ${data.span}'),
-            pw.Text('Configurations tested: ${configCountText(data)}'),
-            pw.Text('Amplitude:  L: ${data.ampL}  |  R: ${data.ampR}'),
-            pw.Text('Frequency:  L: ${data.freqL}  |  R: ${data.freqR}'),
-            pw.Text('Pulse width:  L: ${data.pwL}  |  R: ${data.pwR}'),
+            reportGrid(data.extentRows, t, header: false),
+            pw.SizedBox(height: 6),
+            reportGrid(
+              [
+                ['', 'Left', 'Right'],
+                ...data.parameterRows,
+              ],
+              t,
+              widths: const {
+                0: pw.FixedColumnWidth(70),
+                1: pw.FlexColumnWidth(),
+                2: pw.FlexColumnWidth(),
+              },
+            ),
 
             // The response half of a dose-response record: every parameter gets
             // a range above, so without this no scale does.
             if (data.response.isNotEmpty) ...[
-              pw.SizedBox(height: 6),
-              pw.Text(
-                'Response (first to last rated block)',
-                style: const pw.TextStyle(fontWeight: pw.FontWeight.bold),
-              ),
-              for (final r in data.response)
-                pw.Text(
-                  '  ${t(r.name)}: '
-                  '${_num(r.first)} -> ${_num(r.last)} '
-                  '(${_delta(r.last - r.first)})',
+              pw.SizedBox(height: 8),
+              // A four-row table split over a page break is unreadable.
+              pw.Inseparable(
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Response (first to last rated block)',
+                      style: const pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                    pw.SizedBox(height: 2),
+                    reportGrid(data.responseGrid, t),
+                  ],
                 ),
-            ],
-
-            // Anomalies the reader should not have to spot unaided.
-            if (data.anomalies.isNotEmpty) ...[
-              pw.SizedBox(height: 6),
-              pw.Text(
-                'Data notes',
-                style: const pw.TextStyle(fontWeight: pw.FontWeight.bold),
               ),
-              for (final line in data.anomalies)
-                pw.Bullet(
-                  text: t(line),
-                  style: const pw.TextStyle(fontSize: 9),
-                  bulletSize: 1.5,
-                ),
-            ],
-
-            // The notes column holds the only adverse-event data the format
-            // captures, and inside a fourteen-row table nobody reads it.
-            // What the numbers are, and what the record cannot say about them.
-            pw.SizedBox(height: 6),
-            pw.Text(
-              data.instrumentNote,
-              style: const pw.TextStyle(
-                fontSize: 8,
-                fontStyle: pw.FontStyle.italic,
-              ),
-            ),
-
-            if (data.observations.isNotEmpty) ...[
-              pw.SizedBox(height: 6),
-              pw.Text(
-                'Recorded observations',
-                style: const pw.TextStyle(fontWeight: pw.FontWeight.bold),
-              ),
-              for (final line in data.observations)
-                pw.Bullet(
-                  text: t(line),
-                  style: const pw.TextStyle(fontSize: 9),
-                  bulletSize: 1.5,
-                ),
             ],
           ],
         ],

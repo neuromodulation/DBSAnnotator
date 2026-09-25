@@ -111,7 +111,7 @@ class ReportsScreen extends StatefulWidget {
 }
 
 class _ReportsScreenState extends State<ReportsScreen> {
-  late final List<Uploaded> _files = [...?widget.initialFiles];
+  late final List<Uploaded> _files = chronological(widget.initialFiles ?? []);
   final _exportKey = GlobalKey();
 
   ElectrodeCatalog? _catalog;
@@ -193,7 +193,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (!mounted) return;
     if (added.isNotEmpty) {
       setState(() {
-        _files.addAll(added);
+        final sorted = chronological([..._files, ...added]);
+        _files
+          ..clear()
+          ..addAll(sorted);
         // A new upload is not the old upload's ranking.
         _targets = null;
       });

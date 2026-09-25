@@ -47,7 +47,7 @@ At a glance
      - Detail
    * - Platforms
      - iPadOS, Android, Linux, Windows, macOS, from one codebase
-   * - Data format
+   * - Data files
      - BIDS ``_beh.tsv`` with a JSON sidecar, one row per (block, scale)
    * - Reports
      - PDF and Word, both built from the same numbers
@@ -78,8 +78,8 @@ At a glance
    :maxdepth: 2
    :caption: Outputs
 
-   reports
    output_format
+   reports
 
 .. toctree::
    :maxdepth: 2

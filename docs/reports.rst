@@ -6,6 +6,9 @@ are built from the same computed values, so the two documents cannot disagree
 with each other, a property worth having when one is filed and the other is
 edited.
 
+Every image on this page is the real report, generated from the synthetic
+example session shipped with the app.
+
 Choosing what goes in
 ---------------------
 
@@ -18,78 +21,165 @@ The patient header is always present, so a report is never anonymous.
 Session report
 --------------
 
-**Header.** Patient ID, the session date and clock span *taken from the recorded
-rows* with their UTC offset, and separately the date the document was generated,
-the app version, and the source filename with its row count. The session date and
-the generation date are distinct fields on purpose: a report produced a fortnight
-later must not assert that the session happened the day the button was pressed.
+Header and page-one box
+~~~~~~~~~~~~~~~~~~~~~~~
 
-**Last recorded configuration.** A box on page one giving the final settings per
-side in vendor notation: contacts with their share of current, total milliamps,
-frequency, pulse width and group. Named for what it is, the last block in the
-file. Nothing in the data records that a clinician *confirmed* it.
+The header gives the patient ID, the session date and clock span *taken from the
+recorded rows* with their UTC offset, and separately the date the document was
+generated, the app version, and the source filename with its row count. The
+session date and the generation date are distinct fields on purpose: a report
+produced a fortnight later must not assert that the session happened the day the
+button was pressed.
 
-**Baseline assessment (pre-session).** The clinical scores recorded before
-stimulation changes began, as a two-column table, plus the baseline notes.
+Under it, a box with the first and the last settings per side in vendor notation:
+contacts with their share of current, total milliamps, frequency, pulse width and
+group. Then what changed between the two, and the response of each session scale
+from the first to the last rated block, so the outcome of the visit sits next to
+what was tried. The last settings are named for what they are, the last block in
+the file. Nothing in the data records that a clinician *confirmed* them.
 
-**Session data.** The figure and the table.
+.. figure:: _static/reports/session_report_summary.png
+   :alt: The page-one box: settings at the start and at the end of the session, what changed, and the response of each scale
+   :width: 100%
 
-*The figure* plots each session scale against configuration, with the aggregate
-index and, when targets are set, green bands on the best and second-best
-scoring settings.
+Baseline assessment
+~~~~~~~~~~~~~~~~~~~
+
+The clinical scores recorded before stimulation changes began, as a compact
+two-column table.
+
+.. figure:: _static/reports/session_report_baseline.png
+   :alt: The baseline assessment table
+   :width: 60%
+
+Session data
+~~~~~~~~~~~~
+
+*The figure* has one block axis shared by stacked panels: the session scales, the
+aggregate index on its own 0-1 axis, then the amplitude, frequency and pulse width
+per side, as in the live view in the app. A parameter that never changed during
+the session is stated in one line, such as "130 Hz, unchanged (both sides)",
+rather than plotted flat. When targets are set, green bands mark the best and
+second-best scoring settings through every panel.
+
+.. figure:: _static/reports/session_report_session_data.png
+   :alt: The session data figure: scales, aggregate index, amplitude, frequency and pulse width panels with the green bands
+   :width: 100%
 
 *The table* gives one row per side per block: time, group, frequency, anode,
 cathode with the per-contact current share, total amplitude, pulse width, the
 scale ratings, the aggregate index with its rank, and notes. Values belonging to
-the block are printed once, not repeated per side.
+the block are printed once, not repeated per side, and the line between a
+block's two sides is light while the rule between blocks is heavy, so each block
+reads as one configuration. With no targets set, nothing is ranked and the Index
+column is left out rather than printed empty.
 
-**Recorded observations.** Every block that carries a note, listed with its time
-and the stimulation active at the time. This exists because side effects are the
-safety content of a session and are unreadable buried in a table cell.
+Under the table, the legend: what the green means, the targets, how many scales
+were rated per block, how far repeat ratings of one setting differ, how the index
+is computed, and the disclaimer. It is kept on one page, so the disclaimer is
+never separated from the shading it qualifies.
 
-**Response.** Each scale's first and last recorded value with the change between
-them. This is the clinical bottom line, and it cannot be recovered from the
-parameter ranges alone.
+.. figure:: _static/reports/session_report_page2.png
+   :alt: The session data table with the ranked rows shaded, and the legend
+   :width: 100%
 
-**Electrode configuration.** The initial and last-recorded settings as four lead
-diagrams in one row, each captioned with its configuration in words, plus a key
-for the polarity colours. The caption matters: the drawing shows *which* contacts
-are active but not how current is shared, and for current steering the split is
-the configuration.
+Electrode configuration
+~~~~~~~~~~~~~~~~~~~~~~~
 
-**Programming summary.** Annotation span, configurations tested with the number
-of distinct settings among them, and the amplitude, frequency and pulse-width
-ranges actually tried.
+The initial and last-recorded settings as two pairs of lead diagrams, Left and
+Right of each close together, each captioned with its configuration in words,
+plus a key for the polarity colours. The caption matters: the drawing shows
+*which* contacts are active but not how current is shared, and for current
+steering the split is the configuration.
 
-**Attestation.** Recorded by / Reviewed by / Date.
+.. figure:: _static/reports/session_report_electrodes.png
+   :alt: Two pairs of lead diagrams: initial and last-recorded settings for each side
+   :width: 100%
+
+Programming summary
+~~~~~~~~~~~~~~~~~~~
+
+Two short tables: the annotation span and the number of configurations tested,
+then the amplitude, frequency and pulse width actually tried, one side per column.
+Then the response: one column per scale, its first and last rated value and the
+change between them. That is the clinical bottom line, and it cannot be recovered
+from the parameter ranges alone, which is why the same table also sits in the
+page-one box.
+
+.. figure:: _static/reports/session_report_programming_summary.png
+   :alt: The programming summary tables and the response table
+   :width: 100%
+
+Attestation
+~~~~~~~~~~~
+
+Recorded by / Reviewed by / Date, over rules to sign on.
+
+Longitudinal report
+-------------------
+
+Several sessions of one patient, compared across visits. See
+:doc:`screens/reports` for the screen that produces it. However the files were
+picked, visits are ordered by patient and then from the earliest to the most
+recent, here, in the combined table and in the BIDS export.
+
+If the imported files name more than one patient, the report says so in a box on
+page one. Combining two people into one longitudinal report is a safety problem,
+not a formatting one.
+
+Clinical scales by visit
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+One assessment per visit, so the x axis is the visit itself, labelled by its
+date (with the run added only when two visits share a day). This is the "is the
+patient better than last time" figure. Its axis starts at zero, since a clinical
+total is a magnitude.
+
+.. figure:: _static/reports/longitudinal_report_clinical.png
+   :alt: Clinical scale scores, one point per visit
+   :width: 100%
+
+Session scales by visit and block
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Several configurations per visit, so each visit contributes a run of points.
+With scale targets set, green bands mark the two best configurations across all
+visits together, and the axis is fixed to the declared range. Every visit's
+index is computed against the same targets and declared ranges, which is what
+makes one ranking across visits meaningful.
+
+.. figure:: _static/reports/longitudinal_report_session_scales.png
+   :alt: Session scale ratings for every block of every visit, with the best blocks of each visit banded
+   :width: 100%
+
+Visits
+~~~~~~
+
+The date, the programme in force at the end of that visit with Left and Right on
+separate lines, the number of blocks, and every clinical scale recorded at that
+visit, one per line. How each scale moved between visits is what the figure
+above shows.
+
+.. figure:: _static/reports/longitudinal_report_visits.png
+   :alt: The per-visit table
+   :width: 100%
+
+Session data per visit
+~~~~~~~~~~~~~~~~~~~~~~
+
+Each visit's table, under its own heading, laid out as in the session report. With
+targets set, the same two configurations as in the figure are shaded green:
+the highest and second-highest aggregate index across all visits.
+
+.. figure:: _static/reports/longitudinal_report_page3.png
+   :alt: The per-visit session tables, with the two best configurations across all visits shaded
+   :width: 100%
 
 Annotations report
 ------------------
 
 A patient header, the notes in a time-and-text table oldest-first, the span they
 cover, and an attestation block. See :doc:`screens/annotations`.
-
-Longitudinal report
--------------------
-
-Several sessions of one patient, compared across visits. See
-:doc:`screens/reports` for the screen that produces it. There are two
-figures, because they answer different questions:
-
-**Clinical scales by visit.** One assessment per visit, so the x axis is the
-visit itself, labelled ``<date>_<run>``. This is the "is the patient better than
-last time" figure.
-
-**Session scales by visit and block.** Several configurations per visit, so each
-visit contributes a run of points.
-
-Then a per-visit table giving the date, the programme in force at the end of
-that visit, the number of blocks, and the primary clinical scale with its
-change from the previous visit. The source file list is an appendix.
-
-If the imported files name more than one patient, the report says so in a box on
-page one. Combining two people into one longitudinal report is a safety problem,
-not a formatting one.
 
 .. _scale-targets:
 
@@ -142,8 +232,7 @@ declining to rank.
 file. A setting that was tried and rejected would appear there identically.
 
 **The numbers carry no instrument metadata.** The record stores no scale anchors,
-administration method or rater, so the reports state that those cannot be
-reproduced from the document.
+administration method or rater, so those cannot be reproduced from a report.
 
 Where the session's own data allows it, the report also prints the spread between
 repeat ratings of an unchanged setting, which measures how far the index moves

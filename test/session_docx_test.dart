@@ -486,12 +486,13 @@ void main() {
 
     for (final size in DocxPageSize.values) {
       test('${size.name}: every grid sums to the content width', () {
+        final data = buildSessionReportData(
+          rows: rows,
+          generatedAt: DateTime(2026, 7, 29),
+        );
         final doc = _part(
           buildSessionDocx(
-            data: buildSessionReportData(
-              rows: rows,
-              generatedAt: DateTime(2026, 7, 29),
-            ),
+            data: data,
             subjectId: '01',
             chartPng: _tinyPng(),
             electrodeImages: (
@@ -525,7 +526,7 @@ void main() {
         // The session data table, found by its column count rather than its
         // position, is full width and has one grid column per header.
         final dataIdx = grids.indexWhere(
-          (g) => g.length == sessionTableHeaders.length,
+          (g) => g.length == data.tableHeaders.length,
         );
         expect(
           dataIdx,
@@ -534,9 +535,11 @@ void main() {
         );
         expect(declared[dataIdx], size.contentWidthTwips);
 
-        // The electrode grid: four evenly quartered columns.
+        // The electrode grid: two pairs of equal lead columns with a wider
+        // gap column between Initial and Final.
         final leadIdx = grids.indexWhere(
-          (g) => g.length == 4 && g.toSet().length <= 2,
+          (g) =>
+              g.length == 5 && {g[0], g[1], g[3], g[4]}.length == 1 && g[2] > 0,
         );
         expect(leadIdx, greaterThanOrEqualTo(0));
         expect(declared[leadIdx], size.contentWidthTwips);

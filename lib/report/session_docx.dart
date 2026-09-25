@@ -17,7 +17,8 @@ import 'docx_ooxml.dart';
 import '../core/brand_palette.dart';
 import 'report_data.dart';
 import 'report_sections.dart';
-import 'session_pdf.dart' show ElectrodeReportImages, kElectrodeCellGapPt;
+import 'session_pdf.dart'
+    show ElectrodeReportImages, electrodeCellWidth, kElectrodePairGapPt;
 
 // Callers ask this library for the page size and the PNG reader, so keep them
 // reachable here rather than making every call site learn where they moved.
@@ -25,10 +26,11 @@ export 'docx_ooxml.dart' show DocxPageSize, pngSize;
 
 /// A borderless table for the electrode-image grid, so the images sit in a
 /// clean 4-column layout with no visible cell edges.
-String _borderlessTable(List<String> rowsXml, {required int contentTwips}) {
-  // Four equal columns, explicitly quartered: with no grid, Word sized the
-  // electrode cells from their captions and the four leads came out unequal.
-  final widths = docxGridWidths(const [1, 1, 1, 1], contentTwips);
+String _borderlessTable(
+  List<String> rowsXml, {
+  required List<int> widths,
+  required int contentTwips,
+}) {
   final b = StringBuffer(
     '<w:tbl><w:tblPr><w:tblW w:w="$contentTwips" w:type="dxa"/>'
     '<w:tblBorders>',
@@ -44,13 +46,10 @@ String _borderlessTable(List<String> rowsXml, {required int contentTwips}) {
 }
 
 /// A centred cell holding arbitrary run XML, optionally spanning [span]
-/// columns.
+/// columns; [widthTwips] is the width of everything it spans.
 String _xmlCell(String runsXml, {int span = 1, int? widthTwips}) {
   final grid = span > 1 ? '<w:gridSpan w:val="$span"/>' : '';
-  // A spanning cell's width is the sum of the columns it covers.
-  final w = widthTwips == null
-      ? ''
-      : '<w:tcW w:w="${widthTwips * span}" w:type="dxa"/>';
+  final w = widthTwips == null ? '' : '<w:tcW w:w="$widthTwips" w:type="dxa"/>';
   return '<w:tc><w:tcPr>$w$grid</w:tcPr>'
       '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>$runsXml</w:p></w:tc>';
 }
@@ -73,14 +72,15 @@ String _captionCell(
 String _tokenCaption(LateralTokens? tokens, {required bool left}) =>
     tokens == null ? '' : lateralText(tokens, left: left);
 
-/// One decimal unless the value is whole. Twin of the PDF's formatter.
-String _num(double v) {
-  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
-  var out = v.toStringAsFixed(2);
-  while (out.endsWith('0')) {
-    out = out.substring(0, out.length - 1);
-  }
-  return out;
+/// The response grid, one column per scale, as the PDF prints it.
+String _responseTable(SessionReportData data, DocxPageSize pageSize) {
+  final grid = data.responseGrid;
+  return docxTable(
+    grid.first,
+    grid.skip(1).toList(),
+    weights: [1.4, for (var i = 1; i < grid.first.length; i++) 1],
+    contentTwips: pageSize.contentWidthTwips,
+  );
 }
 
 /// Twin of the PDF's rated-per-block note, so both documents say it.
@@ -96,9 +96,6 @@ String? _ratedNote(SessionReportData data) {
       'rated at each block, so blocks with different rated sets are not '
       'directly comparable.';
 }
-
-/// A signed delta: "-5", "+0.25", or "0" for no change, never "+0".
-String _delta(double v) => v == 0 ? '0' : '${v > 0 ? '+' : ''}${_num(v)}';
 
 /// Legend + scale targets + disclaimer under the session-data table, mirroring
 /// `report_common.add_table_legend`. Returns '' when nothing was ranked.
@@ -120,6 +117,17 @@ String _legendBlock(SessionReportData data) {
     ..write('</w:p>');
   if (data.targetsText.isNotEmpty) {
     b.write(docxPara('Scale targets: ${data.targetsText}', size: 18));
+  }
+  // Same items, same order as the PDF, disclaimer last.
+  final rated = _ratedNote(data);
+  final resolution = data.rankingResolutionNote;
+  for (final line in [
+    ?rated,
+    if (data.bestSettingText.isNotEmpty) data.bestSettingText,
+    ?resolution,
+    data.indexMethod,
+  ]) {
+    b.write(docxPara(line, size: 16));
   }
   b.write(docxPara(kRankingDisclaimer, size: 18));
   return b.toString();
@@ -175,6 +183,9 @@ Uint8List buildSessionDocx({
     for (final line in data.configChanges) {
       body.write(docxPara(line, size: 18));
     }
+    if (data.responseGrid.isNotEmpty) {
+      body.write(_responseTable(data, pageSize));
+    }
   }
 
   // (b) Baseline assessment. Headings and labels must match the PDF word for
@@ -193,16 +204,12 @@ Uint8List buildSessionDocx({
             [
               for (final pair in data.initScales) [pair.name, pair.value],
             ],
-            weights: const [4, 1],
-            contentTwips: pageSize.contentWidthTwips ~/ 2,
+            weights: const [3, 1],
+            contentTwips: pageSize.contentWidthTwips ~/ 3,
           ),
         );
-      }
-      if (data.initNotes.isNotEmpty) {
-        body.write(docxPara('Notes: ${data.initNotes}'));
-      }
-      if (data.initScales.isEmpty && data.initNotes.isEmpty) {
-        body.write(docxPara('(no baseline scales or notes)'));
+      } else {
+        body.write(docxPara('(no baseline scales)'));
       }
     }
   }
@@ -235,37 +242,27 @@ Uint8List buildSessionDocx({
           if (i > 0) rules.add(i);
           previousBlock = label;
         }
-        final block = int.tryParse(label);
-        if (block == null) continue;
-        if (data.bestBlocks.contains(block)) {
-          fills[i] = docxHex(kBestFill);
-        } else if (data.secondBlocks.contains(block)) {
-          fills[i] = docxHex(kSecondFill);
+        if (data.rowFills[i] case final fill?) {
+          fills[i] = docxHex(fill);
         }
       }
       body.write(
         docxTable(
-          sessionTableHeaders,
-          data.tableData,
+          data.tableHeaders,
+          data.tableRows,
           rowFills: fills,
           rowRules: rules,
           // Scales and Notes: one tall cell per block, not one per side.
           mergeDownColumns: {
-            sessionTableHeaders.indexOf('Scales'),
-            sessionTableHeaders.indexOf('Notes'),
+            data.tableHeaders.indexOf('Scales'),
+            data.tableHeaders.indexOf('Notes'),
           },
-          weights: sessionTableColumnWeights,
+          weights: data.tableWeights,
+          lightInsideH: true,
           contentTwips: pageSize.contentWidthTwips,
         ),
       );
       body.write(_legendBlock(data));
-      final rated = _ratedNote(data);
-      if (rated != null) body.write(docxPara(rated, size: 16));
-      if (data.bestSettingText.isNotEmpty) {
-        body.write(docxPara(data.bestSettingText, size: 16));
-      }
-      final resolution = data.rankingResolutionNote;
-      if (resolution != null) body.write(docxPara(resolution, size: 16));
     }
   }
 
@@ -289,31 +286,48 @@ Uint8List buildSessionDocx({
       final it = data.initialTokens;
       final ft = data.finalTokens;
       if (hasImages) {
-        // One quarter of the content width per lead, less the same gap the PDF
-        // leaves (expressed in points there, so convert 72 dpi -> 96 dpi).
-        final cellPx =
-            pageSize.contentWidthPx / 4 - kElectrodeCellGapPt * 96 / 72;
+        // Five grid columns, the middle one empty, so the grid reads as two
+        // pairs: Left and Right of one configuration close together.
+        final lead = electrodeCellWidth(pageSize.contentWidthTwips / 20) * 20;
+        final gap = pageSize.contentWidthTwips - 4 * lead.round();
+        final cols = [
+          lead.round(),
+          lead.round(),
+          gap,
+          lead.round(),
+          lead.round(),
+        ];
+        final cellPx = lead / 15 - kElectrodePairGapPt * 96 / 72;
         String img(Uint8List? png) =>
             png == null ? '' : media.drawing(png, widthPx: cellPx);
-        final quarter = pageSize.contentWidthTwips ~/ 4;
         String cap(String text, {bool bold = false, int span = 1}) =>
-            _captionCell(text, bold: bold, span: span, widthTwips: quarter);
-        String cell(Uint8List? png) => _xmlCell(img(png), widthTwips: quarter);
+            _captionCell(
+              text,
+              bold: bold,
+              span: span,
+              widthTwips: cols[0] * span,
+            );
+        String cell(Uint8List? png) => _xmlCell(img(png), widthTwips: cols[0]);
+        final spacer = _xmlCell('', widthTwips: gap);
         body.write(
-          _borderlessTable(contentTwips: pageSize.contentWidthTwips, [
-            '<w:tr>${cap('Initial settings', bold: true, span: 2)}'
-                '${cap('Final settings', bold: true, span: 2)}</w:tr>',
-            '<w:tr>${cap('Left')}${cap('Right')}${cap('Left')}${cap('Right')}'
-                '</w:tr>',
-            '<w:tr>'
-                '${cap(_tokenCaption(it, left: true))}'
-                '${cap(_tokenCaption(it, left: false))}'
-                '${cap(_tokenCaption(ft, left: true))}'
-                '${cap(_tokenCaption(ft, left: false))}'
-                '</w:tr>',
-            '<w:tr>${cell(ei.initLeft)}${cell(ei.initRight)}'
-                '${cell(ei.finalLeft)}${cell(ei.finalRight)}</w:tr>',
-          ]),
+          _borderlessTable(
+            widths: cols,
+            contentTwips: pageSize.contentWidthTwips,
+            [
+              '<w:tr>${cap('Initial settings', bold: true, span: 2)}$spacer'
+                  '${cap('Last recorded settings', bold: true, span: 2)}</w:tr>',
+              '<w:tr>${cap('Left')}${cap('Right')}$spacer'
+                  '${cap('Left')}${cap('Right')}</w:tr>',
+              '<w:tr>'
+                  '${cap(_tokenCaption(it, left: true))}'
+                  '${cap(_tokenCaption(it, left: false))}$spacer'
+                  '${cap(_tokenCaption(ft, left: true))}'
+                  '${cap(_tokenCaption(ft, left: false))}'
+                  '</w:tr>',
+              '<w:tr>${cell(ei.initLeft)}${cell(ei.initRight)}$spacer'
+                  '${cell(ei.finalLeft)}${cell(ei.finalRight)}</w:tr>',
+            ],
+          ),
         );
         // Same key as the PDF: the drawing encodes polarity by COLOUR alone,
         // which is useless on a mono printer or to a colour-blind reader.
@@ -349,37 +363,27 @@ Uint8List buildSessionDocx({
       body.write(docxPara('No session data available.'));
     } else {
       body.write(
-        docxPara('Annotation span (first to last entry): ${data.span}'),
+        docxTable(
+          null,
+          data.extentRows,
+          weights: const [3, 2],
+          contentTwips: pageSize.contentWidthTwips * 3 ~/ 5,
+        ),
       );
-      body.write(docxPara('Configurations tested: ${configCountText(data)}'));
-      body.write(docxPara('Amplitude:  L: ${data.ampL}  |  R: ${data.ampR}'));
-      body.write(docxPara('Frequency:  L: ${data.freqL}  |  R: ${data.freqR}'));
-      body.write(docxPara('Pulse width:  L: ${data.pwL}  |  R: ${data.pwR}'));
+      body.write(docxPara(''));
+      body.write(
+        docxTable(
+          const ['', 'Left', 'Right'],
+          data.parameterRows,
+          weights: const [1, 3, 3],
+          contentTwips: pageSize.contentWidthTwips,
+        ),
+      );
 
       // Same two subsections as the PDF, in the same order and the same words.
       if (data.response.isNotEmpty) {
         body.write(docxHeading2('Response (first to last rated block)'));
-        for (final r in data.response) {
-          body.write(
-            docxPara(
-              '  ${r.name}: ${_num(r.first)} -> ${_num(r.last)} '
-              '(${_delta(r.last - r.first)})',
-            ),
-          );
-        }
-      }
-      body.write(docxPara(data.instrumentNote, size: 16));
-      if (data.anomalies.isNotEmpty) {
-        body.write(docxHeading2('Data notes'));
-        for (final line in data.anomalies) {
-          body.write(docxPara('  • $line', size: 18));
-        }
-      }
-      if (data.observations.isNotEmpty) {
-        body.write(docxHeading2('Recorded observations'));
-        for (final line in data.observations) {
-          body.write(docxPara('  • $line', size: 18));
-        }
+        body.write(_responseTable(data, pageSize));
       }
     }
   }
