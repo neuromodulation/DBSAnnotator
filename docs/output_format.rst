@@ -305,7 +305,7 @@ from any of the three screens that hold session data:
          sub-01_ses-20260203_task-programming_run-01_beh.tsv
          sub-01_ses-20260203_task-programming_run-01_beh.json
 
-The longitudinal screen is the useful place to do this: it already holds several
+The reports screen is the useful place to do this: it already holds several
 visits of one patient, which is exactly what the ``sub-``/``ses-`` hierarchy is
 for, and a file imported under the older ``_events.tsv`` name is re-emitted
 into the tree as a valid ``_beh.tsv``.
@@ -324,7 +324,7 @@ One file per visit is right for recording and awkward for analysis: pooling a
 patient's visits, or several patients for a study, means concatenating a folder
 of files and losing the one thing that told their rows apart, the filename.
 
-**Export → Combined table (TSV)**, from the longitudinal screen, writes the
+**Combined table (TSV)**, on the reports screen, writes the
 imported sessions as one long table with four identity columns prepended:
 
 .. code-block:: text

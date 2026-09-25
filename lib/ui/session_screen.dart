@@ -29,6 +29,9 @@ import '../report/session_pdf.dart';
 import '../app_info.dart';
 import 'amplitude_split.dart';
 import 'bids_export.dart';
+import '../core/bids_dataset.dart';
+import '../core/bids_merge.dart';
+import 'bids_merge_ui.dart';
 import 'electrode_view.dart';
 import 'list_editor_dialog.dart';
 import 'report_images.dart';
@@ -207,6 +210,15 @@ class _SessionScreenState extends State<SessionScreen> {
   String? _modelName;
   // Chosen save path (from New/Open); when set, inserts autosave to it.
   String? _savePath;
+  // Working copy in the app's own storage, written on every insert whatever
+  // the picker returned, and dropped once the session has been exported.
+  String? _workingPath;
+  // Set when the session is being recorded into a BIDS dataset rather than a
+  // loose file. The visit is filed on the FIRST insert, not at creation: a
+  // header-only TSV that no scans.tsv lists is a dataset that does not
+  // validate, and between New and the first block there is nothing to file.
+  String? _datasetRoot;
+  BidsName? _datasetName;
   // True when that path is an iOS sandbox copy rather than the user's own
   // file. See [pickedPathAutosavesToOriginal].
   bool _savePathIsSandboxCopy = false;
@@ -226,6 +238,66 @@ class _SessionScreenState extends State<SessionScreen> {
     loadUserPrefs().then((p) {
       if (mounted) setState(() => _prefs = p);
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
+  }
+
+  /// Offer back a session the app stopped in the middle of. Asking rather than
+  /// restoring silently: the clinician may have moved on to another patient.
+  Future<void> _offerRecovery() async {
+    final left = await unfinishedWork();
+    if (left.isEmpty || !mounted) return;
+    final file = left.first;
+    final String content;
+    try {
+      content = await file.readAsString();
+    } catch (_) {
+      return;
+    }
+    if (sniffTsvKind(content) != TsvKind.programming) return;
+    final recovered = SessionAuthoring()..loadExisting(content);
+    if (recovered.rows.isEmpty || !mounted) return;
+
+    final name = pickedBasename(file.path);
+    final keep = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unfinished session found'),
+        content: Text(
+          '$name was left open with ${blockCount(recovered.rows)} blocks '
+          'recorded. They were saved as you went, and can be reopened here.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reopen'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted) return;
+    if (keep != true) {
+      await discardWork(file.path);
+      return;
+    }
+    _invalidateEntryCharts();
+    final bids = BidsName.parse(name);
+    setState(() {
+      _authoring = recovered;
+      _workingPath = file.path;
+      // No _savePath: guessing it would autosave over a file not chosen here.
+      _savePath = null;
+      _savePathIsSandboxCopy = false;
+      if (bids != null) {
+        _subjectCtrl.text = bids.subject;
+        _runCtrl.text = bids.run;
+      }
+      _currentStep = 3;
+    });
+    _snack('Reopened $name. Export it to save it outside the app.');
   }
 
   // Chart data is derived from every inserted row, so it is cached and rebuilt
@@ -510,18 +582,94 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 
-  /// If a save path was chosen (New/Open), rewrite the TSV to it after each
-  /// insert (desktop autosaves every entry). No-op when there is no path.
+  /// Write every entry to disk as it is inserted.
   ///
-  /// Goes through [SafeFileWriter], so overlapping inserts cannot interleave
-  /// and a crash mid-write cannot truncate the clinician's only copy.
+  /// The working copy is unconditional; [_savePath] is written too when the
+  /// picker returned a path `dart:io` can open, which on Android it does not.
+  /// Both go through [SafeFileWriter], so a crash mid-write leaves either the
+  /// previous complete file or the new one.
   Future<void> _autosave() async {
+    // Resolved here rather than only in New/Open, because the wizard lets the
+    // File step be skipped entirely: without this a whole visit recorded that
+    // way would be held in memory.
+    final work = _workingPath ?? await workingPath(_bidsName(_labels).filename);
+    _workingPath = work;
+    try {
+      await _writer.write(work, _authoring.serialize());
+    } catch (e) {
+      if (mounted) _snack('Could not save this entry: $e');
+      return;
+    }
+    // File into the dataset the moment there is something to file. Done here
+    // rather than at New so the dataset is never left holding a header-only
+    // TSV that no scans.tsv lists, which is a dataset that does not validate.
+    if (_datasetRoot != null &&
+        _savePath == null &&
+        _authoring.rows.isNotEmpty) {
+      await _fileIntoDataset();
+    }
+
     final path = _savePath;
     if (path == null) return;
     try {
       await _writer.write(path, _authoring.serialize());
     } catch (e) {
-      if (mounted) _snack('Autosave failed: $e');
+      if (mounted) {
+        _snack(
+          'Autosave to your file failed: $e. The entry is saved in the app.',
+        );
+      }
+    }
+  }
+
+  /// Place this visit in the chosen dataset: its TSV and sidecar at the BIDS
+  /// path, and the dataset index files brought up to date.
+  ///
+  /// Goes through [planBidsMerge] like every other write into a dataset, so a
+  /// `participants.tsv` carrying the study's own columns keeps them, and a
+  /// visit already filed there is refused rather than overwritten.
+  Future<void> _fileIntoDataset() async {
+    final root = _datasetRoot;
+    final name = _datasetName;
+    if (root == null || name == null) return;
+    try {
+      final contract = await loadTsvContract();
+      final incoming = buildBidsDataset(
+        [
+          datasetEntry(
+            name: name,
+            tsv: _authoring.serialize(),
+            contract: contract,
+            kind: 'session_tsv',
+            acqTime: _authoring.rows.first.acqTime,
+          ),
+        ],
+        appName: appName,
+        appVersion: appVersion,
+        repoUrl: repoUrl,
+      );
+      final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
+      if (plan.refused.isNotEmpty) {
+        if (mounted) {
+          _snack(
+            'That dataset already holds ${name.filename}. This visit stays in '
+            'the app; export it under a different run.',
+          );
+        }
+        setState(() => _datasetRoot = null);
+        return;
+      }
+      await applyMergeToDirectory(root, plan);
+      if (!mounted) return;
+      setState(() => _savePath = '$root/${name.relativeDir}/${name.filename}');
+      _snack('Filed as ${name.relativeDir}/${name.filename}.');
+    } catch (e) {
+      if (mounted) {
+        _snack(
+          'Could not file into the dataset: $e. The visit is saved in the app.',
+        );
+      }
+      setState(() => _datasetRoot = null);
     }
   }
 
@@ -546,14 +694,125 @@ class _SessionScreenState extends State<SessionScreen> {
 
   // ---- Open / Export (offline pattern from annotations_screen.dart) ----
 
+  /// Ask whether this visit is a loose file or goes into a dataset, and, when
+  /// a dataset, which one and under what session label.
+  ///
+  /// The label is proposed as today's date but stays editable: `ses-YYYYMMDD`
+  /// is this app's convention, and plenty of groups use `ses-preop` or
+  /// `ses-3mo`. Filing into someone's tree under a scheme they do not use turns
+  /// a filename edit into a history problem.
+  Future<({String? root, BidsName name})?> _askNewTarget(
+    BidsName proposed,
+  ) async {
+    if (!canWriteChosenFolder) return (root: null, name: proposed);
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Where should this visit be saved?'),
+        content: const Text(
+          'A loose TSV goes wherever you choose. Into a dataset, the visit is '
+          'filed at its BIDS path and the dataset index files are kept up to '
+          'date as you record.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'loose'),
+            child: const Text('Loose TSV'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, 'dataset'),
+            child: const Text('Into a dataset'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || !mounted) return null;
+    if (choice == 'loose') return (root: null, name: proposed);
+
+    final root = await pickDatasetFolder();
+    if (root == null || !mounted) return null;
+    final label = await _askSessionLabel(proposed.session);
+    if (label == null || !mounted) return null;
+    return (
+      root: root,
+      name: BidsName(
+        subject: proposed.subject,
+        session: label,
+        task: proposed.task,
+        run: proposed.run,
+      ),
+    );
+  }
+
+  Future<String?> _askSessionLabel(String proposed) async {
+    final ctrl = TextEditingController(text: proposed);
+    final out = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Session label'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'ses-',
+            helperText: 'Often the date, but use whatever this study uses.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
+            child: const Text('Use'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    return (out == null || out.isEmpty) ? null : out;
+  }
+
   Future<void> _newSession() async {
     final subject = _subjectCtrl.text.trim().isEmpty
         ? '01'
         : _subjectCtrl.text.trim();
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final name = _bidsName((subject: subject, run: run)).filename;
-    // Desktop parity: choose where to create the BIDS TSV before continuing.
+    final bids = _bidsName((subject: subject, run: run));
+    final name = bids.filename;
     final authoring = SessionAuthoring();
+
+    // Loose file, or straight into a dataset. Asked here because the answer
+    // decides where every autosave of this visit lands.
+    final into = await _askNewTarget(bids);
+    if (into == null || !mounted) return;
+    if (into.root != null) {
+      final work = await workingPath(into.name.filename);
+      if (!mounted) return;
+      setState(() {
+        _authoring = authoring;
+        _savePath = null;
+        _workingPath = work;
+        _datasetRoot = into.root;
+        _datasetName = into.name;
+        _savePathIsSandboxCopy = false;
+        _subjectCtrl.text = subject;
+        _runCtrl.text = run;
+        _currentStep = 1;
+      });
+      _snack(
+        'Recording into ${into.root}. '
+        'The visit is filed there as soon as the first block is inserted.',
+      );
+      return;
+    }
+
+    // Desktop parity: choose where to create the BIDS TSV before continuing.
     final NewTsvTarget? target;
     try {
       target = await createNewTsv(
@@ -571,10 +830,14 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     final p = target.path;
     if (p != null) await _writeSidecar(p);
+    final work = await workingPath(name);
     if (!mounted) return;
     setState(() {
       _authoring = authoring;
       _savePath = p;
+      _workingPath = work;
+      _datasetRoot = null;
+      _datasetName = null;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(p);
       _subjectCtrl.text = subject;
       _runCtrl.text = run;
@@ -624,11 +887,13 @@ class _SessionScreenState extends State<SessionScreen> {
     final catalog = (await _contracts).$1;
     final named = electrodeModelIn(_authoring.rows);
     final unknownModel = named.isNotEmpty && !catalog.models.containsKey(named);
+    final work = await workingPath(picked.name);
 
     if (!mounted) return;
     setState(() {
       // Autosave future inserts back to the opened file (when a real path).
       _savePath = picked.path;
+      _workingPath = work;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
       if (bids != null) {
         _subjectCtrl.text = bids.subject;
@@ -705,6 +970,8 @@ class _SessionScreenState extends State<SessionScreen> {
       build: () async =>
           (bytes: utf8.encode(_authoring.serialize()), warning: null),
     );
+    // Exported, so there is nothing left to rescue.
+    await discardWork(_workingPath);
   }
 
   /// Export this session as a one-subject BIDS dataset (zipped).
@@ -1101,6 +1368,7 @@ class _SessionScreenState extends State<SessionScreen> {
               cathodes: _cathodesFor(side, model),
               total: double.tryParse(side.amp.text.trim()) ?? 0,
               decimals: limits.amplitudeDecimals,
+              initial: side.ampSplit,
               onChanged: (pct) => side.ampSplit = pct,
             ),
           ),

@@ -73,7 +73,7 @@ Longitudinal report
 -------------------
 
 Several sessions of one patient, compared across visits. See
-:doc:`screens/longitudinal` for the screen that produces it. There are two
+:doc:`screens/reports` for the screen that produces it. There are two
 figures, because they answer different questions:
 
 **Clinical scales by visit.** One assessment per visit, so the x axis is the

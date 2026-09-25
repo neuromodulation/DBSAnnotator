@@ -44,7 +44,7 @@ that we did not publish, that is a security report.
 - Files being readable by anyone who can read the device's filesystem. The app
   writes plain TSV on purpose, so the data outlives the software. Encryption at
   rest is the operating system's job, and full-disk encryption is worth having
-  on any device used at the bedside.
+  on any device used in clinic.
 - Unsigned desktop builds warning on first launch. That is expected and
   documented; see the installation page.
 

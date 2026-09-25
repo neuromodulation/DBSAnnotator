@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 
 import pymupdf
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 MASTER = ROOT / "assets" / "brand" / "wyss-center-black.svg"
@@ -94,6 +94,15 @@ def _write(image: Image.Image, path: Path, *, flatten: tuple[int, int, int] | No
     print(f"  {path.relative_to(ROOT).as_posix():54} {image.width}x{image.height}")
 
 
+def _on_disc(mark: Image.Image) -> Image.Image:
+    """[mark] over a white disc of its own diameter, corners transparent."""
+    big = mark.width * SUPERSAMPLE
+    disc = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(disc).ellipse((0, 0, big - 1, big - 1), fill=255)
+    out = _paint(disc.resize(mark.size, Image.LANCZOS), WHITE, None)
+    return Image.alpha_composite(out, mark)
+
+
 def _lockup(width: int, ink: tuple[int, int, int], bg: tuple[int, int, int] | None) -> Image.Image:
     height = round(width / LOCKUP_ASPECT)
     return _paint(_ink_mask(None, width, height), ink, bg)
@@ -114,6 +123,10 @@ def main() -> int:
     # The app icon is flattened onto white, because iOS forbids alpha and a
     # white ground is what the official black variant is drawn for.
     _write(_centred(mark_1024, 1024, 0.937), ROOT / "assets/icon/app_icon.png", flatten=WHITE)
+
+    # Desktop window and taskbar: no white square around the mark, but the
+    # traces cut through it need a ground, or a dark taskbar swallows them.
+    _write(_centred(_on_disc(mark_1024), 1024, 0.937), ROOT / "assets/icon/desktop_icon.png")
 
     # Android composites 108dp and guarantees only the inner 72dp, and
     # ic_launcher.xml insets this layer by a further 16%, so 0.747 here lands

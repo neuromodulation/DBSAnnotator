@@ -33,8 +33,8 @@ const double _panelHeight = 116;
 const double _plotPadY = 8;
 
 /// The x-axis strip's two lines: the clock time, then the block number.
-const double _axisTimeSize = 11;
-const double _axisBlockSize = 9;
+const double _axisTimeSize = 14;
+const double _axisBlockSize = 12;
 
 /// Horizontal room one axis label needs, per point of its font size.
 const double _labelPitch = 5.2;
@@ -725,7 +725,7 @@ class _XAxisPainter extends CustomPainter {
         canvas,
         '#${xs[i]}',
         Offset(x, 5 + timeSize + 2),
-        color: ink.withValues(alpha: 0.7),
+        color: ink,
         align: TextAlign.center,
         size: _axisBlockSize,
         scaler: scaler,

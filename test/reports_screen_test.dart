@@ -1,5 +1,5 @@
 import 'package:dbs_annotator/core/session/session_row.dart';
-import 'package:dbs_annotator/ui/longitudinal_screen.dart';
+import 'package:dbs_annotator/ui/reports_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -31,11 +31,32 @@ void main() {
     });
   });
 
-  testWidgets('LongitudinalScreen shows the empty-state import prompt', (
+  testWidgets('with nothing uploaded, every action is offered but disabled', (
     tester,
   ) async {
-    await tester.pumpWidget(const MaterialApp(home: LongitudinalScreen()));
-    expect(find.text('No sessions imported yet.'), findsOneWidget);
-    expect(find.text('Import session TSVs'), findsOneWidget);
+    await tester.binding.setSurfaceSize(const Size(1200, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(const MaterialApp(home: ReportsScreen()));
+    await tester.pump();
+
+    expect(find.text('Upload TSVs'), findsOneWidget);
+    expect(find.text('No files uploaded.'), findsOneWidget);
+    // Listed rather than hidden, so what the screen can do is visible before
+    // anything is uploaded, with the reason it cannot do it yet.
+    for (final label in const [
+      'Single session report',
+      'Longitudinal report',
+      'Combined table (TSV)',
+      'BIDS dataset (zip)',
+      'Add to an existing dataset',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('Upload a TSV first.'), findsNWidgets(5));
+    for (final button in tester.widgetList<OutlinedButton>(
+      find.byType(OutlinedButton),
+    )) {
+      expect(button.onPressed, isNull, reason: 'nothing is tappable yet');
+    }
   });
 }

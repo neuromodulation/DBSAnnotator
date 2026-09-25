@@ -69,7 +69,7 @@ static void my_application_activate(GApplication* application) {
     if (exe != nullptr) {
       g_autofree gchar* exe_dir = g_path_get_dirname(exe);
       g_autofree gchar* icon_path = g_build_filename(
-          exe_dir, "data", "flutter_assets", "assets", "icon", "app_icon.png",
+          exe_dir, "data", "flutter_assets", "assets", "icon", "desktop_icon.png",
           nullptr);
       if (g_file_test(icon_path, G_FILE_TEST_EXISTS)) {
         // Also set it as the process-wide default, so any other window (and

@@ -39,10 +39,58 @@ Future<String?> readPickedText(PlatformFile picked) async {
   }
 }
 
+/// Stands in for app storage under `flutter_test`, which has no platform
+/// channel to resolve it. Mirrors `debugPainterFontFamily`.
+Directory? debugWorkingDir;
+
+/// In-progress session files, in the app's own storage: always writable on
+/// every platform, so autosave never depends on what the picker returned.
+Future<Directory> workingDir() async {
+  final base = debugWorkingDir ?? await getApplicationSupportDirectory();
+  final dir = Directory('${base.path}/work');
+  await dir.create(recursive: true);
+  return dir;
+}
+
+/// Working-copy path for [fileName].
+Future<String> workingPath(String fileName) async =>
+    '${(await workingDir()).path}/$fileName';
+
+/// Working copies left by a run that never reached an export, newest first.
+Future<List<File>> unfinishedWork() async {
+  try {
+    final files = (await workingDir())
+        .listSync()
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.tsv'))
+        .toList();
+    files.sort(
+      (a, b) => b.statSync().modified.compareTo(a.statSync().modified),
+    );
+    return files;
+  } catch (_) {
+    return const [];
+  }
+}
+
+/// Drop a working copy and any `.tmp` left by an interrupted write.
+Future<void> discardWork(String? path) async {
+  if (path == null) return;
+  for (final p in [path, '$path.tmp']) {
+    try {
+      final f = File(p);
+      if (f.existsSync()) await f.delete();
+    } catch (_) {
+      // Left behind it is only offered again; not worth a message.
+    }
+  }
+}
+
 /// Where a newly created TSV ended up.
 typedef NewTsvTarget = ({
-  /// Path for autosave to write back to. Null means recorded data lives only
-  /// inside this app.
+  /// Path for autosave to write back to, or null when the picker gave back
+  /// something `dart:io` cannot write, as Android's `content://` URIs are.
+  /// Recording does not depend on it: see [workingPath].
   String? path,
 
   String location,

@@ -7,6 +7,7 @@ library;
 
 import 'dart:typed_data';
 
+import '../core/annotation.dart';
 import '../core/session/longitudinal.dart'
     show isScaleValueOmitted, scaleTimeline, splitScalePairs;
 import '../core/session/scale_scoring.dart';
@@ -169,6 +170,11 @@ String _valuesText(
 /// A row's clock time for display, `HH:MM:SS`, or '' when it has no instant.
 String _clock(SessionRow row) => recordedTime(row.acqTime);
 
+/// The clock time out of a built table row, whose Time cell may carry the gap
+/// since the previous block on a second line.
+String _rowClock(List<String> row) =>
+    row.length < 2 ? '' : row[1].split('\n').first.trim();
+
 /// The UTC offset the rows were recorded at, e.g. "+02:00", or ''.
 ///
 /// A clinical timestamp with no zone is ambiguous by up to a day either side of
@@ -266,7 +272,7 @@ List<String> _paramKey(SessionRow r) => [
 /// belongs here. Rounding matters: files written before [encodeAmplitude] was
 /// fixed hold independently-rounded parts, so a 5.0 mA setting is stored as
 /// `1.67_1.67_1.67` and sums to 5.01, a precision no IPG has.
-String _amplitudeCell(String raw) {
+String amplitudeCell(String raw) {
   final text = raw.trim();
   if (!text.contains('_')) return text;
   final parts = _amplitudeParts(text);
@@ -276,7 +282,7 @@ String _amplitudeCell(String raw) {
 
 /// Frequency / pulse-width cell: integer-valued numbers lose the ".0",
 /// everything else (including unit-bearing text) is verbatim.
-String _numCell(String raw) {
+String numCell(String raw) {
   final text = raw.trim();
   final v = double.tryParse(text);
   if (v != null && v == v.roundToDouble()) return '${v.toInt()}';
@@ -912,8 +918,8 @@ Map<String, String> _lastConfigLines(SessionRow? r) {
     if (cathodes.isEmpty && anodes.isEmpty) return '';
     final total = _paramRange([amp], splitSum: true);
     final dose = total == null ? '' : ' = ${trimZeros(total.$2)} mA';
-    final f = freq.trim().isEmpty ? '' : ', ${_numCell(freq)} Hz';
-    final p = pw.trim().isEmpty ? '' : ', ${_numCell(pw)} \u00B5s';
+    final f = freq.trim().isEmpty ? '' : ', ${numCell(freq)} Hz';
+    final p = pw.trim().isEmpty ? '' : ', ${numCell(pw)} \u00B5s';
     return '$cathodes-'
         '${anodes.isEmpty ? '' : ' / $anodes+'}$dose$f$p';
   }
@@ -949,6 +955,12 @@ SessionReportData buildSessionReportData({
   DateTime? generatedAt,
   List<ScalePref>? scalePrefs,
   String sourceFile = '',
+
+  /// Notes recorded alongside this session, from a `task-notes` file. Each
+  /// becomes its own row in the data table, placed by its own clock time, with
+  /// only the Time and Notes cells filled: a note carries no configuration, so
+  /// filling the stimulation cells would assert it was recorded against one.
+  List<Annotation> notes = const [],
 }) {
   final dt = generatedAt ?? DateTime.now();
   String two(int n) => n.toString().padLeft(2, '0');
@@ -1174,20 +1186,59 @@ SessionReportData buildSessionReportData({
       left ? [_clock(first), if (gap.isNotEmpty) '($gap)'].join('\n') : '',
       left ? 'L' : 'R',
       first.programId,
-      _numCell(left ? first.leftStimFreq : first.rightStimFreq),
+      numCell(left ? first.leftStimFreq : first.rightStimFreq),
       contactsWithCurrent(left ? first.leftAnode : first.rightAnode, ''),
       contactsWithCurrent(
         left ? first.leftCathode : first.rightCathode,
         left ? first.leftAmplitude : first.rightAmplitude,
       ),
-      _amplitudeCell(left ? first.leftAmplitude : first.rightAmplitude),
-      _numCell(left ? first.leftPulseWidth : first.rightPulseWidth),
+      amplitudeCell(left ? first.leftAmplitude : first.rightAmplitude),
+      numCell(left ? first.leftPulseWidth : first.rightPulseWidth),
       left ? scales : '',
       left ? indexCell : '',
       left ? first.notes : '',
     ];
     tableData.add(side(true));
     tableData.add(side(false));
+  }
+
+  // Notes from an accompanying file, interleaved by their own clock time.
+  //
+  // Sorted as GROUPS, not rows: a block contributes an L row and an R row that
+  // the Word builder merges vertically, so anything that could place a note
+  // between them would break the merge. Each block is one group with one time,
+  // each note a group of one.
+  if (notes.isNotEmpty) {
+    final groups = <(String, List<List<String>>)>[];
+    for (var i = 0; i + 1 < tableData.length; i += 2) {
+      groups.add((_rowClock(tableData[i]), [tableData[i], tableData[i + 1]]));
+    }
+    final blank = List<String>.filled(sessionTableHeaders.length, '');
+    for (final note in notes) {
+      final at = recordedTime(note.acqTime);
+      if (at.isEmpty || note.notes.trim().isEmpty) continue;
+      groups.add((
+        at,
+        [
+          List<String>.of(blank)
+            ..[1] = at
+            ..[sessionTableHeaders.length - 1] = note.notes,
+        ],
+      ));
+    }
+    // Stable, and a group with no readable time keeps its position rather than
+    // sorting to the top as an empty string.
+    final keyed = [for (final (i, g) in groups.indexed) (i, g)]
+      ..sort((a, b) {
+        final x = a.$2.$1;
+        final y = b.$2.$1;
+        if (x.isEmpty || y.isEmpty) return a.$1.compareTo(b.$1);
+        final c = x.compareTo(y);
+        return c != 0 ? c : a.$1.compareTo(b.$1);
+      });
+    tableData
+      ..clear()
+      ..addAll([for (final e in keyed) ...e.$2.$2]);
   }
 
   return SessionReportData(

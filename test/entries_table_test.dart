@@ -73,7 +73,7 @@ void main() {
       findsOneWidget,
       reason: 'later blocks show the clock time only',
     );
-    expect(find.text('130 / 2.5 / 60'), findsOneWidget);
+    expect(find.text('-\n130 Hz / 2.5 mA / 60 µs'), findsOneWidget);
     expect(find.text('transient warmth'), findsOneWidget);
 
     // Scale and value are the columns that actually differ, so every row keeps
@@ -101,6 +101,30 @@ void main() {
     expect(find.text('09:00:00'), findsOneWidget);
     expect(find.text('09:12:00'), findsOneWidget);
     expect(find.textContaining('2026-01-01 09:'), findsNothing);
+  });
+
+  testWidgets('each side says where the current goes, then its dose', (
+    tester,
+  ) async {
+    await _pump(tester, const [
+      SessionRow(
+        blockId: '1',
+        isInitial: '0',
+        acqTime: '2026-01-01T09:00:00',
+        leftAnode: 'case',
+        leftCathode: 'E2b_E2c',
+        leftAmplitude: '3.0_2.0',
+        leftStimFreq: '130',
+        leftPulseWidth: '60',
+        scaleName: 'Tremor',
+        scaleValue: '1',
+      ),
+    ]);
+    expect(
+      find.text('2b(60%) 2c(40%)- / case+\n130 Hz / 5.0 mA / 60 µs'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('3.0_2.0'), findsNothing);
   });
 
   testWidgets('empty rows show a message rather than a bare header', (

@@ -10,7 +10,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/timestamps.dart';
 import '../../core/session/session_row.dart';
-import '../../report/report_data.dart' show coerceInt;
+import '../../report/report_data.dart'
+    show amplitudeCell, coerceInt, lateralText, numCell, tokensOf;
 
 /// Thickness of the rule between blocks.
 const double _blockRule = 2.4;
@@ -32,13 +33,13 @@ class SessionEntriesTable extends StatelessWidget {
     'Prog',
     'Scale',
     'Value',
-    'L  Hz/mA/µs',
-    'R  Hz/mA/µs',
+    'Left',
+    'Right',
     'Notes',
   ];
 
   /// Relative column widths; Notes takes the largest share.
-  static const _flex = <double>[3, 5, 8, 4, 9, 5, 11, 11, 18];
+  static const _flex = <double>[3, 5, 8, 4, 9, 5, 15, 15, 12];
 
   @override
   Widget build(BuildContext context) {
@@ -54,8 +55,18 @@ class SessionEntriesTable extends StatelessWidget {
       alpha: .5,
     );
 
-    String triple(String f, String a, String pw) =>
-        [f, a, pw].map((s) => s.trim().isEmpty ? '-' : s.trim()).join(' / ');
+    // Where the current goes over what it is, worded as in the report.
+    String side(SessionRow r, {required bool left}) {
+      final where = lateralText(tokensOf(r)!, left: left);
+      String part(String v, String unit, String Function(String) fmt) =>
+          v.trim().isEmpty ? '-' : '${fmt(v)} $unit';
+      final dose = [
+        part(left ? r.leftStimFreq : r.rightStimFreq, 'Hz', numCell),
+        part(left ? r.leftAmplitude : r.rightAmplitude, 'mA', amplitudeCell),
+        part(left ? r.leftPulseWidth : r.rightPulseWidth, 'µs', numCell),
+      ].join(' / ');
+      return '${where == 'not recorded' ? '-' : where}\n$dose';
+    }
 
     // The date belongs to the session, not to a configuration, so the baseline
     // row carries it and recording blocks show only a clock time. A file with
@@ -115,16 +126,8 @@ class SessionEntriesTable extends StatelessWidget {
             _cell(isNewBlock ? r.programId : ''),
             _cell(r.scaleName),
             _cell(r.scaleValue),
-            _cell(
-              isNewBlock
-                  ? triple(r.leftStimFreq, r.leftAmplitude, r.leftPulseWidth)
-                  : '',
-            ),
-            _cell(
-              isNewBlock
-                  ? triple(r.rightStimFreq, r.rightAmplitude, r.rightPulseWidth)
-                  : '',
-            ),
+            _cell(isNewBlock ? side(r, left: true) : ''),
+            _cell(isNewBlock ? side(r, left: false) : ''),
             _cell(isNewBlock ? r.notes : '', maxLines: 4),
           ],
         ),
