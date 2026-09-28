@@ -5,7 +5,7 @@ Timestamped free-text notes and nothing else. Use it when there is no
 stimulation data to capture, as in a clinic conversation or a follow-up call,
 but the timing and the wording still matter.
 
-Step 0: File
+Step 1: File
 ------------
 
 .. figure:: ../_static/screenshots/annotations_file.png
@@ -23,7 +23,7 @@ Enter the patient ID and run number and choose where to save. The filename uses
 
    sub-01_ses-20260203_task-notes_run-01_beh.tsv
 
-Step 1: Notes
+Step 2: Notes
 -------------
 
 .. figure:: ../_static/screenshots/annotations_notes.png

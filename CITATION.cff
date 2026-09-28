@@ -24,7 +24,7 @@ abstract: >-
   the parameters need adapting. It writes them to BIDS tab-separated files,
   capturing the relationship between the stimulation delivered at each
   configuration and the clinical response observed. It runs fully offline on
-  tablets and desktops, and produces PDF and Word reports for the patient
+  iPadOS, Android, Windows, macOS and Linux, and produces PDF and Word reports for the patient
   record.
 keywords:
   - deep brain stimulation

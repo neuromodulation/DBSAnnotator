@@ -13,8 +13,11 @@ Filenames follow the `BIDS <https://bids.neuroimaging.io/>`_ entity convention:
 
 .. code-block:: text
 
-   sub-<subject>_ses-<YYYYMMDD>_task-<task>_run-<NN>_beh.tsv
-   sub-<subject>_ses-<YYYYMMDD>_task-<task>_run-<NN>_beh.json
+   sub-<subject>_ses-<session>_task-<task>_run-<NN>_beh.tsv
+   sub-<subject>_ses-<session>_task-<task>_run-<NN>_beh.json
+
+The session label is the visit date (``YYYYMMDD``) unless you give another one,
+such as ``preop`` or ``3mo``, when recording into a dataset.
 
 with two task values:
 
@@ -38,11 +41,9 @@ path.
 
 .. note::
 
-   Older files end in ``_events.tsv`` and spell three of their columns
-   ``block_ID``, ``session_ID`` and ``program_ID``. They open unchanged,
-   because the app reads a file's kind from its columns rather than from its
-   name. See :ref:`the naming rules <bids-changes>` for where the current
-   spellings come from.
+   Files written by version 0.4 (the earlier desktop application) end in
+   ``_events.tsv`` and spell three columns ``block_ID``, ``session_ID`` and
+   ``program_ID``. They open as they are.
 
 Row shape
 ---------
@@ -112,7 +113,7 @@ BIDS requires for a missing or non-applicable value. Read it with:
 
    df = pd.read_csv(path, sep="\t", na_values=["n/a", "NaN"])
 
-``NaN`` is there because older files spell it that way.
+Files written by version 0.4 use ``NaN`` instead.
 
 Timestamps
 ----------
@@ -127,34 +128,17 @@ Every row carries **one** time cell:
 (``2026-02-03T09:00:00+00:00``), and it is BIDS' own name for a timestamp
 column, used in ``scans.tsv`` and ``sessions.tsv``.
 
-One cell rather than four is a deliberate choice. Spreading an instant across
-``date``, ``time`` and ``timezone`` cells lets them disagree with each other
-while nothing in the file asserts that they agree, and a zone *name* is not
-reproducible: Dart reports the same zone as ``W. Europe Daylight Time`` on
-Windows and as ``CEST`` on Linux, so one clinic would emit different cells
-depending on which platform it recorded the visit on. The only
-machine-readable part of a zone name is the offset, and that is already inside
-``acq_time``.
-
 .. note::
 
-   Older files store the timestamp as ``date`` + ``time`` plus a ``timezone``
-   cell holding a platform-supplied display name, such as the Windows spelling
-   ``W. Europe Daylight Time +0200``, which no date parser accepts. **You do
-   not need to handle that.** Open such a file in Wyss DBS Annotator and export it:
-   the app composes ``acq_time`` out of those three cells as it reads them,
-   offset included, and writes back only ``acq_time``.
-
-   If you are reading an old file directly with pandas rather than through the
-   app, the equivalent is:
+   Files written by version 0.4 store the timestamp in three cells,
+   ``date``, ``time`` and ``timezone`` (for example
+   ``W. Europe Daylight Time +0200``). The app reads them as one ``acq_time``.
+   Reading such a file directly with pandas:
 
    .. code-block:: python
 
       when = pd.to_datetime(df.date + " " + df.time)
       offset = df.timezone.str.extract(r"([+-]\d{4})")[0]
-
-   which is the two-line, regex-requiring reconstruction that a single
-   ``acq_time`` column spares you.
 
 .. warning::
 
@@ -231,57 +215,32 @@ The full sidecar carries one such entry per column in the tables above.
 Relationship to BIDS
 --------------------
 
-These files are BIDS files, not merely BIDS-*named*: the entities in the
+These files are BIDS files, not only BIDS-*named*: the entities in the
 filename, the datatype directory, the suffix and the sidecar are all what the
-specification asks for. The distinction is worth spelling out, because a
-filename that looks like BIDS on a file the specification would reject is worse
-than no BIDS naming at all. Downstream tools trust the name.
+specification asks for.
 
-.. _bids-changes:
+.. _bids-naming:
 
-Why the suffix is ``_beh``
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Naming
+~~~~~~
 
-``_events.tsv`` is a reserved suffix with mandatory content. The specification
-requires ``onset`` as its first column and ``duration`` as its second, and states
-that "each ``events.tsv`` file REQUIRES at least one corresponding data file".
+The suffix is ``_beh`` and the files sit in a ``beh/`` datatype directory: the
+BIDS suffix for behavioural data recorded without an accompanying imaging or
+electrophysiology recording.
 
-A programming session has neither. There is no acquisition to measure an onset
-from, and no imaging or electrophysiology recording beside it. The specification
-names the correct alternative directly:
+Columns are in snake_case, as BIDS recommends (``block_id``, ``append_id``,
+``program_id``), a missing value is ``n/a``, the timestamp is one ``acq_time``
+cell, and lines end in LF.
 
-   events files that do not include the mandatory ``onset`` and ``duration``
-   columns MAY be included, but MUST be labeled ``_beh.tsv`` rather than
-   ``_events.tsv``.
-
-So ``_beh.tsv``, in a ``beh/`` datatype directory, is not a compromise: it is
-the suffix the specification points at for exactly this shape of file. An
-``_events.tsv`` holding these columns is a file no validator accepts, which is
-why the app reads that name and never writes it.
-
-The column names follow the same reasoning. BIDS recommends snake_case, so the
-columns are ``block_id``, ``append_id`` and ``program_id``; a missing value is
-``n/a``, the spelling BIDS reserves for it; the timestamp is one ``acq_time``
-cell; and lines end in LF. Files that instead spell those columns ``block_ID``,
-``session_ID`` and ``program_ID``, write ``NaN``, split the timestamp across
-``date``, ``time`` and ``timezone``, or end their lines in CRLF are read
-without conversion.
-
-The one name worth dwelling on is ``append_id``, which is deliberately not
-``session_id``. It counts **data-entry episodes within one file**, advancing
-each time that file is reopened to add more rows, and it is file-scoped, so
-``append_id`` 1 in two different files are unrelated. BIDS uses ``session_id``
-for the ``ses-`` label in ``sessions.tsv``, and one name meaning both things
-would mislead anyone reading a table that combines several sessions.
+``append_id`` counts **data-entry episodes within one file**: it goes up each
+time that file is reopened to add rows. It is file-scoped, so ``append_id`` 1 in
+two different files are unrelated. It is not ``session_id``, which BIDS uses for
+the ``ses-`` label.
 
 .. note::
 
-   Compatibility runs **one way**. Wyss DBS Annotator reads the files written by the
-   0.4.x desktop application, in every spelling above. What it writes is meant
-   for this app and for analysis, and carries no ``session_ID``, ``date``,
-   ``time`` or ``timezone``, so that retired desktop application cannot read a
-   current file in full. Saying so plainly is better than implying a symmetry
-   that does not hold.
+   Files written by version 0.4 open without conversion. Files written by this
+   version cannot be read by version 0.4.
 
 .. _bids-dataset-export:
 
@@ -305,10 +264,8 @@ from any of the three screens that hold session data:
          sub-01_ses-20260203_task-programming_run-01_beh.tsv
          sub-01_ses-20260203_task-programming_run-01_beh.json
 
-The reports screen is the useful place to do this: it already holds several
-visits of one patient, which is exactly what the ``sub-``/``ses-`` hierarchy is
-for, and a file imported under the older ``_events.tsv`` name is re-emitted
-into the tree as a valid ``_beh.tsv``.
+The reports screen is the useful place to do this: it holds several visits of
+one patient, which is what the ``sub-``/``ses-`` hierarchy is for.
 
 Reports are derived documents, so they belong under ``derivatives/`` rather than
 beside the raw data, and are written there with their own
@@ -355,9 +312,7 @@ above, and the filename is then the only thing that separates their rows.
    ``session_id`` here is the **BIDS session label**, as ``sessions.tsv`` means
    it. The per-file counter is in the table too, under its own name
    ``append_id``: it counts data-entry episodes within one source file, so
-   equal values under different ``source_file`` entries are unrelated. That
-   possible collision is exactly why the two carry different names; see
-   :ref:`the naming rules <bids-changes>`.
+   equal values under different ``source_file`` entries are unrelated.
 
 Inside a BIDS dataset the same table is a **derivative**, because a table
 spanning sessions cannot sit in a tree defined as one file per session:
@@ -394,7 +349,7 @@ The placement of the combined table is the part with the least precedent: a
 ``desc-``-only filename at a derivative root has no ``sub-`` entity, because the
 table deliberately spans subjects. ``desc-`` is the entity BIDS provides for
 naming a derivative variant, and dataset-level files do exist, so the shape is
-idiomatic; it is checked by a validator job in CI rather than asserted here.
+idiomatic, and it passes the BIDS validator.
 
 Worked example
 --------------

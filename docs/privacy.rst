@@ -24,12 +24,18 @@ your own device.
 What is stored, and where
 -------------------------
 
-Two things, both local.
+Three things, all local.
 
 **Your session data**, in the files you create. Session and notes files are written
 only where you choose to save them, through the operating system's own file picker
-or share sheet. The app keeps no hidden database and no second copy. If you delete
-the file, the data is gone.
+or share sheet. If you delete the file, the data is gone.
+
+**A working copy of the session in progress**, inside the app's own storage. Every
+entry is written to it as well as to your file, so a crash or a closed window loses
+nothing; the next time you open the workflow the app offers it back. When you
+leave a session the app asks whether to keep this copy or discard it, and it is
+deleted only if you choose to discard it. It is never uploaded, and uninstalling the
+app removes it.
 
 **Your preferences**, in a single small JSON file: the scale and stimulation presets
 you have customised, your program names, the report page size and section
@@ -44,9 +50,7 @@ platform:
    * - Platform
      - Location
    * - Windows
-     - ``%APPDATA%\ch.wysscenter\dbs_annotator\dbs_user_prefs.json``, or, for the
-       Microsoft Store build, the package's own private application-data folder
-       under ``%LOCALAPPDATA%\Packages\``
+     - the app's private application-data folder under ``%LOCALAPPDATA%\Packages\``
    * - macOS
      - ``~/Library/Application Support/``
    * - Linux

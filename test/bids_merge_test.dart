@@ -204,4 +204,35 @@ void main() {
     expect(text, contains('added'));
     expect(text, contains('gaining rows'));
   });
+
+  group('what kind of folder was chosen', () {
+    test('a dataset has dataset_description.json at its top level', () {
+      expect(
+        datasetFolderKind(const [
+          (path: 'dataset_description.json', content: '{}'),
+          (path: 'sub-01/ses-a/beh/x_beh.tsv', content: ''),
+        ]),
+        DatasetFolderKind.dataset,
+      );
+    });
+
+    test('hidden files do not make a folder non-empty', () {
+      expect(
+        datasetFolderKind(const [(path: '.DS_Store', content: '')]),
+        DatasetFolderKind.empty,
+      );
+      expect(datasetFolderKind(const []), DatasetFolderKind.empty);
+    });
+
+    test('other content without a description is not a dataset', () {
+      expect(
+        datasetFolderKind(const [
+          (path: 'notes.txt', content: ''),
+          (path: 'sub/dataset_description.json', content: '{}'),
+        ]),
+        DatasetFolderKind.other,
+        reason: 'the description must be at the top level',
+      );
+    });
+  });
 }

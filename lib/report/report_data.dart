@@ -927,24 +927,39 @@ LateralTokens? tokensOf(SessionRow? r) => r == null
 List<String> _configChanges(SessionRow? from, SessionRow? to) {
   if (from == null || to == null) return const [];
   final out = <String>[];
+  // Contacts and total amplitude separately: the contact notation carries each
+  // contact's share of the current, not the dose, so a dose change on the same
+  // contacts would otherwise go unreported.
+  String dose(SessionRow r, bool left) =>
+      amplitudeCell(left ? r.leftAmplitude : r.rightAmplitude);
   for (final left in [true, false]) {
     final side = left ? 'Left' : 'Right';
     final before = lateralText(tokensOf(from)!, left: left);
     final after = lateralText(tokensOf(to)!, left: left);
-    if (before == after) continue;
-    out.add('$side changed: $before -> $after');
+    if (before != after) out.add('$side contacts: $before -> $after');
+    final (was, now) = (dose(from, left), dose(to, left));
+    if (was != now && was.isNotEmpty && now.isNotEmpty) {
+      out.add('$side amplitude: $was -> $now mA');
+    }
   }
-  // Frequency and pulse width are usually untouched across a session, and
-  // saying so is more useful than leaving the reader to check.
+  // What held steady, so the reader does not have to check.
   bool same(String Function(SessionRow) pick) =>
       pick(from).trim() == pick(to).trim();
   final steady = <String>[
+    if (dose(from, true) == dose(to, true) &&
+        dose(from, false) == dose(to, false))
+      'amplitude',
     if (same((r) => r.leftStimFreq) && same((r) => r.rightStimFreq))
       'frequency',
     if (same((r) => r.leftPulseWidth) && same((r) => r.rightPulseWidth))
       'pulse width',
   ];
-  if (steady.isNotEmpty) out.add('Unchanged: ${steady.join(' and ')}.');
+  if (steady.isNotEmpty) {
+    final list = steady.length == 1
+        ? steady.single
+        : '${steady.sublist(0, steady.length - 1).join(', ')} and ${steady.last}';
+    out.add('Unchanged: $list.');
+  }
   if (out.isEmpty) out.add('No change from the pre-session configuration.');
   return out;
 }

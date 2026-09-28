@@ -4,12 +4,12 @@ Complete workflow
 The full session: stimulation parameters, electrode configuration, scale ratings,
 side effects and notes, recorded configuration by configuration.
 
-The screen is a four-step wizard. Steps 1 and 3 share a two-row layout that
+The screen is a four-step wizard. Steps 2 and 4 share a two-row layout that
 follows the order the work is actually done in: what was *delivered* on top
 (parameters and electrodes), what was *observed* below (scales, side effects
 and notes).
 
-Step 0: File
+Step 1: File
 ------------
 
 .. figure:: ../_static/screenshots/session_step0_file.png
@@ -26,7 +26,10 @@ asks whether this visit is a loose TSV or goes straight into a BIDS dataset.
 :doc:`BIDS filename <../output_format>` and creates the file straight away,
 along with its ``.json`` sidecar, so every later insert has somewhere to go.
 
-**Into a dataset** asks for the dataset folder and for the session label,
+**Into a dataset** asks for the dataset folder, which must be a BIDS dataset or
+an empty folder to start one in (see
+:ref:`what counts as a BIDS dataset <bids-folder-requirements>`), and for the
+session label,
 proposed as today's date but editable: ``ses-YYYYMMDD`` is this app's
 convention, and plenty of studies use ``ses-preop`` or ``ses-3mo``. The visit is
 filed at its BIDS path when the **first block is inserted**, not when the file
@@ -35,18 +38,28 @@ one that does not validate, and before the first block there is nothing to file.
 From then on every insert rewrites it in place, and the dataset index files stay
 consistent. It goes through the same rules as
 :ref:`adding to a dataset <dataset-merge-rules>`, so your
-``dataset_description.json`` and ``participants.tsv`` columns are safe, and a
-visit already filed there is refused rather than overwritten. Desktop only:
-iPadOS and Android cannot give an app a writable folder, so only the loose file
-is offered there.
+``dataset_description.json`` and ``participants.tsv`` columns (the dataset's
+own description and participant list) are safe, and a
+visit already filed there is refused rather than overwritten. This option is
+available on Windows, macOS and Linux; on iPadOS and Android, which do not let an
+app write into a folder you pick, the loose file is the one offered.
+
+Before recording starts, a dialog shows the exact path the visit will be filed
+under, such as ``sub-01/ses-20260203/beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv``,
+and the rows that will be added to ``participants.tsv`` and ``scans.tsv``.
 
 Whichever you choose, **every entry is also written to a working copy inside the
-app** as you record, so a crash or a closed window loses nothing. The app offers
-that copy back the next time you open this workflow.
+app** as you record, so a crash or a closed window loses nothing. When you leave
+the workflow, or close the app window on Windows, macOS or Linux, the app asks
+whether to **keep** that copy or **discard** it. Kept, it is offered back the next
+time you open this workflow; discarded, it is gone and nothing is offered. It is
+never deleted without that answer: after a crash, or when a tablet or phone app is
+swiped away, the copy is always kept.
 
-*Open* loads an existing session instead, and appends to it. The status line
-under the buttons reports what was found: the row count, and the block and
-``append_id`` the next insert will carry, so an append is never a guess. Opening a
+**Open existing TSV** loads a session recorded earlier, and appends to it. The
+status line under the buttons reports what was found: the row count, the next
+block number, and the append number (``append_id`` in the file: how many times
+it has been reopened to add blocks), so an append is never a guess. Opening a
 file also adopts the **electrode model named in that file**, so the lead diagrams
 show the patient's actual hardware rather than whatever the dropdown last held.
 If the file names a model that is not in the catalogue, the app says so rather
@@ -55,7 +68,7 @@ than drawing the wrong lead.
 A file that is not a programming session, an annotations file for instance, is
 refused with an explanation rather than loading as empty rows.
 
-Step 1: Initial configuration
+Step 2: Initial configuration
 -----------------------------
 
 The state the patient arrived in, before anything is changed.
@@ -66,7 +79,7 @@ The state the patient arrived in, before anything is changed.
          scales and notes below
    :width: 100%
 
-   Step 1 with a baseline configuration entered: current steered across two
+   Step 2 with a baseline configuration entered: current steered across two
    segments of level 2 on the left lead, and the OCD clinical scale set.
 
 **Electrode model.** Choose the implanted lead. The catalogue covers Medtronic,
@@ -101,9 +114,9 @@ Programs
    :alt: The Programs dialog, a simple editable list of program labels
    :width: 100%
 
-Opened by the gear beside the **Program** card in steps 1 and 3.
+Opened by the gear beside the **Program** card in steps 2 and 4.
 
-The stimulation programme labels offered by the dropdown: ``A``, ``B``, ``C``
+The program labels offered by the dropdown: ``A``, ``B``, ``C``
 and so on, or whatever your centre uses. Stored as a preset, so the list you
 build is there next session.
 
@@ -117,11 +130,11 @@ Parameter presets
          Pulse width
    :width: 100%
 
-Opened by the gear beside **Parameters** in steps 1 and 3.
+Opened by the gear beside **Parameters** in steps 2 and 4.
 
 The quick-pick chips under each stimulation field, one tab per parameter. These
-are shortcuts, not limits: the ranges a value is validated against come from the
-contract in ``schema/limits.json``, not from this list.
+are shortcuts, not limits: each field accepts any value within the permitted
+range for that parameter, whether or not it is in this list.
 
 A value that is not a number, or that falls outside the permitted range, is
 refused with the reason shown in the dialog rather than being silently dropped.
@@ -136,7 +149,7 @@ Clinical scales settings
          selected group's scale names on the right
    :width: 100%
 
-Opened by the gear on the **Clinical scales** card in step 1.
+Opened by the gear on the **Clinical scales** card in step 2.
 
 Edits the disease preset buttons for the baseline assessment: the group names
 (OCD, MDD, PD, ET, Dystonia, TS) and the scale names inside each. A clinical
@@ -180,9 +193,9 @@ scrolling.
    :alt: The same step in a single stacked column on a narrow screen
    :width: 100%
 
-   Step 1 in the single-column layout.
+   Step 2 in the single-column layout.
 
-Step 2: Session scales configuration
+Step 3: Session scales configuration
 ------------------------------------
 
 .. figure:: ../_static/screenshots/session_step2_scales.png
@@ -196,10 +209,10 @@ Name the scales to be rated at *every* configuration, with a minimum and maximum
 for each. Keeping the set fixed for the whole session is what makes the ratings
 comparable between configurations.
 
-Choosing a disease preset here, or having chosen one in step 1, fills the list.
+Choosing a disease preset here, or having chosen one in step 2, fills the list.
 The gear icon edits :ref:`the presets themselves <dialog-session-scales>`, which
 persist between sessions. Nothing on this step is written to the file; it defines
-what step 3 will ask for.
+what step 4 will ask for.
 
 .. _dialog-session-scales:
 
@@ -211,14 +224,14 @@ Session scales settings
          maximum as well as a name
    :width: 100%
 
-Opened by the gear on **Session scales configuration** in step 2.
+Opened by the gear on **Session scales configuration** in step 3.
 
-The same master-detail shape as the clinical dialog, with one difference that is
-the reason both are documented: each row here also carries a **minimum and
-maximum**. Session scales are rated on a slider at every configuration, so they
-need a range; clinical scales are typed once, so they do not.
+The same shape as the clinical dialog, with one difference: each row here also
+carries a **minimum and maximum**. Session scales are rated on a slider at every
+configuration, so they need a range; clinical scales are typed once, so they do
+not.
 
-Step 3: Recording
+Step 4: Recording
 -----------------
 
 The loop, repeated once per configuration tried.
@@ -230,7 +243,7 @@ The loop, repeated once per configuration tried.
 
    One configuration rated and ready to insert. *Energy* is marked not assessed.
 
-Set the parameters and contacts as in step 1, then rate each scale. A scale that
+Set the parameters and contacts as in step 2, then rate each scale. A scale that
 was not assessed can be marked omitted, which writes ``n/a`` rather than a
 made-up number. That is the grey bar with the crossed-out icon in the
 screenshot above.
@@ -271,7 +284,7 @@ configurations by default, with zoom controls and drag handles to reorder the
 panels.
 
 **A table** of every entry sits below them, grouped by block. Values that belong
-to the block (time, programme, parameters) are printed once rather than
+to the block (time, program, parameters) are printed once rather than
 repeated on every scale row, and a heavy rule marks each block boundary.
 
 **Scale targets** sets what "better" means per scale (minimise, maximise, or
@@ -289,8 +302,8 @@ Scale targets
          a target mode
    :width: 100%
 
-Opened by **Scale targets** in step 3, from the single-session report screen, or
-from the report-sections dialog.
+Opened by **Scale targets** in step 4, on the Reports and datasets screen, or from
+the report sections dialog.
 
 Says what "better" means for each scale, which is the input the ranking needs and
 the one thing only you can supply. **Set all: Min / Max** fills the column in one

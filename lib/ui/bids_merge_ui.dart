@@ -16,6 +16,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import '../core/bids.dart';
 import '../core/bids_dataset.dart';
 import '../core/bids_merge.dart';
 import '../core/safe_file.dart';
@@ -131,6 +132,113 @@ Uint8List mergedZip(List<DatasetFile> existing, MergePlan plan) {
   return Uint8List.fromList(ZipEncoder().encode(archive));
 }
 
+/// What a folder must hold to be a BIDS dataset, said wherever one is chosen.
+const kBidsFolderRule =
+    'A BIDS dataset folder has a dataset_description.json at its top level '
+    'and one sub-<participant> folder per participant, listed in '
+    'participants.tsv.';
+
+/// Where an added visit goes, said on every add.
+const kBidsAddRule =
+    'Each visit is added as sub-<participant>/ses-<session>/beh/, as a '
+    '_beh.tsv with its .json sidecar. The participant gets a row in '
+    'participants.tsv and the visit a row in that session\'s scans.tsv. '
+    'Nothing already in the dataset is changed.';
+
+/// Check the dataset chosen as [label] before anything is added to it.
+///
+/// A BIDS dataset goes ahead. An empty folder can become one: the add then
+/// writes its dataset_description.json, README and participants.tsv as well.
+/// Anything else is refused with what a dataset needs, because adding to it
+/// would scatter BIDS files through a folder that is not one.
+Future<bool> checkDatasetFolder(
+  BuildContext context,
+  String label,
+  List<DatasetFile> existing,
+) async {
+  final kind = datasetFolderKind(existing);
+  if (kind == DatasetFolderKind.dataset) return true;
+  final empty = kind == DatasetFolderKind.empty;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(
+        empty ? 'Start a new BIDS dataset here?' : 'Not a BIDS dataset',
+      ),
+      content: SizedBox(
+        width: 480,
+        child: Text(
+          '$label\n\n$kBidsFolderRule\n\n'
+          '${empty ? 'This folder is empty, so it can become one: its '
+                    'dataset_description.json, README and participants.tsv '
+                    'are written along with the first visit.' : 'This folder has other content and no '
+                    'dataset_description.json. Choose the top-level folder of a '
+                    'BIDS dataset, or an empty folder to start one.'}',
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: Text(empty ? 'Cancel' : 'Choose another folder'),
+        ),
+        if (empty)
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Start a dataset'),
+          ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
+/// Say where a visit recorded straight into a dataset will be filed.
+Future<bool> confirmRecordInto(
+  BuildContext context,
+  String root,
+  BidsName name,
+) async {
+  final theme = Theme.of(context);
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Record into this dataset?'),
+      content: SizedBox(
+        width: 520,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(root, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 12),
+            const Text('This visit will be filed as:'),
+            Text(
+              '  ${name.relativeDir}/${name.filename}',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'when the first block is inserted, and updated at every insert '
+              'after that. $kBidsAddRule',
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Record here'),
+        ),
+      ],
+    ),
+  );
+  return ok ?? false;
+}
+
 /// Show exactly what the merge will do and wait for a yes.
 ///
 /// This is a gate, not a courtesy: writing into a dataset the app did not
@@ -153,6 +261,8 @@ Future<bool> confirmMerge(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(target, style: theme.textTheme.bodySmall),
+              const SizedBox(height: 8),
+              Text(kBidsAddRule, style: theme.textTheme.bodySmall),
               const SizedBox(height: 12),
               for (final (label, paths) in [
                 ('Added', plan.added),

@@ -21,34 +21,33 @@ General
    segments plus a whole-level ring.
 
 **Can I use it on a phone?**
-   It will run, but the layouts are designed for a tablet. On a narrow screen the
-   two-column steps stack into one, which works but involves more scrolling than
-   is comfortable during a live session.
+   Yes. On a narrow screen the two-row steps stack into one column, with more
+   scrolling.
 
 Files and data
 --------------
 
 **Where are the files saved?**
-   Wherever you choose in the platform's file picker or share sheet. The app does
-   not keep a hidden copy.
+   Wherever you choose in the platform's file picker or share sheet. While a
+   session is open, the app also keeps a working copy in its own storage, for
+   crash recovery. When you leave the session you choose whether to keep it or
+   discard it. See
+   :doc:`privacy`.
 
 **Can I open the TSV in Excel?**
    Yes. It is tab-separated text. Be aware that Excel will try to reinterpret
    some values (a scale name that looks like a date, for instance), so for
    analysis prefer pandas or R, and see :doc:`output_format`.
 
-**Are files written by different versions compatible?**
-   An older file opens in a newer app. The format is defined by a committed
-   contract, and readers fall back to the superseded column spellings, so
-   nothing has to be converted first. It does not hold in the other
-   direction: a file written today no longer carries the retired columns an
-   older build looked for. See :ref:`the naming rules <bids-changes>`.
+**Can it open files written by the earlier desktop application (version 0.4)?**
+   Yes, with no conversion. Files written by this version are not readable by
+   version 0.4. See :ref:`the naming rules <bids-naming>`.
 
 **What happens if the app crashes mid-session?**
-   Every insert is written to the file as it happens, and writes are atomic:
-   the new content is written alongside and then swapped in, so an interrupted
-   write leaves the previous file intact rather than a truncated one. You lose
-   at most the entry you were typing.
+   Every insert is written to your file and to the working copy as it happens,
+   and an interrupted write leaves the previous version intact rather than a
+   truncated file. Reopen the workflow and the app offers the unfinished session
+   back. You lose at most the entry you were typing.
 
 **Why is there a row per scale instead of a row per configuration?**
    So that data pools across sites that rate different scales. See
@@ -65,13 +64,6 @@ Reports
    Because the data records only which block came last, not that a clinician
    confirmed a choice. See :ref:`what-the-reports-do-not-say`.
 
-**A character in my note came out as a question mark.**
-   You are on a build whose bundled fonts are missing; the PDF exporter's
-   fallback font covers Latin-1 only. Restore the two IBM Plex Sans files
-   described in :doc:`installation`. Word export is unaffected either way, and
-   the app warns whenever a character was replaced, so this never happens
-   silently.
-
 **Can I get the report as a Word file I can edit?**
    Yes. Both formats come from the same numbers, so the ``.docx`` says exactly
    what the PDF does.
@@ -87,7 +79,8 @@ Troubleshooting
 **Opening a file says it is the wrong kind.**
    The app checks a file's columns before loading it, so an annotations file
    cannot be opened as a session. Use the workflow that matches the file, or
-   *Single session report*, which detects the kind and reports accordingly.
+   upload it in *Reports and datasets*, which detects the kind and offers the
+   matching report.
 
 **The lead diagram does not match the patient's implant.**
    Check the electrode model. When a file is opened, the app adopts the model

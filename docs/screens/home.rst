@@ -1,15 +1,15 @@
 Home
 ====
 
-The launcher. Four entries in two groups, and the three controls that appear in
-the top bar of every screen.
+The launcher. Three entries in two groups, and the controls that appear in the
+top bar of every screen.
 
 .. figure:: ../_static/screenshots/home.png
-   :alt: Home screen with four entries grouped under Record and Reports
+   :alt: Home screen with three entries grouped under Record and Read
    :width: 100%
 
-   **Record** is for a session happening now; **Reports** is for a file that
-   already exists.
+   **Record** is for a session happening now; **Read** is for files that already
+   exist.
 
 .. list-table::
    :header-rows: 1
@@ -32,8 +32,7 @@ against a file you care about.
 The top bar
 -----------
 
-Present on every screen, at the same place, because both of these matter during
-an appointment and neither should need hunting for.
+Present on every screen, in the same place: theme, text size and help.
 
 **Theme.** The moon / sun control switches between light and dark.
 

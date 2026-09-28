@@ -18,13 +18,15 @@ or years.
 
 Wyss DBS Annotator documents those visits: the stimulation parameters tried on each
 contact, the clinical and session scale ratings at every configuration, side
-effects, and free-text notes, written to :doc:`BIDS tab-separated files
-<output_format>` that go straight into analysis. It also produces
+effects, and free-text notes. They are written to tab-separated files laid out
+to :doc:`BIDS <output_format>` (the Brain Imaging Data Structure, a community
+standard for organising neuroscience data), so they go straight into analysis. It also produces
 clinician-readable :doc:`PDF and Word reports <reports>` for the patient
-record.
+record. New to the terms? See :doc:`glossary`.
 
-It runs **fully offline**: no account, no server, no telemetry. Tablet-first for
-iPadOS and Android, with desktop builds for Linux, Windows and macOS.
+It runs **fully offline**: no account, no server, no telemetry. It is available
+for iPadOS, Android, Windows, macOS and Linux, published in each platform's app
+store by the Wyss Center for Bio and Neuroengineering. See :doc:`installation`.
 
 .. note::
 
@@ -35,7 +37,7 @@ At a glance
 -----------
 
 .. image:: _static/screenshots/home.png
-   :alt: The Wyss DBS Annotator home screen, showing the Record and Reports sections
+   :alt: The Wyss DBS Annotator home screen, with its Record and Read sections
    :width: 100%
 
 
@@ -46,7 +48,7 @@ At a glance
    * - Aspect
      - Detail
    * - Platforms
-     - iPadOS, Android, Linux, Windows, macOS, from one codebase
+     - iPadOS, Android, Windows, macOS, Linux, from each platform's app store
    * - Data files
      - BIDS ``_beh.tsv`` with a JSON sidecar, one row per (block, scale)
    * - Reports
@@ -63,6 +65,7 @@ At a glance
    overview
    installation
    quickstart
+   glossary
 
 .. toctree::
    :maxdepth: 2

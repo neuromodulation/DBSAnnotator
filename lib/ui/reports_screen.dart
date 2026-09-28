@@ -488,6 +488,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (root == null) return null;
     try {
       final existing = await readDatasetDirectory(root);
+      if (!mounted || !await checkDatasetFolder(context, root, existing)) {
+        return null;
+      }
       return (
         existing: existing,
         label: root,
@@ -525,6 +528,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final bytes = await picked.readAsBytes();
       final existing = readDatasetZip(bytes);
       final name = picked.name;
+      if (!mounted || !await checkDatasetFolder(context, name, existing)) {
+        return null;
+      }
       return (
         existing: existing,
         label: name,
