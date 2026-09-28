@@ -72,7 +72,6 @@ At a glance
    screens/complete_workflow
    screens/annotations
    screens/reports
-   screens/dialogs
 
 .. toctree::
    :maxdepth: 2

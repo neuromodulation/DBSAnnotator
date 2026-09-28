@@ -52,4 +52,21 @@ an appointment and neither should need hunting for.
    Enlarged text. Layouts reflow rather than clipping, on every screen.
 
 **Help.** The **?** opens the About dialog: the version, the licence and where
-to report a problem. See :ref:`dialog-about`.
+to report a problem.
+
+.. _dialog-about:
+
+Help / about
+~~~~~~~~~~~~
+
+.. figure:: ../_static/screenshots/dialog_about.png
+   :alt: The About dialog: app name, version, a workflow summary, licence and
+         contact links
+   :width: 100%
+
+Opened by the **?** in the top bar of every screen.
+
+The version, the licence, and where to report a problem. The version here is the
+one stamped into every report footer, so it is what to quote in a bug report.
+Links are selectable text rather than buttons: the app opens no browser, because
+it makes no outbound connections at all. See :doc:`../privacy`.
