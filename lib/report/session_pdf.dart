@@ -22,7 +22,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import '../app_info.dart' show appVersion;
+import '../app_info.dart' show appName, appVersion;
 import 'report_data.dart';
 import 'report_fonts.dart';
 import 'report_palette.dart';
@@ -315,8 +315,8 @@ Future<ReportBytes> buildSessionPdf({
   final doc = pw.Document(
     theme: theme,
     title: title,
-    author: 'DBS Annotator v$appVersion',
-    creator: 'DBS Annotator v$appVersion',
+    author: '$appName v$appVersion',
+    creator: '$appName v$appVersion',
     subject: 'Deep brain stimulation programming session',
   );
   const cellStyle = pw.TextStyle(fontSize: 8);
@@ -348,7 +348,7 @@ Future<ReportBytes> buildSessionPdf({
         margin: const pw.EdgeInsets.only(top: 6),
         child: pw.Text(
           'sub-${t(subjectId)}  |  ${data.sessionStamp}  |  '
-          'DBS Annotator v$appVersion  |  '
+          '$appName v$appVersion  |  '
           'Page ${context.pageNumber} of ${context.pagesCount}',
           style: const pw.TextStyle(fontSize: 8, color: pdfInk),
         ),
@@ -357,7 +357,7 @@ Future<ReportBytes> buildSessionPdf({
         pw.Header(
           level: 0,
           child: pw.Text(
-            'DBS Annotator - Session report',
+            '$appName - Session report',
             style: const pw.TextStyle(
               fontSize: 20,
               fontWeight: pw.FontWeight.bold,
@@ -369,7 +369,7 @@ Future<ReportBytes> buildSessionPdf({
           'Session: ${data.sessionStamp}',
         ),
         pw.Text(
-          'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion'
+          'Generated on: ${data.generatedOn} by $appName v$appVersion'
           '${data.sourceFile.isEmpty ? '' : '  |  Source: '
                     '${t(data.sourceFile)} (${data.rowCount} rows)'}',
           style: const pw.TextStyle(fontSize: 9, color: pdfInk),
@@ -464,6 +464,13 @@ Future<ReportBytes> buildSessionPdf({
               ], t)
             else
               pw.Text('(no baseline scales)'),
+            if (data.initNotes.isNotEmpty) ...[
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'Notes: ${t(data.initNotes)}',
+                style: const pw.TextStyle(fontSize: 9),
+              ),
+            ],
           ],
           pw.SizedBox(height: 8),
         ],

@@ -17,6 +17,7 @@ import 'bids_export.dart';
 import 'save_target.dart';
 import 'share_util.dart';
 import 'theme.dart';
+import 'close_guard.dart';
 
 /// Annotations workflow: a File step (patient / run, New or Open a BIDS
 /// `task-notes` TSV) followed by a Notes step, structured like the
@@ -53,10 +54,12 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
+    activeSessionGuard = _mayLeave;
   }
 
   @override
   void dispose() {
+    if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
     _subjectCtrl.dispose();
     _runCtrl.dispose();
     _noteCtrl.dispose();
@@ -359,8 +362,6 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         warning: null,
       ),
     );
-    // Exported, so there is nothing left to rescue.
-    await discardWork(_workingPath);
   }
 
   /// Export these notes as a zipped one-subject BIDS dataset.
@@ -535,8 +536,20 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     );
   }
 
+  /// Leaving asks whether to keep the recovery copy; see `close_guard.dart`.
+  Future<bool> _mayLeave() => confirmLeaveSession(context, _workingPath);
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) async {
+      if (didPop) return;
+      if (await _mayLeave() && context.mounted) Navigator.pop(context);
+    },
+    child: _page(context),
+  );
+
+  Widget _page(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Annotations'),

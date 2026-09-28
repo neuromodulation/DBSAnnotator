@@ -5,10 +5,6 @@ Upload the TSVs you have, then take whatever they support. This screen writes
 nothing to the files you give it: it reads them, shows what is in them, and
 produces documents and datasets from them.
 
-It replaces the two report screens the app used to have. Which of those you
-needed depended on how many files you had, so the choice came before the
-information needed to make it.
-
 .. figure:: ../_static/screenshots/reports_empty.png
    :alt: The Reports and datasets screen before anything is uploaded, with
          every action listed and disabled
@@ -50,8 +46,7 @@ What each upload enables
      - As above
 
 An action that is unavailable is greyed out **and says why**, in place of its
-description. A control that accepts the tap and then refuses in a snackbar makes
-you discover the rule one failure at a time.
+description.
 
 .. figure:: ../_static/screenshots/reports_one_session.png
    :alt: One session uploaded: the single session report and BIDS dataset are
@@ -96,9 +91,6 @@ because a note carries no configuration: attaching it to one would assert it was
 recorded against stimulation settings the file never says it was. A note with no
 readable timestamp is left out, since there is nowhere on a time axis to put it.
 
-Nothing else in the report changes, and with no notes file the table is
-byte-identical to what it was.
-
 Adding to a dataset you already have
 ------------------------------------
 
@@ -106,17 +98,35 @@ Adding to a dataset you already have
 already have, rather than producing a separate one to reconcile by hand. It
 offers both ways of doing that, so the choice is yours:
 
-* **Add** writes into the folder you choose. This is the point of the feature,
-  and it is desktop only: iPadOS and Android cannot give an app a writable
-  folder, so the button is disabled there and says why.
+* **Add** writes into the folder you choose. Available on Windows, macOS and
+  Linux; iPadOS and Android do not let an app write into a folder you pick, so
+  the button is disabled there and says why.
 * **Export** takes the dataset as a zip and gives a merged zip back, leaving the
   original untouched. Available everywhere, and the safe way to see what a merge
   produces before letting it near the real thing.
 
-**Nothing is written until you have seen what will happen.** A dialog lists
-every file that will be added, every index file that will gain rows, everything
-left unchanged, and anything refused. This is the only operation in the app that
-writes to data it did not create, and it has no undo.
+.. _bids-folder-requirements:
+
+**What counts as a BIDS dataset.** The folder (or the top level of the zip) must
+hold a ``dataset_description.json``, with one ``sub-<participant>`` folder per
+participant listed in ``participants.tsv``. If the folder you pick is empty, the
+app offers to start a new dataset there, writing its
+``dataset_description.json``, ``README`` and ``participants.tsv`` along with the
+first visit. A folder with other content and no ``dataset_description.json`` is
+refused, with this explanation, so BIDS files are never scattered through a
+folder that is not a dataset.
+
+**How a visit is added.** Each visit goes to
+``sub-<participant>/ses-<session>/beh/`` as a ``_beh.tsv`` with its ``.json``
+sidecar. Its participant gets a row in ``participants.tsv`` and the visit a row in
+that session's ``sub-<participant>_ses-<session>_scans.tsv``. Nothing already in
+the dataset is changed.
+
+**Nothing is written until you have seen what will happen.** Every Add opens a
+dialog that restates how the visit is added and lists every file that will be
+added, every index file that will gain rows, everything left unchanged, and
+anything refused. This is the only operation in the app that writes to data it
+did not create, and it has no undo.
 
 .. _dataset-merge-rules:
 
@@ -144,9 +154,9 @@ The rules it follows, and why each one exists:
 
 Merging the same files twice does nothing the second time.
 
-A zip merge is refused above 200 MB: a dataset carrying imaging cannot be
-round-tripped through a tablet's memory, and the desktop folder path has no such
-limit.
+A zip merge is refused above 200 MB, since a dataset carrying imaging does not
+fit in an iPad's or Android device's memory. Adding into a folder on Windows,
+macOS or Linux has no such limit.
 
 Exporting
 ---------
@@ -156,16 +166,14 @@ Reports offer **PDF** or **Word**. Both report kinds show the
 :ref:`scale targets <dialog-scale-targets>` reachable from inside it. For a
 notes file every section applies, so the dialog is skipped.
 
-The longitudinal chooser offers seven sections. Two of them are worth knowing
-about before you tick them:
+The longitudinal chooser offers seven sections. Three of them start unticked,
+because they add pages:
 
+* **Combined session data table** prints every configuration of every visit,
+  one table per visit under its own heading.
 * **Electrode configuration** draws four lead diagrams per visit, so six visits
-  is roughly a page and a half of images. It is off by default, as on the
-  desktop.
-* **Session data** prints every configuration of every visit, grouped under a
-  per-visit subheading rather than given a visit column: the session table's
-  twelve widths are sized to their own headings, and a thirteenth broke them
-  mid-word.
+  is roughly a page and a half of images.
+* **Programming summary** gives the parameters used at each visit.
 
 Scale targets do two things here. They mark the two best configurations
 across **all** visits together, banded in the session-scales figure and shaded in
@@ -175,8 +183,7 @@ drop between visits is a drop rather than a rescale. The ranking is meaningful
 across visits because every visit's index is computed against the same targets
 and declared ranges. The clinical figure carries no bands.
 
-A TSV records nothing about the targets used when its own report was made, so
-the longitudinal export asks for them again.
+A TSV does not store scale targets, so the longitudinal export asks for them.
 
 A report is named from its source file's own BIDS entities with the data suffix
 replaced by ``_report``, so the two sort together in a directory listing:

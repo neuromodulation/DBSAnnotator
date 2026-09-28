@@ -118,7 +118,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
   UserPrefs _prefs = UserPrefs();
   List<ScalePref>? _targets;
   Set<ReportSection> _sections = kAllReportSections;
-  Set<LongitudinalSection> _longSections = kDefaultLongitudinalSections;
 
   @override
   void initState() {
@@ -326,13 +325,21 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Future<void> _longitudinalReport({required bool docx}) async {
     // The desktop asks for both before exporting, and it has to: a TSV carries
     // no record of the targets used when its own report was made.
+    final saved = _prefs.longitudinalSections;
+    final last = {
+      for (final s in LongitudinalSection.values)
+        if (saved?.contains(s.name) ?? false) s,
+    };
     final sections = await showLongitudinalSectionsDialog(
       context,
-      _longSections,
+      last.isEmpty ? kDefaultLongitudinalSections : last,
       onEditTargets: _editTargets,
     );
     if (sections == null || !mounted) return;
-    setState(() => _longSections = sections);
+    setState(
+      () => _prefs.longitudinalSections = [for (final s in sections) s.name],
+    );
+    saveUserPrefs(_prefs);
 
     final data = buildLongitudinalReportData(
       files: {for (final f in _sessions) f.name: f.rows},
@@ -481,6 +488,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (root == null) return null;
     try {
       final existing = await readDatasetDirectory(root);
+      if (!mounted || !await checkDatasetFolder(context, root, existing)) {
+        return null;
+      }
       return (
         existing: existing,
         label: root,
@@ -518,6 +528,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final bytes = await picked.readAsBytes();
       final existing = readDatasetZip(bytes);
       final name = picked.name;
+      if (!mounted || !await checkDatasetFolder(context, name, existing)) {
+        return null;
+      }
       return (
         existing: existing,
         label: name,

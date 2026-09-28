@@ -7,6 +7,7 @@ import 'package:screen_retriever/screen_retriever.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app_info.dart' show appName;
+import 'ui/close_guard.dart';
 import 'ui/home_screen.dart';
 import 'ui/theme.dart';
 
@@ -90,8 +91,19 @@ Future<void> main() async {
       // pre-show bounds with the native runner's default size.
       await _fitWindowToWorkArea();
     });
+    // Closing the window with a session open asks about its recovery copy.
+    await windowManager.setPreventClose(true);
+    windowManager.addListener(_CloseListener());
   }
   runApp(const DbsAnnotatorApp());
+}
+
+class _CloseListener extends WindowListener {
+  @override
+  Future<void> onWindowClose() async {
+    final guard = activeSessionGuard;
+    if (guard == null || await guard()) await windowManager.destroy();
+  }
 }
 
 class DbsAnnotatorApp extends StatelessWidget {
@@ -104,7 +116,7 @@ class DbsAnnotatorApp extends StatelessWidget {
       builder: (context, mode, _) => ValueListenableBuilder<double>(
         valueListenable: textScale,
         builder: (context, scale, _) => MaterialApp(
-          title: 'DBS Annotator',
+          title: appName,
           debugShowCheckedModeBanner: false,
           theme: dbsTheme(Brightness.light),
           darkTheme: dbsTheme(Brightness.dark),

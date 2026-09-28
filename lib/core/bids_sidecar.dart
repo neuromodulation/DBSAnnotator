@@ -10,6 +10,8 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart' show rootBundle;
 
+import '../app_info.dart' show appName;
+
 /// Loads the TSV contract from the bundled `assets/schema/` mirror of the
 /// repo-root `schema/*.json`; tests read the repo root via `dart:io`.
 Future<Map<String, dynamic>> loadTsvContract() async {
@@ -77,7 +79,7 @@ Map<String, dynamic> buildSidecar(
     if (_tasks[kind] != null) 'TaskName': _tasks[kind]!.name,
     if (_tasks[kind] != null) 'TaskDescription': _tasks[kind]!.description,
     'GeneratedBy': [
-      {'Name': 'DBS Annotator', 'Version': appVersion},
+      {'Name': appName, 'Version': appVersion},
     ],
     'SchemaVersion': contract['schema_version'],
     if (bids['na'] != null) 'MissingValueCode': bids['na'],

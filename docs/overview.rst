@@ -30,13 +30,13 @@ scientifically interesting content is the content that gets dropped.
 What it records
 ---------------
 
-DBS Annotator sits alongside the programming device and records the session as
+Wyss DBS Annotator sits alongside the programming device and records the session as
 it happens:
 
 **Stimulation, per configuration.**
    Active contacts and their polarity on each lead, amplitude (including
    current-steered splits across segmented contacts), pulse width, frequency,
-   and the stimulation group. Every configuration is a numbered *block*, so the
+   and the stimulation program. Every configuration is a numbered *block*, so the
    sequence is preserved.
 
 **Ratings, per configuration.**

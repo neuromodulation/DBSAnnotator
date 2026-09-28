@@ -41,6 +41,22 @@ const Set<String> kCuratedPaths = {
 
 bool _isScans(String path) => path.endsWith('_scans.tsv');
 
+/// What a chosen folder or zip holds, before anything is added to it.
+enum DatasetFolderKind { dataset, empty, other }
+
+/// A BIDS dataset has `dataset_description.json` at its top level. Hidden
+/// files such as `.DS_Store` do not make a folder non-empty.
+DatasetFolderKind datasetFolderKind(List<DatasetFile> files) {
+  final visible = [
+    for (final f in files)
+      if (!f.path.split('/').any((part) => part.startsWith('.'))) f,
+  ];
+  if (visible.isEmpty) return DatasetFolderKind.empty;
+  return visible.any((f) => f.path == 'dataset_description.json')
+      ? DatasetFolderKind.dataset
+      : DatasetFolderKind.other;
+}
+
 /// Plan the merge of [incoming] into the dataset described by [existing].
 ///
 /// Both are whole-dataset file lists, so the caller can read the target from a

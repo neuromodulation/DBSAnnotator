@@ -32,6 +32,7 @@ import 'bids_export.dart';
 import '../core/bids_dataset.dart';
 import '../core/bids_merge.dart';
 import 'bids_merge_ui.dart';
+import 'close_guard.dart';
 import 'electrode_view.dart';
 import 'list_editor_dialog.dart';
 import 'report_images.dart';
@@ -239,6 +240,7 @@ class _SessionScreenState extends State<SessionScreen> {
       if (mounted) setState(() => _prefs = p);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _offerRecovery());
+    activeSessionGuard = _mayLeave;
   }
 
   /// Offer back a session the app stopped in the middle of. Asking rather than
@@ -398,6 +400,7 @@ class _SessionScreenState extends State<SessionScreen> {
 
   @override
   void dispose() {
+    if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
     _subjectCtrl.dispose();
     _runCtrl.dispose();
     _notesInitCtrl.dispose();
@@ -735,17 +738,20 @@ class _SessionScreenState extends State<SessionScreen> {
 
     final root = await pickDatasetFolder();
     if (root == null || !mounted) return null;
+    final existing = await readDatasetDirectory(root);
+    if (!mounted || !await checkDatasetFolder(context, root, existing)) {
+      return null;
+    }
     final label = await _askSessionLabel(proposed.session);
     if (label == null || !mounted) return null;
-    return (
-      root: root,
-      name: BidsName(
-        subject: proposed.subject,
-        session: label,
-        task: proposed.task,
-        run: proposed.run,
-      ),
+    final name = BidsName(
+      subject: proposed.subject,
+      session: label,
+      task: proposed.task,
+      run: proposed.run,
     );
+    if (!await confirmRecordInto(context, root, name)) return null;
+    return (root: root, name: name);
   }
 
   Future<String?> _askSessionLabel(String proposed) async {
@@ -970,8 +976,6 @@ class _SessionScreenState extends State<SessionScreen> {
       build: () async =>
           (bytes: utf8.encode(_authoring.serialize()), warning: null),
     );
-    // Exported, so there is nothing left to rescue.
-    await discardWork(_workingPath);
   }
 
   /// Export this session as a one-subject BIDS dataset (zipped).
@@ -2240,8 +2244,20 @@ class _SessionScreenState extends State<SessionScreen> {
 
   // ---- Wizard scaffold ----
 
+  /// Leaving asks whether to keep the recovery copy; see `close_guard.dart`.
+  Future<bool> _mayLeave() => confirmLeaveSession(context, _workingPath);
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => PopScope(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) async {
+      if (didPop) return;
+      if (await _mayLeave() && context.mounted) Navigator.pop(context);
+    },
+    child: _page(context),
+  );
+
+  Widget _page(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Complete workflow'),

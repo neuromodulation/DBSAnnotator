@@ -1,4 +1,4 @@
-# Contributing to DBS Annotator
+# Contributing to Wyss DBS Annotator
 
 Contributions are welcome. This is research software for deep brain stimulation
 programming, so correctness and honesty about what the data supports matter more

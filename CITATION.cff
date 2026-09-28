@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 title: >-
-  DBS Annotator: recording deep brain stimulation programming visits in an
+  Wyss DBS Annotator: recording deep brain stimulation programming visits in an
   analysis-ready format
 message: If you use this software, please cite it as below.
 type: software
@@ -18,13 +18,13 @@ authors:
 repository-code: https://github.com/neuromodulation/DBSAnnotator
 url: https://dbs-annotator.readthedocs.io/
 abstract: >-
-  DBS Annotator records the programming visits that follow deep brain
+  Wyss DBS Annotator records the programming visits that follow deep brain
   stimulation surgery, the appointments at which a neurologist or psychiatrist
   tests stimulation configurations and optimises them, over months or years as
   the parameters need adapting. It writes them to BIDS tab-separated files,
   capturing the relationship between the stimulation delivered at each
   configuration and the clinical response observed. It runs fully offline on
-  tablets and desktops, and produces PDF and Word reports for the patient
+  iPadOS, Android, Windows, macOS and Linux, and produces PDF and Word reports for the patient
   record.
 keywords:
   - deep brain stimulation

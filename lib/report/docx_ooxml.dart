@@ -12,7 +12,7 @@ import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 
-import '../app_info.dart' show appVersion;
+import '../app_info.dart' show appName, appVersion;
 import '../core/brand_palette.dart';
 
 /// ARGB int to the RRGGBB hex Word expects in `w:fill`.
@@ -483,4 +483,4 @@ Uint8List packDocx({
 
 /// Who the documents say made them, version included. Set once so the PDF's
 /// /Info and the docx's docProps cannot drift apart.
-const kDocxCreator = 'DBS Annotator v$appVersion';
+const kDocxCreator = '$appName v$appVersion';

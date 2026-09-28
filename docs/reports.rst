@@ -31,7 +31,8 @@ session date and the generation date are distinct fields on purpose: a report
 produced a fortnight later must not assert that the session happened the day the
 button was pressed.
 
-Under it, a box with the first and the last settings per side in vendor notation:
+Under it, a box with the first and the last settings per side in
+:doc:`contact notation <glossary>`:
 contacts with their share of current, total milliamps, frequency, pulse width and
 group. Then what changed between the two, and the response of each session scale
 from the first to the last rated block, so the outcome of the visit sits next to
@@ -46,7 +47,7 @@ Baseline assessment
 ~~~~~~~~~~~~~~~~~~~
 
 The clinical scores recorded before stimulation changes began, as a compact
-two-column table.
+two-column table, with the note entered for the initial configuration under it.
 
 .. figure:: _static/reports/session_report_baseline.png
    :alt: The baseline assessment table
@@ -56,7 +57,8 @@ Session data
 ~~~~~~~~~~~~
 
 *The figure* has one block axis shared by stacked panels: the session scales, the
-aggregate index on its own 0-1 axis, then the amplitude, frequency and pulse width
+aggregate index (a 0-1 score per block against your
+:ref:`scale targets <scale-targets>`), then the amplitude, frequency and pulse width
 per side, as in the live view in the app. A parameter that never changed during
 the session is stated in one line, such as "130 Hz, unchanged (both sides)",
 rather than plotted flat. When targets are set, green bands mark the best and
@@ -149,13 +151,13 @@ index is computed against the same targets and declared ranges, which is what
 makes one ranking across visits meaningful.
 
 .. figure:: _static/reports/longitudinal_report_session_scales.png
-   :alt: Session scale ratings for every block of every visit, with the best blocks of each visit banded
+   :alt: Session scale ratings for every block of every visit, with the two best configurations across all visits banded
    :width: 100%
 
 Visits
 ~~~~~~
 
-The date, the programme in force at the end of that visit with Left and Right on
+The date, the program in force at the end of that visit with Left and Right on
 separate lines, the number of blocks, and every clinical scale recorded at that
 visit, one per line. How each scale moved between visits is what the figure
 above shows.
@@ -174,6 +176,14 @@ the highest and second-highest aggregate index across all visits.
 .. figure:: _static/reports/longitudinal_report_page3.png
    :alt: The per-visit session tables, with the two best configurations across all visits shaded
    :width: 100%
+
+Programming summary and source files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For each visit, the same tables as the session report's programming summary:
+how many configurations were tested, and the amplitude, frequency and pulse
+width used on each side. *Source files* lists the uploaded files the report was
+built from, with their block counts.
 
 Annotations report
 ------------------
@@ -199,14 +209,15 @@ only you know that. Each scale gets a mode:
    Closest to a stated value is better.
 
 ``Ignore``
-   Excluded from the ranking.
+   Not scored: counted as neutral, see below.
 
-The aggregate index is the unweighted mean, across the scales rated at that
-block, of each value normalised into its declared range and oriented by its
-target, clipped to 0-1, where 1 is best. A scale with no target contributes a
-neutral 0.5 at half weight. The report prints this definition alongside the
-figure, and prints the bounds each scale was normalised into, so the number can
-be reproduced.
+The aggregate index of a block is a weighted mean over the scales rated at that
+block. Each scale with a target is normalised into its declared range, oriented
+by its target and clipped to 0-1, where 1 is best, and counts at full weight. A
+scale set to ``Ignore`` counts as a neutral 0.5 at half weight, so it neither
+helps nor harms a block. One scale with a target is enough to rank; with none,
+nothing is ranked. The report prints this definition and the bounds each scale
+was normalised into, so the number can be reproduced.
 
 .. _what-the-reports-do-not-say:
 
@@ -220,7 +231,7 @@ worth stating here as plainly as the reports themselves state them.
 scored well on every scale and produced an intolerable paraesthesia will be
 ranked highly. The notes column is not an input.
 
-**It is not a recommendation.** It does not say which settings to programme.
+**It is not a recommendation.** It does not say which settings to program.
 
 **It will not run without targets.** With no scale targets set, no configuration
 is ranked, nothing is shaded green, and the report says so. Defaulting every

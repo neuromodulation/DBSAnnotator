@@ -11,7 +11,7 @@ import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
-import '../app_info.dart' show appVersion;
+import '../app_info.dart' show appName, appVersion;
 import '../core/annotation.dart';
 import '../core/timestamps.dart';
 import 'docx_ooxml.dart';
@@ -165,7 +165,7 @@ Future<ReportBytes> buildAnnotationsPdf(
         margin: const pw.EdgeInsets.only(top: 6),
         child: pw.Text(
           'sub-${t(data.subjectId)}  |  ${data.sessionStamp}  |  '
-          'DBS Annotator v$appVersion  |  '
+          '$appName v$appVersion  |  '
           'Page ${context.pageNumber} of ${context.pagesCount}',
           style: const pw.TextStyle(fontSize: 8, color: pdfInk),
         ),
@@ -174,7 +174,7 @@ Future<ReportBytes> buildAnnotationsPdf(
         pw.Header(
           level: 0,
           child: pw.Text(
-            'DBS Annotator - Session notes',
+            '$appName - Session notes',
             style: const pw.TextStyle(
               fontSize: 20,
               fontWeight: pw.FontWeight.bold,
@@ -185,7 +185,7 @@ Future<ReportBytes> buildAnnotationsPdf(
           'Patient: sub-${t(data.subjectId)}    Session: ${data.sessionStamp}',
         ),
         pw.Text(
-          'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion'
+          'Generated on: ${data.generatedOn} by $appName v$appVersion'
           '${data.sourceFile.isEmpty ? '' : '  |  Source: '
                     '${t(data.sourceFile)} (${data.entries.length} notes)'}',
           style: const pw.TextStyle(fontSize: 9, color: pdfInk),
@@ -232,7 +232,7 @@ Uint8List buildAnnotationsDocx(
   DocxPageSize pageSize = DocxPageSize.a4,
 }) {
   final body = StringBuffer()
-    ..write(docxPara('DBS Annotator - Session notes', bold: true, size: 40))
+    ..write(docxPara('$appName - Session notes', bold: true, size: 40))
     ..write(
       docxPara(
         'Patient: sub-${data.subjectId}    Session: ${data.sessionStamp}',
@@ -240,7 +240,7 @@ Uint8List buildAnnotationsDocx(
     )
     ..write(
       docxPara(
-        'Generated on: ${data.generatedOn} by DBS Annotator v$appVersion'
+        'Generated on: ${data.generatedOn} by $appName v$appVersion'
         '${data.sourceFile.isEmpty ? '' : '  |  Source: ${data.sourceFile} '
                   '(${data.entries.length} notes)'}',
         size: 18,
@@ -285,7 +285,7 @@ Uint8List buildAnnotationsDocx(
     createdDate: data.generatedOn,
     footerPrefix:
         'sub-${data.subjectId}  |  ${data.sessionStamp}  |  '
-        'DBS Annotator v$appVersion  |  Page ',
+        '$appName v$appVersion  |  Page ',
   );
 }
 

@@ -134,7 +134,7 @@ void main() {
     test('lays files out under sub-/ses-/beh with their sidecars', () {
       final files = buildBidsDataset(
         [entry('01', '20260626', '01')],
-        appName: 'DBS Annotator',
+        appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
       );
@@ -161,7 +161,7 @@ void main() {
       () {
         final files = buildBidsDataset(
           [entry('01', '20260626', '01')],
-          appName: 'DBS Annotator',
+          appName: 'Wyss DBS Annotator',
           appVersion: '0.5.0',
           repoUrl: 'https://example.invalid',
         );
@@ -189,7 +189,7 @@ void main() {
           entry('01', '20260626', '01'),
           entry('01', '20260701', '01'),
         ],
-        appName: 'DBS Annotator',
+        appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
       );
@@ -209,7 +209,7 @@ void main() {
       // the sub-/ses- prefix.
       final files = buildBidsDataset(
         [entry('01', '20260626', '01'), entry('01', '20260626', '02')],
-        appName: 'DBS Annotator',
+        appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
       );
@@ -231,7 +231,7 @@ void main() {
     test('two sessions of one subject each get their own scans.tsv', () {
       final files = buildBidsDataset(
         [entry('01', '20260626', '01'), entry('01', '20260701', '01')],
-        appName: 'DBS Annotator',
+        appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
       );
@@ -250,8 +250,8 @@ void main() {
       // the whole dataset invalid.
       final file = derivativeDescription(
         dir: reportsDerivativeDir,
-        name: 'DBS Annotator reports',
-        appName: 'DBS Annotator',
+        name: 'Wyss DBS Annotator reports',
+        appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
       );
@@ -268,8 +268,8 @@ void main() {
       // needs its own description or the parent dataset is invalid.
       final file = derivativeDescription(
         dir: aggregateDerivativeDir,
-        name: 'DBS Annotator combined sessions',
-        appName: 'DBS Annotator',
+        name: 'Wyss DBS Annotator combined sessions',
+        appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
       );
@@ -283,7 +283,7 @@ void main() {
     test('the README says why the suffix is _beh', () {
       final readme = buildBidsDataset(
         [entry('01', '20260626', '01')],
-        appName: 'DBS Annotator',
+        appName: 'Wyss DBS Annotator',
         appVersion: '0.5.0',
         repoUrl: 'https://example.invalid',
       ).firstWhere((f) => f.path == 'README').content;

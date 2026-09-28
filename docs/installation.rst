@@ -1,195 +1,132 @@
 Installation
 ============
 
-DBS Annotator runs on tablets and on the desktop from a single codebase. How you
-install it depends on the platform, and the honest state of each is below.
+Wyss DBS Annotator is available for iPadOS, Android, Windows, macOS and Linux. It
+is published in each platform's app store by the **Wyss Center for Bio and
+Neuroengineering**; search for *Wyss DBS Annotator*.
 
-.. note::
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-   Store distribution is in preparation, starting with the Microsoft Store
-   submission for Windows. Until a listing is live, the builds below are
-   **research-grade**: signed with the project's own certificate or not at all,
-   and installed deliberately rather than from a store. Every route produces the
-   same application; only the trust and update mechanics differ.
+   * - Platform
+     - Where to get it
+   * - iPadOS
+     - App Store
+   * - Android
+     - Google Play
+   * - Windows
+     - Microsoft Store
+   * - macOS
+     - Mac App Store
+   * - Linux
+     - Snap Store
 
-Android tablet
---------------
+Installing from the store is the whole procedure: the store handles signing and
+updates. Every platform runs the same application.
 
-Each tagged release attaches an ``.apk`` to its
-`GitHub release <https://github.com/neuromodulation/DBSAnnotator/releases>`_.
+Where your data goes
+--------------------
 
-1. On the tablet, open the release page and download ``app-release.apk``.
-2. Android will ask you to allow installation from that source. This is expected
-   for an app that does not come from Google Play.
-3. Open the downloaded file to install.
-
-iPadOS
-------
-
-Apple provides no sideloading path, so iPad builds are distributed through
-**TestFlight**. The invitation link is published in the release notes when a
-build is available.
-
-This requires an Apple Developer account on the publishing side, which is why
-iPad availability may lag behind Android.
-
-Windows
--------
-
-Two routes, depending on whether you want an installed application or just
-something you can run.
-
-**MSIX installer.** A real installation: Start-menu entry, proper uninstall,
-per-user application data, and no SmartScreen prompt once it arrives from the
-Store. The Microsoft Store submission is in preparation; when the listing is
-live, installing from the Store is the whole procedure and there is nothing to
-trust by hand, because Microsoft signs Store packages themselves.
-
-Until then, a tagged release attaches an ``.msix`` signed with the project's own
-certificate. Windows will not trust it until you say so, and the trust step is
-per-machine and needs administrator rights:
-
-1. Right-click the ``.msix`` → *Properties* → **Digital Signatures** → select the
-   signature → *Details* → *View Certificate* → **Install Certificate**.
-2. Choose **Local Machine**, then *Place all certificates in the following store*
-   → **Trusted People**.
-3. Double-click the ``.msix`` to install.
-
-.. warning::
-
-   Check whose certificate you are trusting before step 2; the certificate
-   details are on screen at that point. Trusting a certificate means Windows will
-   silently accept **any** package signed with it, not just this one. Only trust a
-   certificate you can attribute to a person or organisation you know.
-
-   In particular, a package built with the packaging tool's *default* certificate
-   is signed by a shared test identity whose private key is public. That is fine
-   for checking that a package installs on your own machine, and unsuitable for a
-   shared or clinical machine.
-
-**Loose folder**, if you would rather not install anything. Every commit builds
-one and attaches it to the workflow run: open the latest successful run of the
-*App CI/CD* workflow in the
-`Actions tab <https://github.com/neuromodulation/DBSAnnotator/actions>`_ and
-download ``windows-bundle``. Unzip it and run ``dbs_annotator.exe`` from inside
-the folder; it needs the DLLs and ``data\`` directory beside it. Being unsigned,
-SmartScreen will warn on first launch: *More info* → *Run anyway*.
-
-Linux and macOS
----------------
-
-No installer yet. Desktop bundles are built for every commit and attached to the
-workflow run rather than to a release, because these targets exist mainly so that
-the report and export code is exercised on every platform. Download
-``linux-bundle`` from the *Actions* tab as above. macOS is built in CI but not
-published as an artifact; build it from source (below).
-
-Both are unsigned, so macOS Gatekeeper refuses an unsigned app on double-click;
-right-click → *Open* allows it once.
+Session files are written where you choose to save them, through the platform's
+own file picker or share sheet. While you record, the app also keeps a working
+copy of the current session inside its own storage, so a crash or a closed
+window loses nothing. When you leave a session, the app asks whether to keep that
+copy or discard it; it is only ever deleted when you choose to. Preferences
+(scale presets, paper size, panel order) are stored in the app's own settings
+folder. Nothing is uploaded. See :doc:`privacy` for the details.
 
 Building from source
 --------------------
 
-The most reliable route on any platform, and the one to use if you intend to
-modify anything. It needs only the
-`Flutter SDK <https://docs.flutter.dev/get-started/install>`_ **3.38.4 or later**
-(Dart 3.12 or later, which is the floor ``pubspec.lock`` resolves against, so an
-older SDK fails at ``pub get``):
+For developers who want to run or modify the code. On every platform you need
+`Git <https://git-scm.com>`_ and the
+`Flutter SDK <https://docs.flutter.dev/get-started/install>`_ **3.38.4 or
+later**, with Flutter's ``bin`` folder on your ``PATH``. Then get the code:
 
 .. code-block:: bash
 
    git clone https://github.com/neuromodulation/DBSAnnotator.git
    cd DBSAnnotator
    flutter pub get
-   flutter run          # on a connected tablet, emulator, or the desktop
+   flutter doctor       # lists anything still missing for your platform
 
-Nothing needs generating first: the schema contract is committed, so a fresh
-clone builds immediately. To confirm the checkout is sound:
+Nothing needs generating first: the data contract and the fonts are committed.
+``flutter analyze`` and ``flutter test`` check the checkout; neither needs a
+device.
 
-.. code-block:: bash
+Each platform below adds its own tools, how to run the app, and how to build a
+release.
 
-   flutter analyze      # must report no issues
-   flutter test         # runs the full suite, no device needed
+Windows
+~~~~~~~
 
-On Linux the desktop build additionally needs GTK development headers:
+* **Tools**: Visual Studio 2022 (the free Community edition is enough) with the
+  **Desktop development with C++** workload. VS Code alone is not enough.
+* **Run**: ``flutter run -d windows``
+* **Release build**: ``flutter build windows --release``. The program is
+  ``build\windows\x64\runner\Release\dbs_annotator.exe``; copy the whole
+  ``Release`` folder, since it needs the DLLs and the ``data`` folder beside it.
+  Windows shows "Windows protected your PC" on first launch of an unsigned
+  build: *More info* → *Run anyway*.
 
-.. code-block:: bash
+macOS
+~~~~~
 
-   sudo apt-get install ninja-build libgtk-3-dev
+* **Tools**: Xcode from the Mac App Store, then
+  ``sudo xcodebuild -runFirstLaunch`` and CocoaPods (``brew install cocoapods``).
+* **Run**: ``flutter run -d macos``
+* **Release build**: ``flutter build macos --release``. The app is
+  ``build/macos/Build/Products/Release/dbs_annotator.app``. An unsigned build is
+  blocked on double-click; right-click it → *Open* allows it once.
 
-Installing a build you made yourself
-------------------------------------
+Linux
+~~~~~
 
-No developer account and no store listing is needed to put a real, installable
-build on a Windows machine or an Android tablet today. This is the route to use
-for evaluation before store distribution exists.
+* **Tools** (Debian and Ubuntu; other distributions have the same packages):
 
-**Windows.** Either run it out of the build folder, or build the installer:
+  .. code-block:: bash
 
-.. code-block:: bash
+     sudo apt-get install clang cmake ninja-build pkg-config libgtk-3-dev zenity
 
-   flutter build windows --release
-   # run in place: build\windows\x64\runner\Release\dbs_annotator.exe
-   # (copy the WHOLE Release folder if you move it: the .exe needs the DLLs
-   #  and data\ beside it)
+  ``zenity`` provides the file dialogs; without it the app saves to a fixed
+  folder and tells you where.
+* **Run**: ``flutter run -d linux``
+* **Release build**: ``flutter build linux --release``. The program is
+  ``build/linux/x64/release/bundle/dbs_annotator``; copy the whole ``bundle``
+  folder.
 
-   dart run msix:create
-   # -> build\windows\msix\dbs_annotator.msix, plus a self-signed certificate
+Android
+~~~~~~~
 
-Build first, package second: ``msix_config`` sets ``build_windows: false`` so the
-packaging step never launches a second, differently-configured Flutter build. To
-install the MSIX, trust its certificate as described under **Windows** above.
-Running the loose executable needs no certificate, but SmartScreen shows "Windows
-protected your PC" on first launch: *More info* → *Run anyway*.
+* **Tools**: Android Studio, which installs the Android SDK. Then accept the SDK
+  licences with ``flutter doctor --android-licenses``.
+* **Run**: on a device with *USB debugging* turned on in its developer options,
+  or on an emulator from Android Studio: ``flutter run``
+* **Release build**: ``flutter build apk --release``. The installer is
+  ``build/app/outputs/flutter-apk/app-release.apk``; copy it to the device and
+  open it, allowing installation from that source when asked. Unless a signing
+  key is configured the build is signed with a development key, which cannot
+  later be replaced in place by a store build: that needs an uninstall first,
+  which removes the app's saved preferences.
 
-**Android.** Build an APK, copy it to the tablet (USB, or any file-sharing
-route) and open it there:
+iPadOS
+~~~~~~
 
-.. code-block:: bash
+* **Tools**: a Mac with Xcode and CocoaPods, as for macOS.
+* **Signing**: open ``ios/Runner.xcworkspace`` in Xcode, select the *Runner*
+  target, and under *Signing & Capabilities* choose your team. A free Apple ID
+  works for your own iPad.
+* **Run**: connect the iPad, trust the Mac on it, then ``flutter run``
+* A build signed with a free Apple ID stops opening after seven days and has to
+  be installed again; a paid Apple Developer account removes that limit.
 
-   flutter build apk --release
-   # -> build/app/outputs/flutter-apk/app-release.apk
+Common problems
+~~~~~~~~~~~~~~~
 
-Unless a signing key has been configured, this APK is signed with the debug key.
-It installs and runs normally, but it cannot later be replaced in place by a
-properly signed build: that needs an uninstall first, which takes the app's
-stored preferences with it. Fine for testing; not for handing to a site.
-
-**macOS.** ``flutter build macos --release`` produces a ``.app`` under
-``build/macos/Build/Products/Release/``. Gatekeeper blocks an unsigned app on
-double-click; right-click → *Open* allows it once.
-
-**iPadOS.** The only target that genuinely needs a Mac, because Xcode has to do
-the build. A free Apple ID is enough to run it on your own iPad through Xcode's
-automatic provisioning, but the resulting build expires after seven days and has
-to be re-installed. A paid Apple Developer account is what removes that limit and
-enables TestFlight.
-
-Unicode in PDF reports
-----------------------
-
-Released builds bundle IBM Plex Sans, so a curly quote or an accented character
-typed into a clinical note comes out as itself.
-
-If you are building from a source tree whose ``assets/fonts/`` is empty, the PDF
-exporter falls back to a built-in font that covers Latin-1 only, and those
-characters are replaced with ``?``. **The app tells you when this happens**, so
-the substitution is never silent. To fix it, restore the two OFL-licensed
-files:
-
-.. code-block:: text
-
-   assets/fonts/IBMPlexSans-Regular.ttf
-   assets/fonts/IBMPlexSans-Bold.ttf
-
-from the **static** TrueType builds of
-`IBM Plex Sans <https://fonts.google.com/specimen/IBM+Plex+Sans>`_. Word export
-is unaffected either way, since ``.docx`` uses the reader's own fonts.
-
-Where your data goes
---------------------
-
-Files are written where you choose to save them, via the platform's own file
-picker or share sheet. The app keeps no hidden database and uploads nothing.
-Application preferences (scale presets, paper size, panel order) are stored in
-the OS application-support directory for the app.
+* ``flutter`` is not found: the terminal was opened before ``PATH`` changed;
+  open a new one.
+* ``C1083: Cannot open source file`` on Windows after switching branches: run
+  ``flutter clean``, then build again.
+* Errors about long paths when cloning on Windows:
+  ``git config --global core.longpaths true``.
