@@ -192,6 +192,59 @@ Future<bool> checkDatasetFolder(
   return ok ?? false;
 }
 
+/// Ask for the `ses-` label of a visit recorded into a dataset, proposing
+/// [proposed]. Null when cancelled.
+Future<String?> askSessionLabel(BuildContext context, String proposed) async {
+  final out = await showDialog<String>(
+    context: context,
+    builder: (_) => _SessionLabelDialog(proposed),
+  );
+  return (out == null || out.isEmpty) ? null : out;
+}
+
+/// Owns its controller, so the field outlives the dialog's closing animation.
+class _SessionLabelDialog extends StatefulWidget {
+  const _SessionLabelDialog(this.proposed);
+
+  final String proposed;
+
+  @override
+  State<_SessionLabelDialog> createState() => _SessionLabelDialogState();
+}
+
+class _SessionLabelDialogState extends State<_SessionLabelDialog> {
+  late final _ctrl = TextEditingController(text: widget.proposed);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Session label'),
+    content: TextField(
+      controller: _ctrl,
+      autofocus: true,
+      decoration: const InputDecoration(
+        labelText: 'ses-',
+        helperText: 'Often the date, but use whatever this study uses.',
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
+        child: const Text('Use'),
+      ),
+    ],
+  );
+}
+
 /// Say where a visit recorded straight into a dataset will be filed.
 Future<bool> confirmRecordInto(
   BuildContext context,

@@ -164,25 +164,36 @@ void showAppAbout(BuildContext context) {
     applicationVersion: 'v$appVersion',
     applicationIcon: const AppLogo(size: 48),
     children: [
-      const SizedBox(height: 8),
-      const Text(
-        'Document DBS programming visits, the appointments at which '
-        'stimulation configurations are tested and optimised. The complete '
-        'workflow runs in four steps: file setup, initial configuration, '
-        'session-scales configuration, active recording. Writes BIDS '
-        'behavioural TSV with a JSON sidecar documenting every column, and '
-        'exports PDF and Word reports.',
+      // The dialog sizes itself to its widest child, and an unconstrained
+      // paragraph is as wide as the window; this keeps it to a readable line.
+      SizedBox(
+        width: 480,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            const Text(
+              'Document DBS programming visits, the appointments at which '
+              'stimulation configurations are tested and optimised. The complete '
+              'workflow runs in four steps: file setup, initial configuration, '
+              'session-scales configuration, active recording. Writes BIDS '
+              'behavioural TSV with a JSON sidecar documenting every column, and '
+              'exports PDF and Word reports.',
+            ),
+            const SizedBox(height: 12),
+            const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),
+            _LinkLine(label: 'Repository', text: repoUrl, uri: repoUri),
+            _LinkLine(label: 'Issues', text: issuesUrl, uri: issuesUri),
+            _LinkLine(label: 'Contact', text: contactEmail, uri: contactUri),
+            const SizedBox(height: 12),
+            const Text('© 2026 $copyrightHolders'),
+            const Text('MIT License. Publisher: $publisher.'),
+            const SizedBox(height: 12),
+            const WyssLockup(),
+          ],
+        ),
       ),
-      const SizedBox(height: 12),
-      const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),
-      _LinkLine(label: 'Repository', text: repoUrl, uri: repoUri),
-      _LinkLine(label: 'Issues', text: issuesUrl, uri: issuesUri),
-      _LinkLine(label: 'Contact', text: contactEmail, uri: contactUri),
-      const SizedBox(height: 12),
-      const Text('© 2026 $copyrightHolders'),
-      const Text('MIT License. Publisher: $publisher.'),
-      const SizedBox(height: 12),
-      const WyssLockup(),
     ],
   );
 }

@@ -260,28 +260,15 @@ class _SessionScreenState extends State<SessionScreen> {
     if (recovered.rows.isEmpty || !mounted) return;
 
     final name = pickedBasename(file.path);
-    final keep = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unfinished session found'),
-        content: Text(
+    final keep = await askReopenUnfinished(
+      context,
+      title: 'Unfinished session found',
+      message:
           '$name was left open with ${blockCount(recovered.rows)} blocks '
           'recorded. They were saved as you went, and can be reopened here.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Discard'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Reopen'),
-          ),
-        ],
-      ),
     );
-    if (!mounted) return;
-    if (keep != true) {
+    if (!mounted || keep == null) return;
+    if (!keep) {
       await discardWork(file.path);
       return;
     }
@@ -712,10 +699,13 @@ class _SessionScreenState extends State<SessionScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Where should this visit be saved?'),
-        content: const Text(
-          'A loose TSV goes wherever you choose. Into a dataset, the visit is '
-          'filed at its BIDS path and the dataset index files are kept up to '
-          'date as you record.',
+        content: const SizedBox(
+          width: 460,
+          child: Text(
+            'A loose TSV goes wherever you choose. Into a dataset, the visit is '
+            'filed at its BIDS path and the dataset index files are kept up to '
+            'date as you record.',
+          ),
         ),
         actions: [
           TextButton(
@@ -742,7 +732,8 @@ class _SessionScreenState extends State<SessionScreen> {
     if (!mounted || !await checkDatasetFolder(context, root, existing)) {
       return null;
     }
-    final label = await _askSessionLabel(proposed.session);
+    if (!mounted) return null;
+    final label = await askSessionLabel(context, proposed.session);
     if (label == null || !mounted) return null;
     final name = BidsName(
       subject: proposed.subject,
@@ -752,36 +743,6 @@ class _SessionScreenState extends State<SessionScreen> {
     );
     if (!await confirmRecordInto(context, root, name)) return null;
     return (root: root, name: name);
-  }
-
-  Future<String?> _askSessionLabel(String proposed) async {
-    final ctrl = TextEditingController(text: proposed);
-    final out = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Session label'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'ses-',
-            helperText: 'Often the date, but use whatever this study uses.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, ctrl.text.trim()),
-            child: const Text('Use'),
-          ),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    return (out == null || out.isEmpty) ? null : out;
   }
 
   Future<void> _newSession() async {

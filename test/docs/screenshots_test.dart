@@ -29,6 +29,7 @@ import 'dart:io';
 import 'dart:typed_data' show ByteData;
 import 'dart:ui' as ui;
 
+import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:dbs_annotator/core/electrode/geometry.dart';
 import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
@@ -39,13 +40,17 @@ import 'package:dbs_annotator/core/session/session_row.dart'
     show electrodeModelIn;
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/report/longitudinal_data.dart';
+import 'package:dbs_annotator/report/annotations_report.dart';
 import 'package:dbs_annotator/report/longitudinal_pdf.dart';
+import 'package:dbs_annotator/report/longitudinal_sections.dart';
 import 'package:dbs_annotator/report/report_data.dart';
 import 'package:dbs_annotator/report/report_sections.dart';
 import 'package:dbs_annotator/report/session_pdf.dart';
 import 'package:dbs_annotator/ui/report_images.dart';
 import 'package:dbs_annotator/ui/scales_chart_painter.dart';
 import 'package:dbs_annotator/ui/annotations_screen.dart';
+import 'package:dbs_annotator/ui/bids_merge_ui.dart';
+import 'package:dbs_annotator/ui/close_guard.dart';
 import 'package:dbs_annotator/ui/electrode_view.dart';
 import 'package:dbs_annotator/ui/home_screen.dart';
 import 'package:dbs_annotator/ui/painter_font.dart';
@@ -1008,6 +1013,82 @@ void main() {
     await _shootDialog(tester, 'dialog_report_sections');
   });
 
+  testWidgets('dialogs: saving, recovery and datasets', (tester) async {
+    final (catalog, limits, presets) = await _contracts();
+    await _pump(
+      tester,
+      SessionScreen(catalog: catalog, limits: limits, scalePresets: presets),
+    );
+    await _tapText(tester, 'New');
+    await _shootDialog(tester, 'dialog_save_location');
+    await _tapText(tester, 'Cancel');
+
+    const root = 'C:/Studies/OCD-DBS';
+    const name = BidsName(
+      subject: '01',
+      session: '20260203',
+      task: 'programming',
+      run: '01',
+    );
+    const visit =
+        'sub-01/ses-20260203/beh/'
+        'sub-01_ses-20260203_task-programming_run-01_beh';
+    final shots = <(String, Future<Object?> Function(BuildContext), String)>[
+      ('dialog_session_label', (c) => askSessionLabel(c, '20260203'), 'Cancel'),
+      ('dialog_record_into', (c) => confirmRecordInto(c, root, name), 'Cancel'),
+      (
+        'dialog_bids_start',
+        (c) => checkDatasetFolder(c, 'C:/Studies/new-study', const []),
+        'Cancel',
+      ),
+      (
+        'dialog_bids_not_dataset',
+        (c) => checkDatasetFolder(c, 'C:/Users/clinic/Documents', const [
+          (path: 'notes.txt', content: ''),
+        ]),
+        'Choose another folder',
+      ),
+      (
+        'dialog_add_to_dataset',
+        (c) => confirmMerge(c, (
+          write: const [(path: '$visit.tsv', content: '')],
+          added: const ['$visit.tsv', '$visit.json'],
+          rowMerged: const [
+            'participants.tsv',
+            'sub-01/ses-20260203/sub-01_ses-20260203_scans.tsv',
+          ],
+          keptAsIs: const ['dataset_description.json', 'README'],
+          refused: const [],
+        ), root),
+        'Cancel',
+      ),
+      ('dialog_keep_recovery', askKeepRecoveryCopy, 'Cancel'),
+      (
+        'dialog_reopen_unfinished',
+        (c) => askReopenUnfinished(
+          c,
+          title: 'Unfinished session found',
+          message:
+              'sub-01_ses-20260203_task-programming_run-01_beh.tsv was left '
+              'open with 7 blocks recorded. They were saved as you went, and '
+              'can be reopened here.',
+        ),
+        'Reopen',
+      ),
+      (
+        'dialog_longitudinal_sections',
+        (c) => showLongitudinalSectionsDialog(c, kDefaultLongitudinalSections),
+        'Cancel',
+      ),
+    ];
+    for (final (file, open, close) in shots) {
+      unawaited(open(tester.element(find.byType(SessionScreen))));
+      await tester.pumpAndSettle();
+      await _shootDialog(tester, file);
+      await _tapText(tester, close);
+    }
+  });
+
   testWidgets('dialogs: help / about', (tester) async {
     await _pump(tester, const HomeScreen(), size: const Size(_narrow, 1200));
     await _tapTooltip(tester, 'Help / about');
@@ -1126,5 +1207,28 @@ void main() {
     File(
       '${out.path}/longitudinal_report.pdf',
     ).writeAsBytesSync(longitudinalPdf!.bytes);
+
+    final notes = buildAnnotationsReportData(
+      entries: const [
+        Annotation(
+          acqTime: '2026-02-03T09:02:10+00:00',
+          notes: 'Arrived calm; reports checking behaviour most evenings.',
+        ),
+        Annotation(
+          acqTime: '2026-02-03T09:07:45+00:00',
+          notes: 'Brief warmth on the right after the amplitude change.',
+        ),
+        Annotation(
+          acqTime: '2026-02-03T09:13:30+00:00',
+          notes: 'Leaves on the last configuration; review in six weeks.',
+        ),
+      ],
+      subjectId: _subjectId,
+      sourceFile: 'sub-01_ses-20260203_task-notes_run-01_beh.tsv',
+    );
+    final notesPdf = await tester.runAsync(() => buildAnnotationsPdf(notes));
+    File(
+      '${out.path}/annotations_report.pdf',
+    ).writeAsBytesSync(notesPdf!.bytes);
   });
 }

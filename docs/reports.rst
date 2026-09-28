@@ -191,6 +191,10 @@ Annotations report
 A patient header, the notes in a time-and-text table oldest-first, the span they
 cover, and an attestation block. See :doc:`screens/annotations`.
 
+.. figure:: _static/reports/annotations_report_notes.png
+   :alt: An annotations report: patient header and three timestamped notes
+   :width: 100%
+
 .. _scale-targets:
 
 Scale targets

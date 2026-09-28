@@ -83,28 +83,15 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     if (loaded.isEmpty || !mounted) return;
 
     final name = pickedBasename(file.path);
-    final keep = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Unfinished notes found'),
-        content: Text(
+    final keep = await askReopenUnfinished(
+      context,
+      title: 'Unfinished notes found',
+      message:
           '$name was left open with ${loaded.length} notes recorded. They '
           'were saved as you went, and can be reopened here.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Discard'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Reopen'),
-          ),
-        ],
-      ),
     );
-    if (!mounted) return;
-    if (keep != true) {
+    if (!mounted || keep == null) return;
+    if (!keep) {
       await discardWork(file.path);
       return;
     }
