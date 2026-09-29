@@ -9,6 +9,17 @@ follows the order the work is actually done in: what was *delivered* on top
 (parameters and electrodes), what was *observed* below (scales, side effects
 and notes).
 
+.. raw:: html
+
+   <video controls muted playsinline preload="metadata" width="100%"
+          poster="../_static/videos/record_block.png">
+     <source src="../_static/videos/record_block.mp4" type="video/mp4">
+   </video>
+
+A visit from the home screen: a new file, the stimulation parameters, the
+lead, the clinical scales, then three configurations rated and inserted, with
+the charts and table below.
+
 Step 1: File
 ------------
 
@@ -21,6 +32,11 @@ Step 1: File
 
 Enter the **patient ID** and **run number**, then choose where to save. **New**
 asks whether this visit is a loose TSV or goes straight into a BIDS dataset.
+
+.. figure:: ../_static/screenshots/dialog_save_location.png
+   :alt: The dialog asking whether to save the visit as a loose TSV or into a dataset
+   :width: 42%
+   :align: center
 
 **A loose TSV** goes wherever you choose. The app composes the
 :doc:`BIDS filename <../output_format>` and creates the file straight away,
@@ -44,9 +60,19 @@ visit already filed there is refused rather than overwritten. This option is
 available on Windows, macOS and Linux; on iPadOS and Android, which do not let an
 app write into a folder you pick, the loose file is the one offered.
 
+.. figure:: ../_static/screenshots/dialog_session_label.png
+   :alt: The session label prompt, proposing the date and editable
+   :width: 27%
+   :align: center
+
 Before recording starts, a dialog shows the exact path the visit will be filed
 under, such as ``sub-01/ses-20260203/beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv``,
 and the rows that will be added to ``participants.tsv`` and ``scans.tsv``.
+
+.. figure:: ../_static/screenshots/dialog_record_into.png
+   :alt: The confirmation showing the path the visit will be filed under in the dataset
+   :width: 42%
+   :align: center
 
 Whichever you choose, **every entry is also written to a working copy inside the
 app** as you record, so a crash or a closed window loses nothing. When you leave
@@ -55,6 +81,22 @@ whether to **keep** that copy or **discard** it. Kept, it is offered back the ne
 time you open this workflow; discarded, it is gone and nothing is offered. It is
 never deleted without that answer: after a crash, or when a tablet or phone app is
 swiped away, the copy is always kept.
+
+.. figure:: ../_static/screenshots/dialog_keep_recovery.png
+   :alt: The question on leaving: keep or discard the recovery copy
+   :width: 42%
+   :align: center
+
+   Asked when you leave the workflow or close the window.
+
+When a copy was kept, the next time you open the workflow it is offered back:
+
+.. figure:: ../_static/screenshots/dialog_reopen_unfinished.png
+   :alt: The offer to reopen an unfinished session, with Discard and Reopen
+   :width: 42%
+   :align: center
+
+   Reopen continues the session; Discard deletes the copy. Closing the dialog any other way keeps it for next time.
 
 **Open existing TSV** loads a session recorded earlier, and appends to it. The
 status line under the buttons reports what was found: the row count, the next
@@ -112,7 +154,8 @@ Programs
 
 .. figure:: ../_static/screenshots/dialog_programs.png
    :alt: The Programs dialog, a simple editable list of program labels
-   :width: 100%
+   :width: 36%
+   :align: center
 
 Opened by the gear beside the **Program** card in steps 2 and 4.
 
@@ -128,7 +171,8 @@ Parameter presets
 .. figure:: ../_static/screenshots/dialog_parameter_presets.png
    :alt: The parameter presets dialog with tabs for Frequency, Amplitude and
          Pulse width
-   :width: 100%
+   :width: 40%
+   :align: center
 
 Opened by the gear beside **Parameters** in steps 2 and 4.
 
@@ -147,7 +191,8 @@ Clinical scales settings
 .. figure:: ../_static/screenshots/dialog_clinical_scales.png
    :alt: The clinical scales settings dialog, a group list on the left and the
          selected group's scale names on the right
-   :width: 100%
+   :width: 50%
+   :align: center
 
 Opened by the gear on the **Clinical scales** card in step 2.
 
@@ -222,7 +267,8 @@ Session scales settings
 .. figure:: ../_static/screenshots/dialog_session_scales.png
    :alt: The session scales settings dialog, whose rows carry a minimum and a
          maximum as well as a name
-   :width: 100%
+   :width: 50%
+   :align: center
 
 Opened by the gear on **Session scales configuration** in step 3.
 
@@ -300,7 +346,8 @@ Scale targets
 .. figure:: ../_static/screenshots/dialog_scale_targets.png
    :alt: The scale targets dialog, one row per scale with a minimum, maximum and
          a target mode
-   :width: 100%
+   :width: 47%
+   :align: center
 
 Opened by **Scale targets** in step 4, on the Reports and datasets screen, or from
 the report sections dialog.
@@ -339,7 +386,8 @@ Report sections
 .. figure:: ../_static/screenshots/dialog_report_sections.png
    :alt: The report sections dialog, a checkbox and one-line description per
          section
-   :width: 100%
+   :width: 44%
+   :align: center
 
 Appears when you export a report, before the save dialog. Each report kind has
 its own list, and the dialog title says which one you are choosing for:

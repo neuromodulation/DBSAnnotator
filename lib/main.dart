@@ -102,7 +102,11 @@ class _CloseListener extends WindowListener {
   @override
   Future<void> onWindowClose() async {
     final guard = activeSessionGuard;
-    if (guard == null || await guard()) await windowManager.destroy();
+    if (guard != null && !await guard()) return;
+    // Not destroy(): on Windows that only quits the message loop, leaving the
+    // window on screen, apparently frozen, while the engine shuts down.
+    await windowManager.setPreventClose(false);
+    await windowManager.close();
   }
 }
 

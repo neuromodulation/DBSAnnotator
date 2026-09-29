@@ -13,13 +13,15 @@ const String appName = 'Wyss DBS Annotator';
 const String appVersion = '0.5.0';
 const String repoUrl = 'https://github.com/neuromodulation/DBSAnnotator';
 const String issuesUrl = '$repoUrl/issues';
+const String docsUrl = 'https://dbs-annotator.readthedocs.io/';
 const String contactEmail = 'lucia.poma@wysscenter.ch';
 
-/// The same three addresses as [Uri]s, for the About dialog's links. Parsed
+/// The same addresses as [Uri]s, for the About dialog's links. Parsed
 /// once here rather than at every tap, and `mailto:` so the contact opens a
 /// mail client instead of a browser.
 final Uri repoUri = Uri.parse(repoUrl);
 final Uri issuesUri = Uri.parse(issuesUrl);
+final Uri docsUri = Uri.parse(docsUrl);
 final Uri contactUri = Uri(scheme: 'mailto', path: contactEmail);
 
 const String publisher = 'Wyss Center for Bio and Neuroengineering';
@@ -175,6 +177,7 @@ void showAppAbout(BuildContext context) {
       ),
       const SizedBox(height: 12),
       const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),
+      _LinkLine(label: 'User guide', text: docsUrl, uri: docsUri),
       _LinkLine(label: 'Repository', text: repoUrl, uri: repoUri),
       _LinkLine(label: 'Issues', text: issuesUrl, uri: issuesUri),
       _LinkLine(label: 'Contact', text: contactEmail, uri: contactUri),

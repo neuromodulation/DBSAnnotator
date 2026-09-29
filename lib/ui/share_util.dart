@@ -143,6 +143,9 @@ Future<void> exportFile(
 /// Save [file] to a user-visible location: a native Save-As dialog first, then
 /// the first writable well-known directory. Never throws.
 Future<String?> _saveToDisk(File file, String filename) async {
+  if (debugSaveDir case final dir?) {
+    return (await file.copy('${dir.path}/$filename')).path;
+  }
   // 1) Native Save-As dialog. It returns a Uri, and a non-`file` one has no
   //    path to report, so fall through rather than name an unopenable place.
   try {

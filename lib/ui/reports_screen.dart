@@ -148,7 +148,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Future<void> _upload() async {
     final List<PlatformFile> picked;
     try {
-      picked = await FilePicker.pickFiles(type: FileType.any);
+      picked =
+          debugPickedFiles ?? await FilePicker.pickFiles(type: FileType.any);
     } catch (e) {
       if (mounted) _snack('Could not open the file picker. ($e)');
       return;

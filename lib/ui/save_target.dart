@@ -43,6 +43,12 @@ Future<String?> readPickedText(PlatformFile picked) async {
 /// channel to resolve it. Mirrors `debugPainterFontFamily`.
 Directory? debugWorkingDir;
 
+/// Stands in for the file picker's selection, for recorded docs videos.
+List<PlatformFile>? debugPickedFiles;
+
+/// Replaces every Save-As dialog with this folder, for recorded docs videos.
+Directory? debugSaveDir;
+
 /// In-progress session files, in the app's own storage: always writable on
 /// every platform, so autosave never depends on what the picker returned.
 Future<Directory> workingDir() async {
@@ -108,6 +114,11 @@ Future<NewTsvTarget?> createNewTsv({
   required String header,
 }) async {
   final bytes = Uint8List.fromList(utf8.encode(header));
+  if (debugSaveDir case final dir?) {
+    final path = '${dir.path}/$fileName';
+    await File(path).writeAsBytes(bytes);
+    return (path: path, location: path, fellBack: false);
+  }
   try {
     final uri = await FilePicker.saveFile(
       dialogTitle: dialogTitle,

@@ -165,16 +165,13 @@ Future<bool> checkDatasetFolder(
       title: Text(
         empty ? 'Start a new BIDS dataset here?' : 'Not a BIDS dataset',
       ),
-      content: SizedBox(
-        width: 480,
-        child: Text(
-          '$label\n\n$kBidsFolderRule\n\n'
-          '${empty ? 'This folder is empty, so it can become one: its '
-                    'dataset_description.json, README and participants.tsv '
-                    'are written along with the first visit.' : 'This folder has other content and no '
-                    'dataset_description.json. Choose the top-level folder of a '
-                    'BIDS dataset, or an empty folder to start one.'}',
-        ),
+      content: Text(
+        '$label\n\n$kBidsFolderRule\n\n'
+        '${empty ? 'This folder is empty, so it can become one: its '
+                  'dataset_description.json, README and participants.tsv '
+                  'are written along with the first visit.' : 'This folder has other content and no '
+                  'dataset_description.json. Choose the top-level folder of a '
+                  'BIDS dataset, or an empty folder to start one.'}',
       ),
       actions: [
         TextButton(
@@ -192,6 +189,59 @@ Future<bool> checkDatasetFolder(
   return ok ?? false;
 }
 
+/// Ask for the `ses-` label of a visit recorded into a dataset, proposing
+/// [proposed]. Null when cancelled.
+Future<String?> askSessionLabel(BuildContext context, String proposed) async {
+  final out = await showDialog<String>(
+    context: context,
+    builder: (_) => _SessionLabelDialog(proposed),
+  );
+  return (out == null || out.isEmpty) ? null : out;
+}
+
+/// Owns its controller, so the field outlives the dialog's closing animation.
+class _SessionLabelDialog extends StatefulWidget {
+  const _SessionLabelDialog(this.proposed);
+
+  final String proposed;
+
+  @override
+  State<_SessionLabelDialog> createState() => _SessionLabelDialogState();
+}
+
+class _SessionLabelDialogState extends State<_SessionLabelDialog> {
+  late final _ctrl = TextEditingController(text: widget.proposed);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Session label'),
+    content: TextField(
+      controller: _ctrl,
+      autofocus: true,
+      decoration: const InputDecoration(
+        labelText: 'ses-',
+        helperText: 'Often the date, but use whatever this study uses.',
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
+        child: const Text('Use'),
+      ),
+    ],
+  );
+}
+
 /// Say where a visit recorded straight into a dataset will be filed.
 Future<bool> confirmRecordInto(
   BuildContext context,
@@ -203,26 +253,23 @@ Future<bool> confirmRecordInto(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Record into this dataset?'),
-      content: SizedBox(
-        width: 520,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(root, style: theme.textTheme.bodySmall),
-            const SizedBox(height: 12),
-            const Text('This visit will be filed as:'),
-            Text(
-              '  ${name.relativeDir}/${name.filename}',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'when the first block is inserted, and updated at every insert '
-              'after that. $kBidsAddRule',
-            ),
-          ],
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(root, style: theme.textTheme.bodySmall),
+          const SizedBox(height: 12),
+          const Text('This visit will be filed as:'),
+          Text(
+            '  ${name.relativeDir}/${name.filename}',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'when the first block is inserted, and updated at every insert '
+            'after that. $kBidsAddRule',
+          ),
+        ],
       ),
       actions: [
         TextButton(

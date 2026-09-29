@@ -5,6 +5,16 @@ Upload the TSVs you have, then take whatever they support. This screen writes
 nothing to the files you give it: it reads them, shows what is in them, and
 produces documents and datasets from them.
 
+.. raw:: html
+
+   <video controls muted playsinline preload="metadata" width="100%"
+          poster="../_static/videos/reports.png">
+     <source src="../_static/videos/reports.mp4" type="video/mp4">
+   </video>
+
+From the home screen: two visits uploaded, the longitudinal report's sections
+chosen, the scale targets it ranks by, then the export.
+
 .. figure:: ../_static/screenshots/reports_empty.png
    :alt: The Reports and datasets screen before anything is uploaded, with
          every action listed and disabled
@@ -116,6 +126,20 @@ first visit. A folder with other content and no ``dataset_description.json`` is
 refused, with this explanation, so BIDS files are never scattered through a
 folder that is not a dataset.
 
+.. figure:: ../_static/screenshots/dialog_bids_start.png
+   :alt: The offer to start a new BIDS dataset in an empty folder
+   :width: 42%
+   :align: center
+
+   An empty folder: the app offers to start a dataset there.
+
+.. figure:: ../_static/screenshots/dialog_bids_not_dataset.png
+   :alt: The refusal for a folder that is not a BIDS dataset
+   :width: 42%
+   :align: center
+
+   A folder with other content and no dataset_description.json.
+
 **How a visit is added.** Each visit goes to
 ``sub-<participant>/ses-<session>/beh/`` as a ``_beh.tsv`` with its ``.json``
 sidecar. Its participant gets a row in ``participants.tsv`` and the visit a row in
@@ -127,6 +151,11 @@ dialog that restates how the visit is added and lists every file that will be
 added, every index file that will gain rows, everything left unchanged, and
 anything refused. This is the only operation in the app that writes to data it
 did not create, and it has no undo.
+
+.. figure:: ../_static/screenshots/dialog_add_to_dataset.png
+   :alt: The confirmation before adding: how visits are added, and the files added, gaining rows and left unchanged
+   :width: 47%
+   :align: center
 
 .. _dataset-merge-rules:
 
@@ -165,6 +194,11 @@ Reports offer **PDF** or **Word**. Both report kinds show the
 :ref:`report sections <dialog-report-sections>` dialog first, with
 :ref:`scale targets <dialog-scale-targets>` reachable from inside it. For a
 notes file every section applies, so the dialog is skipped.
+
+.. figure:: ../_static/screenshots/dialog_longitudinal_sections.png
+   :alt: The longitudinal report sections dialog, with its seven sections
+   :width: 44%
+   :align: center
 
 The longitudinal chooser offers seven sections. Three of them start unticked,
 because they add pages:

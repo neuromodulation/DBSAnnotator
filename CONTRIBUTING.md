@@ -144,6 +144,21 @@ runner and a developer machine that a byte comparison fails on visually
 identical renders. What it does catch is a capture that no longer *generates*:
 a finder that stopped matching, or a dialog that moved.
 
+### Videos
+
+The clips under `docs/_static/videos/` are recorded from the real Windows app
+while an integration test in `integration_test/videos/` drives it. Install
+ffmpeg once (`winget install Gyan.FFmpeg`), then:
+
+```powershell
+powershell -File tool/record_video.ps1 -Flow record_block
+powershell -File tool/record_video.ps1 -Flow reports
+```
+
+The tests use a temporary folder for preferences and the working copy, so
+recording never changes your own. Windows only; on macOS or Linux the same
+tests run, with ffmpeg's `avfoundation` or `x11grab` in place of `gdigrab`.
+
 ## Getting help
 
 Open an issue, or start a discussion. For anything that looks like a clinical
