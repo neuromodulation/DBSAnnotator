@@ -61,7 +61,7 @@ Help / about
 .. figure:: ../_static/screenshots/dialog_about.png
    :alt: The About dialog: app name, version, a workflow summary, licence and
          contact links
-   :width: 44%
+   :width: 81%
    :align: center
 
 Opened by the **?** in the top bar of every screen.

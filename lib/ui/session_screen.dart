@@ -699,13 +699,10 @@ class _SessionScreenState extends State<SessionScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Where should this visit be saved?'),
-        content: const SizedBox(
-          width: 460,
-          child: Text(
-            'A loose TSV goes wherever you choose. Into a dataset, the visit is '
-            'filed at its BIDS path and the dataset index files are kept up to '
-            'date as you record.',
-          ),
+        content: const Text(
+          'A loose TSV goes wherever you choose. Into a dataset, the visit is '
+          'filed at its BIDS path and the dataset index files are kept up to '
+          'date as you record.',
         ),
         actions: [
           TextButton(

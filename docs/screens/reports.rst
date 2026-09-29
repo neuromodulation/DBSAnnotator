@@ -5,6 +5,16 @@ Upload the TSVs you have, then take whatever they support. This screen writes
 nothing to the files you give it: it reads them, shows what is in them, and
 produces documents and datasets from them.
 
+.. raw:: html
+
+   <video controls muted playsinline preload="metadata" width="100%"
+          poster="../_static/videos/reports.png">
+     <source src="../_static/videos/reports.mp4" type="video/mp4">
+   </video>
+
+From the home screen: two visits uploaded, the longitudinal report's sections
+chosen, the scale targets it ranks by, then the export.
+
 .. figure:: ../_static/screenshots/reports_empty.png
    :alt: The Reports and datasets screen before anything is uploaded, with
          every action listed and disabled
@@ -118,14 +128,14 @@ folder that is not a dataset.
 
 .. figure:: ../_static/screenshots/dialog_bids_start.png
    :alt: The offer to start a new BIDS dataset in an empty folder
-   :width: 44%
+   :width: 42%
    :align: center
 
    An empty folder: the app offers to start a dataset there.
 
 .. figure:: ../_static/screenshots/dialog_bids_not_dataset.png
    :alt: The refusal for a folder that is not a BIDS dataset
-   :width: 44%
+   :width: 42%
    :align: center
 
    A folder with other content and no dataset_description.json.

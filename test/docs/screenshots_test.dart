@@ -38,7 +38,6 @@ import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:dbs_annotator/core/session/scale_scoring.dart';
 import 'package:dbs_annotator/core/session/session_row.dart'
     show electrodeModelIn;
-import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/report/longitudinal_data.dart';
 import 'package:dbs_annotator/report/annotations_report.dart';
 import 'package:dbs_annotator/report/longitudinal_pdf.dart';
@@ -59,8 +58,6 @@ import 'package:dbs_annotator/ui/scale_slider.dart';
 import 'package:dbs_annotator/ui/session/entry_charts_view.dart';
 import 'package:dbs_annotator/ui/session_screen.dart';
 import 'package:dbs_annotator/core/annotation.dart';
-import 'package:dbs_annotator/core/session/tsv_kind.dart';
-import 'package:dbs_annotator/report/upload_actions.dart';
 import 'package:dbs_annotator/ui/reports_screen.dart';
 import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:dbs_annotator/ui/theme.dart';
@@ -68,6 +65,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show FontLoader, rootBundle;
 import 'package:flutter_test/flutter_test.dart';
+
+import 'example_visits.dart';
 
 /// Where PNGs are written; unset means the default `flutter test` does nothing.
 final String? _outDir = Platform.environment['DOCS_SCREENSHOT_DIR'];
@@ -86,6 +85,21 @@ String? _textFont;
 const double _wide = 1440;
 const double _narrow = 900;
 
+/// The window a dialog is measured in. A dialog that is only a paragraph
+/// grows with the window, in the app as here, so those are measured in
+/// [_textDialogWidth] instead, which Material's 40 px insets turn into a
+/// 460 px card: a readable line in the docs, with the app left unbounded.
+const double _dialogWidth = 1100;
+const double _textDialogWidth = 540;
+const _textDialogs = {
+  'dialog_save_location',
+  'dialog_record_into',
+  'dialog_bids_start',
+  'dialog_bids_not_dataset',
+  'dialog_keep_recovery',
+  'dialog_reopen_unfinished',
+};
+
 /// The tallest window a capture may use before it has to become a region.
 /// Anything taller renders as an illegible sliver at documentation width; the
 /// recording step is ~4800 px with its charts and entries table laid out.
@@ -99,8 +113,7 @@ const int _trimMargin = 32;
 // session rather than as unrelated fragments: sub-01, run 01, an OCD scale
 // set, a segmented Medtronic lead with current steered across two segments.
 
-const _fixture =
-    'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv';
+const _fixture = exampleFixture;
 const _defaultModel = 'Medtronic SenSight B33005';
 const _subjectId = '01';
 const _runId = '01';
@@ -423,11 +436,12 @@ Future<void> _shootDialog(
   String name, {
   double margin = 56,
 }) async {
+  final width = _textDialogs.contains(name) ? _textDialogWidth : _dialogWidth;
   final before = tester.view.physicalSize / tester.view.devicePixelRatio;
   // Measure from a modest window, as [_shootFitted] probes from a short one:
   // several of these dialogs size themselves to the space available, so on a
   // 3000 px canvas they report being 3000 px tall.
-  await tester.binding.setSurfaceSize(const Size(1100, 900));
+  await tester.binding.setSurfaceSize(Size(width, 900));
   await tester.pumpAndSettle();
   // The `Dialog` render box is the whole overlay, including the `Align` that
   // centres the surface, so measuring it returns the window size and the frame
@@ -651,48 +665,6 @@ Future<void> _seedRatings(WidgetTester tester) async {
     );
     await tester.pumpAndSettle();
   }
-}
-
-/// The follow-up visit: the example months later, with lower clinical totals
-/// and a few session ratings moved, so the longitudinal figures and the
-/// change column show a real change rather than a copy.
-const _followUp = {
-  '2026-02-03': '2026-09-18',
-  '\tY-BOCS\t28\t': '\tY-BOCS\t21\t',
-  '\tY-BOCS-o\t15\t': '\tY-BOCS-o\t11\t',
-  '\tY-BOCS-c\t13\t': '\tY-BOCS-c\t10\t',
-  '\tMADRS\t24\t': '\tMADRS\t17\t',
-  '\tObsessions\t8.00\t': '\tObsessions\t6.00\t',
-  '\tCompulsions\t7.50\t': '\tCompulsions\t5.50\t',
-  '\tObsessions\t7.00\t': '\tObsessions\t5.25\t',
-  '\tObsessions\t2.75\t': '\tObsessions\t2.00\t',
-};
-
-/// Uploads for the report captures: the committed example, and for the
-/// multi-visit ones the follow-up visit above.
-List<Uploaded> _visits({bool mismatchedPatients = false, int count = 2}) {
-  final source = File(_fixture).readAsStringSync();
-  final followUp = _followUp.entries.fold(
-    source,
-    (text, e) => text.replaceAll(e.key, e.value),
-  );
-  return [
-    (
-      name: 'sub-01_ses-20260203_task-programming_run-01_beh.tsv',
-      kind: TsvKind.programming,
-      rows: parseSessionTsv(source),
-      notes: const <Annotation>[],
-    ),
-    if (count > 1)
-      (
-        name: mismatchedPatients
-            ? 'sub-04_ses-20260918_task-programming_run-01_beh.tsv'
-            : 'sub-01_ses-20260918_task-programming_run-02_beh.tsv',
-        kind: TsvKind.programming,
-        rows: parseSessionTsv(followUp),
-        notes: const <Annotation>[],
-      ),
-  ];
 }
 
 void main() {
@@ -1134,13 +1106,16 @@ void main() {
     final contracts = await _contracts();
     await _pump(
       tester,
-      ReportsScreen(catalog: contracts.$1, initialFiles: _visits(count: 1)),
+      ReportsScreen(
+        catalog: contracts.$1,
+        initialFiles: exampleVisits(count: 1),
+      ),
     );
     await _shootFitted(tester, 'reports_one_session', height: 900);
   });
 
   testWidgets('reports: several visits', (tester) async {
-    await _pump(tester, ReportsScreen(initialFiles: _visits()));
+    await _pump(tester, ReportsScreen(initialFiles: exampleVisits()));
     await _shootFitted(tester, 'reports_visits', height: 900);
   });
 
@@ -1150,7 +1125,7 @@ void main() {
     // documenting on their own.
     await _pump(
       tester,
-      ReportsScreen(initialFiles: _visits(mismatchedPatients: true)),
+      ReportsScreen(initialFiles: exampleVisits(mismatchedPatients: true)),
     );
     await _shootFitted(tester, 'reports_mismatch', height: 900);
   });
@@ -1164,7 +1139,7 @@ void main() {
   testWidgets('reports: session and longitudinal PDFs', (tester) async {
     final out = Directory('build/docs_reports')..createSync(recursive: true);
     final catalog = (await _contracts()).$1;
-    final visits = _visits();
+    final visits = exampleVisits();
     final prefs = defaultScalePrefsFor([
       for (final v in visits) ...v.rows.where((r) => r.isInitial.trim() != '1'),
     ]);

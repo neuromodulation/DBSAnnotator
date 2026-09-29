@@ -42,6 +42,9 @@ repos:
         # icons are regenerated. Still low enough to catch a stray build
         # artifact (the MSIX alone is 19 MB).
         args: [--maxkb=600]
+        # The docs videos are recorded by tool/record_video.ps1 and are large
+        # on purpose; recompressing them further blurs the UI text.
+        exclude: ^docs/_static/videos/
 
   # ---- The app: Dart ------------------------------------------------------
   # `language: system`, because the Flutter SDK is a prerequisite for working on

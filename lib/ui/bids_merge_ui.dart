@@ -165,16 +165,13 @@ Future<bool> checkDatasetFolder(
       title: Text(
         empty ? 'Start a new BIDS dataset here?' : 'Not a BIDS dataset',
       ),
-      content: SizedBox(
-        width: 480,
-        child: Text(
-          '$label\n\n$kBidsFolderRule\n\n'
-          '${empty ? 'This folder is empty, so it can become one: its '
-                    'dataset_description.json, README and participants.tsv '
-                    'are written along with the first visit.' : 'This folder has other content and no '
-                    'dataset_description.json. Choose the top-level folder of a '
-                    'BIDS dataset, or an empty folder to start one.'}',
-        ),
+      content: Text(
+        '$label\n\n$kBidsFolderRule\n\n'
+        '${empty ? 'This folder is empty, so it can become one: its '
+                  'dataset_description.json, README and participants.tsv '
+                  'are written along with the first visit.' : 'This folder has other content and no '
+                  'dataset_description.json. Choose the top-level folder of a '
+                  'BIDS dataset, or an empty folder to start one.'}',
       ),
       actions: [
         TextButton(
@@ -256,26 +253,23 @@ Future<bool> confirmRecordInto(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Record into this dataset?'),
-      content: SizedBox(
-        width: 520,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(root, style: theme.textTheme.bodySmall),
-            const SizedBox(height: 12),
-            const Text('This visit will be filed as:'),
-            Text(
-              '  ${name.relativeDir}/${name.filename}',
-              style: theme.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'when the first block is inserted, and updated at every insert '
-              'after that. $kBidsAddRule',
-            ),
-          ],
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(root, style: theme.textTheme.bodySmall),
+          const SizedBox(height: 12),
+          const Text('This visit will be filed as:'),
+          Text(
+            '  ${name.relativeDir}/${name.filename}',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'when the first block is inserted, and updated at every insert '
+            'after that. $kBidsAddRule',
+          ),
+        ],
       ),
       actions: [
         TextButton(

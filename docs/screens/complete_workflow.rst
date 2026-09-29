@@ -9,6 +9,17 @@ follows the order the work is actually done in: what was *delivered* on top
 (parameters and electrodes), what was *observed* below (scales, side effects
 and notes).
 
+.. raw:: html
+
+   <video controls muted playsinline preload="metadata" width="100%"
+          poster="../_static/videos/record_block.png">
+     <source src="../_static/videos/record_block.mp4" type="video/mp4">
+   </video>
+
+A visit from the home screen: a new file, the stimulation parameters, the
+lead, the clinical scales, then three configurations rated and inserted, with
+the charts and table below.
+
 Step 1: File
 ------------
 
@@ -24,7 +35,7 @@ asks whether this visit is a loose TSV or goes straight into a BIDS dataset.
 
 .. figure:: ../_static/screenshots/dialog_save_location.png
    :alt: The dialog asking whether to save the visit as a loose TSV or into a dataset
-   :width: 43%
+   :width: 42%
    :align: center
 
 **A loose TSV** goes wherever you choose. The app composes the
@@ -60,7 +71,7 @@ and the rows that will be added to ``participants.tsv`` and ``scans.tsv``.
 
 .. figure:: ../_static/screenshots/dialog_record_into.png
    :alt: The confirmation showing the path the visit will be filed under in the dataset
-   :width: 47%
+   :width: 42%
    :align: center
 
 Whichever you choose, **every entry is also written to a working copy inside the
@@ -73,7 +84,7 @@ swiped away, the copy is always kept.
 
 .. figure:: ../_static/screenshots/dialog_keep_recovery.png
    :alt: The question on leaving: keep or discard the recovery copy
-   :width: 43%
+   :width: 42%
    :align: center
 
    Asked when you leave the workflow or close the window.
@@ -82,7 +93,7 @@ When a copy was kept, the next time you open the workflow it is offered back:
 
 .. figure:: ../_static/screenshots/dialog_reopen_unfinished.png
    :alt: The offer to reopen an unfinished session, with Discard and Reopen
-   :width: 43%
+   :width: 42%
    :align: center
 
    Reopen continues the session; Discard deletes the copy. Closing the dialog any other way keeps it for next time.

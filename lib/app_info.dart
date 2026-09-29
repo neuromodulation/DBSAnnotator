@@ -13,13 +13,15 @@ const String appName = 'Wyss DBS Annotator';
 const String appVersion = '0.5.0';
 const String repoUrl = 'https://github.com/neuromodulation/DBSAnnotator';
 const String issuesUrl = '$repoUrl/issues';
+const String docsUrl = 'https://dbs-annotator.readthedocs.io/';
 const String contactEmail = 'lucia.poma@wysscenter.ch';
 
-/// The same three addresses as [Uri]s, for the About dialog's links. Parsed
+/// The same addresses as [Uri]s, for the About dialog's links. Parsed
 /// once here rather than at every tap, and `mailto:` so the contact opens a
 /// mail client instead of a browser.
 final Uri repoUri = Uri.parse(repoUrl);
 final Uri issuesUri = Uri.parse(issuesUrl);
+final Uri docsUri = Uri.parse(docsUrl);
 final Uri contactUri = Uri(scheme: 'mailto', path: contactEmail);
 
 const String publisher = 'Wyss Center for Bio and Neuroengineering';
@@ -164,36 +166,26 @@ void showAppAbout(BuildContext context) {
     applicationVersion: 'v$appVersion',
     applicationIcon: const AppLogo(size: 48),
     children: [
-      // The dialog sizes itself to its widest child, and an unconstrained
-      // paragraph is as wide as the window; this keeps it to a readable line.
-      SizedBox(
-        width: 480,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            const Text(
-              'Document DBS programming visits, the appointments at which '
-              'stimulation configurations are tested and optimised. The complete '
-              'workflow runs in four steps: file setup, initial configuration, '
-              'session-scales configuration, active recording. Writes BIDS '
-              'behavioural TSV with a JSON sidecar documenting every column, and '
-              'exports PDF and Word reports.',
-            ),
-            const SizedBox(height: 12),
-            const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),
-            _LinkLine(label: 'Repository', text: repoUrl, uri: repoUri),
-            _LinkLine(label: 'Issues', text: issuesUrl, uri: issuesUri),
-            _LinkLine(label: 'Contact', text: contactEmail, uri: contactUri),
-            const SizedBox(height: 12),
-            const Text('© 2026 $copyrightHolders'),
-            const Text('MIT License. Publisher: $publisher.'),
-            const SizedBox(height: 12),
-            const WyssLockup(),
-          ],
-        ),
+      const SizedBox(height: 8),
+      const Text(
+        'Document DBS programming visits, the appointments at which '
+        'stimulation configurations are tested and optimised. The complete '
+        'workflow runs in four steps: file setup, initial configuration, '
+        'session-scales configuration, active recording. Writes BIDS '
+        'behavioural TSV with a JSON sidecar documenting every column, and '
+        'exports PDF and Word reports.',
       ),
+      const SizedBox(height: 12),
+      const Text('Links:', style: TextStyle(fontWeight: FontWeight.w600)),
+      _LinkLine(label: 'User guide', text: docsUrl, uri: docsUri),
+      _LinkLine(label: 'Repository', text: repoUrl, uri: repoUri),
+      _LinkLine(label: 'Issues', text: issuesUrl, uri: issuesUri),
+      _LinkLine(label: 'Contact', text: contactEmail, uri: contactUri),
+      const SizedBox(height: 12),
+      const Text('© 2026 $copyrightHolders'),
+      const Text('MIT License. Publisher: $publisher.'),
+      const SizedBox(height: 12),
+      const WyssLockup(),
     ],
   );
 }

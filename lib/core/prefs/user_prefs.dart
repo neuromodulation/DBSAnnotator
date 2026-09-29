@@ -156,8 +156,11 @@ ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
   return ScalePresets(buttons: buttons, clinical: clinical, session: session);
 }
 
+/// Overrides where preferences live, so tests never touch the user's own.
+Directory? debugPrefsDir;
+
 Future<File> _prefsFile() async {
-  final dir = await getApplicationSupportDirectory();
+  final dir = debugPrefsDir ?? await getApplicationSupportDirectory();
   return File('${dir.path}/dbs_user_prefs.json');
 }
 
