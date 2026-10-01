@@ -13,9 +13,36 @@ from. User docs are Sphinx sources in `docs/`, published on Read the Docs.
 Programming sessions are outpatient visits: the clinicians and the patient sit around a table
 while configurations are tested. Write "in clinic" or "during the visit", never "bedside".
 
+## Setup
+
+Flutter 3.38.4 or later (Dart 3.12+). Python tooling runs through `uv`, with nothing to
+install.
+
+```
+flutter pub get
+flutter run          # this computer, an emulator, or a connected device
+```
+
+## Layout
+
+```
+lib/core/            domain logic: sessions, TSV and BIDS, electrode geometry
+lib/report/          PDF and Word reports, filed in a patient record
+lib/ui/              screens and widgets
+schema/              the output contract, bundled by the app
+test/                unit and widget tests
+test/fixtures/       synthetic sessions from tool/generate_fixtures.dart
+test/docs/           generates the docs screenshots
+integration_test/    docs video flows, desktop only
+tool/                fixture, screenshot, video and brand-asset scripts
+docs/                Sphinx sources for Read the Docs
+.github/             CI, templates, release runbook
+```
+
 ## Working rules
 
-- Do not commit, push, tag or open pull requests. The maintainer commits.
+- Draft commit messages and pull request descriptions when asked, but never commit, push,
+  tag or open a pull request yourself. The maintainer does.
 - No assistant attribution anywhere: code, docs, commit messages, `Co-Authored-By` trailers.
 - Check live state (git, gh, CI) before repeating a status from earlier notes.
 - Parallel agents get disjoint sets of files. Stop any agent whose scope overlaps another's,
@@ -31,11 +58,36 @@ uvx pre-commit run --all-files
 sphinx-build -W docs docs/_build/html
 ```
 
-`pre-commit run --all-files` sees only tracked files: `git add -N` new files first, and
-`git reset` them afterwards if the maintainer stages by hand. Screenshots and docs videos are
-generated, never edited by hand; CONTRIBUTING.md has the commands.
+- One file: `flutter test test/bids_test.dart`.
+- After a format change, regenerate the fixtures: `dart run tool/generate_fixtures.dart`.
+- `pre-commit run --all-files` sees only tracked files: `git add -N` new files first, and
+  `git reset` them afterwards if the maintainer stages by hand.
+- `integration_test/` needs a desktop build and is not part of the routine checks.
+- Screenshots and docs videos are generated, never edited by hand; CONTRIBUTING.md has the
+  commands.
+
+## Commits and pull requests
+
+- Commit subjects use conventional prefixes with an optional scope: `feat(reports):`,
+  `fix(bids):`, `docs:`, `chore:`.
+- Pull request descriptions follow `.github/PULL_REQUEST_TEMPLATE.md`.
 
 ## Code style
+
+Prefer the simplest solution that fully solves the problem. If your agent has the ponytail
+skill or plugin available, apply it to every coding task here. Otherwise hold the code to the
+same standard:
+
+- Question whether the change is needed before writing it; build nothing for a hypothetical
+  future case.
+- Reach for the Dart and Flutter standard libraries, then an existing helper in `lib/`, before
+  writing new code; add a dependency only when the platform cannot do the job.
+- No abstraction without a second caller: no wrapper around a single call, no interface with
+  one implementation, no parameter or setting for a value that never varies.
+- Keep the diff to what the task needs. Delete dead code instead of commenting it out, and do
+  not reshape unrelated code.
+- Readability wins over brevity: plain control flow and descriptive names, no clever one-liners
+  that need a comment to decode.
 
 - Comment only what the code cannot say: a constraint, a non-obvious decision, a defect
   someone would reintroduce. Keep comment lines under about 20% of a file.
@@ -53,6 +105,15 @@ Reports are filed in a patient record.
 
 - Never assert what the data does not support.
 - Never lose data silently.
+
+## Security and privacy
+
+- The app is offline by design. Add no network calls, analytics, crash reporting or
+  telemetry, including through a dependency.
+- No real patient data in code, tests, fixtures, screenshots or issue text. Use the synthetic
+  data in `test/fixtures/`.
+- Never commit signing material (keystores, `.pfx`, `key.properties`, `.p8`). `.gitignore`
+  covers it, and `git add -f` bypasses that.
 
 ## Pitfalls
 
