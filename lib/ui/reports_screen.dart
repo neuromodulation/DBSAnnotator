@@ -485,17 +485,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   /// The chosen dataset, and how to write the merge back into it.
   Future<_MergeTarget?> _pickFolderTarget() async {
-    final root = await pickDatasetFolder();
-    if (root == null) return null;
     try {
-      final existing = await readDatasetDirectory(root);
-      if (!mounted || !await checkDatasetFolder(context, root, existing)) {
-        return null;
-      }
+      final folder = await pickCheckedDatasetFolder(context);
+      if (folder == null) return null;
       return (
-        existing: existing,
-        label: root,
-        apply: (MergePlan plan) => applyMergeToDirectory(root, plan),
+        existing: folder.existing,
+        label: folder.root,
+        apply: (MergePlan plan) => applyMergeToDirectory(folder.root, plan),
       );
     } catch (e) {
       if (mounted) _snack('Could not read that folder: $e');
@@ -529,9 +525,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final bytes = await picked.readAsBytes();
       final existing = readDatasetZip(bytes);
       final name = picked.name;
-      if (!mounted || !await checkDatasetFolder(context, name, existing)) {
-        return null;
-      }
+      if (!mounted) return null;
+      final check = await checkDatasetFolder(
+        context,
+        name,
+        existing,
+        chooseAnother: 'Choose another file',
+      );
+      if (check == FolderCheck.chooseAnother) return await _pickZipTarget();
+      if (check != FolderCheck.proceed) return null;
       return (
         existing: existing,
         label: name,

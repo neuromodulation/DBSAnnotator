@@ -1007,7 +1007,11 @@ void main() {
         'sub-01_ses-20260203_task-programming_run-01_beh';
     final shots = <(String, Future<Object?> Function(BuildContext), String)>[
       ('dialog_session_label', (c) => askSessionLabel(c, '20260203'), 'Cancel'),
-      ('dialog_record_into', (c) => confirmRecordInto(c, root, name), 'Cancel'),
+      (
+        'dialog_record_into',
+        (c) => confirmRecordInto(c, root, name, what: 'this visit'),
+        'Cancel',
+      ),
       (
         'dialog_bids_start',
         (c) => checkDatasetFolder(c, 'C:/Studies/new-study', const []),

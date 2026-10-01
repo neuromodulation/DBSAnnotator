@@ -73,6 +73,23 @@ void main() {
       expect(aggregate.containsKey('TaskName'), isFalse);
       expect(aggregate.containsKey('TaskDescription'), isFalse);
     });
+
+    test('a task the user renamed is the TaskName the file carries', () {
+      // BIDS derives the filename's task label from TaskName, so the two
+      // must agree; the description still says what the rows are.
+      final notes = buildSidecar(
+        contract,
+        'annotation_tsv',
+        appVersion: '0.5.0',
+        task: 'followup',
+      );
+      expect(notes['TaskName'], 'followup');
+      expect(notes['TaskDescription'], contains('notes'));
+      expect(
+        buildSidecar(contract, 'session_tsv', appVersion: '0.5.0', task: ''),
+        containsPair('TaskName', 'programming'),
+      );
+    });
     test('entries use the BIDS key names, with Units where there are any', () {
       final session = buildSidecar(
         contract,

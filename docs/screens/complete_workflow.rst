@@ -30,8 +30,14 @@ Step 1: File
 
    The File step, with an existing session opened.
 
-Enter the **patient ID** and **run number**, then choose where to save. **New**
-asks whether this visit is a loose TSV or goes straight into a BIDS dataset.
+Enter the **patient ID**, the **task** and the **run number**, then choose where
+to save. The task is ``programming`` unless you name another; whatever you type
+becomes the ``task-`` part of the :doc:`BIDS filename <../output_format>` and
+the ``TaskName`` in its sidecar, so a study that labels its tasks differently can
+keep its own scheme. Like every BIDS label it keeps letters and digits only.
+
+**New** asks whether this visit is a loose TSV or goes straight into a BIDS
+dataset.
 
 .. figure:: ../_static/screenshots/dialog_save_location.png
    :alt: The dialog asking whether to save the visit as a loose TSV or into a dataset
@@ -44,10 +50,15 @@ along with its ``.json`` sidecar, so every later insert has somewhere to go.
 
 **Into a dataset** asks for the dataset folder, which must be a BIDS dataset or
 an empty folder to start one in (see
-:ref:`what counts as a BIDS dataset <bids-folder-requirements>`), and for the
-session label,
-proposed as today's date but editable: ``ses-YYYYMMDD`` is this app's
-convention, and plenty of studies use ``ses-preop`` or ``ses-3mo``. The visit is
+:ref:`what counts as a BIDS dataset <bids-folder-requirements>`). If the folder
+you picked is neither, **Choose another folder** opens the picker again. It then
+asks for the session label, proposed as today's date but editable:
+``ses-YYYYMMDD`` is this app's convention, and plenty of studies use
+``ses-preop`` or ``ses-3mo``. As you type, the dialog shows the label as it will
+be filed (``3-mo`` becomes ``3mo``), and it will not accept a label under which
+this visit is already filed in that dataset, so the clash surfaces before you
+record anything rather than at the first block. The label you choose is also the
+one used when you export this visit. The visit is
 filed at its BIDS path when the **first block is inserted**, not when the file
 is created: a dataset holding a header-only TSV that no ``scans.tsv`` lists is
 one that does not validate, and before the first block there is nothing to file.
@@ -57,17 +68,21 @@ consistent. It goes through the same rules as
 ``dataset_description.json`` and ``participants.tsv`` columns (the dataset's
 own description and participant list) are safe, and a
 visit already filed there is refused rather than overwritten. This option is
-available on Windows, macOS and Linux; on iPadOS and Android, which do not let an
-app write into a folder you pick, the loose file is the one offered.
+available on Windows, macOS and Linux. On iPadOS and Android, which do not let an
+app write into a folder you pick, the choice still appears with **Into a
+dataset** greyed out and the reason beneath it: record a loose TSV, then add it
+to a dataset later from :doc:`Reports <reports>`.
 
 .. figure:: ../_static/screenshots/dialog_session_label.png
    :alt: The session label prompt, proposing the date and editable
    :width: 27%
    :align: center
 
-Before recording starts, a dialog shows the exact path the visit will be filed
-under, such as ``sub-01/ses-20260203/beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv``,
-and the rows that will be added to ``participants.tsv`` and ``scans.tsv``.
+Before recording starts, a dialog shows the dataset folder and the exact path
+the visit will be filed under, such as
+``sub-01/ses-20260203/beh/sub-01_ses-20260203_task-programming_run-01_beh.tsv``,
+with the rule for what is added: the file and its sidecar, a row in
+``participants.tsv`` and one in that session's ``scans.tsv``.
 
 .. figure:: ../_static/screenshots/dialog_record_into.png
    :alt: The confirmation showing the path the visit will be filed under in the dataset

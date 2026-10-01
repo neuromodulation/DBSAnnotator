@@ -81,7 +81,9 @@ DatasetEntry datasetEntry({
 }) => (
   name: name,
   tsv: tsv,
-  sidecar: _encode(buildSidecar(contract, kind, appVersion: appVersion)),
+  sidecar: _encode(
+    buildSidecar(contract, kind, appVersion: appVersion, task: name.task),
+  ),
   acqTime: acqTime.isEmpty ? 'n/a' : acqTime,
 );
 

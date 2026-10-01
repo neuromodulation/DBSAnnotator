@@ -29,8 +29,6 @@ import '../report/session_pdf.dart';
 import '../app_info.dart';
 import 'amplitude_split.dart';
 import 'bids_export.dart';
-import '../core/bids_dataset.dart';
-import '../core/bids_merge.dart';
 import 'bids_merge_ui.dart';
 import 'close_guard.dart';
 import 'electrode_view.dart';
@@ -169,9 +167,13 @@ class _SideInputs {
   }
 }
 
+/// The `task-` label of a programming session unless the user names another.
+const _defaultTask = 'programming';
+
 class _SessionScreenState extends State<SessionScreen> {
   late SessionAuthoring _authoring = widget.authoring ?? SessionAuthoring();
   final _subjectCtrl = TextEditingController();
+  final _taskCtrl = TextEditingController(text: _defaultTask);
   final _runCtrl = TextEditingController(text: '01');
   // Notes are per-context: the initial-config notes persist across inserts (the
   // user keeps refining them); recording notes clear after each block.
@@ -280,10 +282,9 @@ class _SessionScreenState extends State<SessionScreen> {
       // No _savePath: guessing it would autosave over a file not chosen here.
       _savePath = null;
       _savePathIsSandboxCopy = false;
-      if (bids != null) {
-        _subjectCtrl.text = bids.subject;
-        _runCtrl.text = bids.run;
-      }
+      _datasetRoot = null;
+      _datasetName = null;
+      if (bids != null) _fillLabels(bids);
       _currentStep = 3;
     });
     _snack('Reopened $name. Export it to save it outside the app.');
@@ -389,6 +390,7 @@ class _SessionScreenState extends State<SessionScreen> {
   void dispose() {
     if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
     _subjectCtrl.dispose();
+    _taskCtrl.dispose();
     _runCtrl.dispose();
     _notesInitCtrl.dispose();
     _notesRecCtrl.dispose();
@@ -612,34 +614,20 @@ class _SessionScreenState extends State<SessionScreen> {
     }
   }
 
-  /// Place this visit in the chosen dataset: its TSV and sidecar at the BIDS
-  /// path, and the dataset index files brought up to date.
-  ///
-  /// Goes through [planBidsMerge] like every other write into a dataset, so a
-  /// `participants.tsv` carrying the study's own columns keeps them, and a
-  /// visit already filed there is refused rather than overwritten.
+  /// Place this visit in the chosen dataset; see [fileIntoDataset].
   Future<void> _fileIntoDataset() async {
     final root = _datasetRoot;
     final name = _datasetName;
     if (root == null || name == null) return;
     try {
-      final contract = await loadTsvContract();
-      final incoming = buildBidsDataset(
-        [
-          datasetEntry(
-            name: name,
-            tsv: _authoring.serialize(),
-            contract: contract,
-            kind: 'session_tsv',
-            acqTime: _authoring.rows.first.acqTime,
-          ),
-        ],
-        appName: appName,
-        appVersion: appVersion,
-        repoUrl: repoUrl,
+      final path = await fileIntoDataset(
+        root: root,
+        name: name,
+        tsv: _authoring.serialize(),
+        kind: 'session_tsv',
+        acqTime: _authoring.rows.first.acqTime,
       );
-      final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
-      if (plan.refused.isNotEmpty) {
+      if (path == null) {
         if (mounted) {
           _snack(
             'That dataset already holds ${name.filename}. This visit stays in '
@@ -649,9 +637,8 @@ class _SessionScreenState extends State<SessionScreen> {
         setState(() => _datasetRoot = null);
         return;
       }
-      await applyMergeToDirectory(root, plan);
       if (!mounted) return;
-      setState(() => _savePath = '$root/${name.relativeDir}/${name.filename}');
+      setState(() => _savePath = path);
       _snack('Filed as ${name.relativeDir}/${name.filename}.');
     } catch (e) {
       if (mounted) {
@@ -674,9 +661,13 @@ class _SessionScreenState extends State<SessionScreen> {
       final json = tsvPath.replaceFirst(RegExp(r'\.tsv$'), '.json');
       if (json == tsvPath || File(json).existsSync()) return;
       final contract = await loadTsvContract();
-      await File(
-        json,
-      ).writeAsString(sessionSidecarJson(contract, appVersion: appVersion));
+      await File(json).writeAsString(
+        sessionSidecarJson(
+          contract,
+          appVersion: appVersion,
+          task: _labels.task,
+        ),
+      );
     } catch (_) {
       // No sidecar is a documentation loss, not a data loss.
     }
@@ -684,76 +675,22 @@ class _SessionScreenState extends State<SessionScreen> {
 
   // ---- Open / Export (offline pattern from annotations_screen.dart) ----
 
-  /// Ask whether this visit is a loose file or goes into a dataset, and, when
-  /// a dataset, which one and under what session label.
-  ///
-  /// The label is proposed as today's date but stays editable: `ses-YYYYMMDD`
-  /// is this app's convention, and plenty of groups use `ses-preop` or
-  /// `ses-3mo`. Filing into someone's tree under a scheme they do not use turns
-  /// a filename edit into a history problem.
-  Future<({String? root, BidsName name})?> _askNewTarget(
-    BidsName proposed,
-  ) async {
-    if (!canWriteChosenFolder) return (root: null, name: proposed);
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Where should this visit be saved?'),
-        content: const Text(
-          'A loose TSV goes wherever you choose. Into a dataset, the visit is '
-          'filed at its BIDS path and the dataset index files are kept up to '
-          'date as you record.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'loose'),
-            child: const Text('Loose TSV'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, 'dataset'),
-            child: const Text('Into a dataset'),
-          ),
-        ],
-      ),
-    );
-    if (choice == null || !mounted) return null;
-    if (choice == 'loose') return (root: null, name: proposed);
-
-    final root = await pickDatasetFolder();
-    if (root == null || !mounted) return null;
-    final existing = await readDatasetDirectory(root);
-    if (!mounted || !await checkDatasetFolder(context, root, existing)) {
-      return null;
-    }
-    if (!mounted) return null;
-    final label = await askSessionLabel(context, proposed.session);
-    if (label == null || !mounted) return null;
-    final name = BidsName(
-      subject: proposed.subject,
-      session: label,
-      task: proposed.task,
-      run: proposed.run,
-    );
-    if (!await confirmRecordInto(context, root, name)) return null;
-    return (root: root, name: name);
-  }
-
   Future<void> _newSession() async {
     final subject = _subjectCtrl.text.trim().isEmpty
         ? '01'
         : _subjectCtrl.text.trim();
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final bids = _bidsName((subject: subject, run: run));
+    final bids = _bidsName((
+      subject: subject,
+      task: _labels.task,
+      run: run,
+    ), session: BidsName.sessionStamp(DateTime.now()));
     final name = bids.filename;
     final authoring = SessionAuthoring();
 
     // Loose file, or straight into a dataset. Asked here because the answer
     // decides where every autosave of this visit lands.
-    final into = await _askNewTarget(bids);
+    final into = await askNewTarget(context, bids, what: 'this visit');
     if (into == null || !mounted) return;
     if (into.root != null) {
       final work = await workingPath(into.name.filename);
@@ -859,10 +796,9 @@ class _SessionScreenState extends State<SessionScreen> {
       _savePath = picked.path;
       _workingPath = work;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
-      if (bids != null) {
-        _subjectCtrl.text = bids.subject;
-        _runCtrl.text = bids.run;
-      }
+      _datasetRoot = null;
+      _datasetName = null;
+      if (bids != null) _fillLabels(bids);
       if (named.isNotEmpty && !unknownModel) _modelName = named;
     });
     final opened =
@@ -880,18 +816,38 @@ class _SessionScreenState extends State<SessionScreen> {
 
   /// BIDS labels for a filename: sanitised, because these fields are free text
   /// and become a path component.
-  ({String subject, String run}) get _labels {
+  ({String subject, String task, String run}) get _labels {
     final subject = BidsName.label(_subjectCtrl.text.trim());
+    final task = BidsName.label(_taskCtrl.text.trim());
     final run = BidsName.index(_runCtrl.text.trim());
-    return (subject: subject.isEmpty ? 'unknown' : subject, run: run);
+    return (
+      subject: subject.isEmpty ? 'unknown' : subject,
+      task: task.isEmpty ? _defaultTask : task,
+      run: run,
+    );
+  }
+
+  void _fillLabels(BidsName bids) {
+    _subjectCtrl.text = bids.subject;
+    _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
+    _runCtrl.text = bids.run;
   }
 
   /// The BIDS entities for everything this screen writes: the session TSV, its
   /// sidecar and the report derivative all carry the same ones.
-  BidsName _bidsName(({String subject, String run}) labels) => BidsName(
+  ///
+  /// The session is the label chosen when filing into a dataset, so exports
+  /// carry the same `ses-` as the filed visit, and today's date otherwise.
+  BidsName _bidsName(
+    ({String subject, String task, String run}) labels, {
+    String? session,
+  }) => BidsName(
     subject: labels.subject,
-    session: BidsName.sessionStamp(DateTime.now()),
-    task: 'programming',
+    session:
+        session ??
+        _datasetName?.session ??
+        BidsName.sessionStamp(DateTime.now()),
+    task: labels.task,
     run: labels.run,
   );
 
@@ -1623,6 +1579,17 @@ class _SessionScreenState extends State<SessionScreen> {
             ),
             const SizedBox(width: 12),
             SizedBox(
+              width: 160,
+              child: TextField(
+                controller: _taskCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Task (task-)',
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
               width: 90,
               child: TextField(
                 controller: _runCtrl,
@@ -2287,7 +2254,7 @@ class _SessionScreenState extends State<SessionScreen> {
             steps: [
               Step(
                 title: const Text('File'),
-                subtitle: const Text('Patient / run: new or open TSV'),
+                subtitle: const Text('Patient / task / run: new or open TSV'),
                 isActive: _currentStep == 0,
                 content: when(0, _fileStep),
               ),

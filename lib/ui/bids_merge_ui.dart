@@ -16,10 +16,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import '../app_info.dart';
 import '../core/bids.dart';
 import '../core/bids_dataset.dart';
 import '../core/bids_merge.dart';
+import '../core/bids_sidecar.dart';
 import '../core/safe_file.dart';
+import 'bids_export.dart';
 
 /// Whether a picked directory can be written to. False on the tablets, where
 /// it is a security-scoped path or a `content://` URI `dart:io` cannot open.
@@ -145,21 +148,31 @@ const kBidsAddRule =
     'participants.tsv and the visit a row in that session\'s scans.tsv. '
     'Nothing already in the dataset is changed.';
 
+/// Said where recording into a dataset is offered but cannot be done.
+const kDatasetDesktopOnly =
+    'Recording into a dataset needs the desktop app, which can write into a '
+    'chosen folder. Record a loose TSV here and add it to a dataset later '
+    'from Reports > Add.';
+
+/// The answer to [checkDatasetFolder].
+enum FolderCheck { proceed, cancel, chooseAnother }
+
 /// Check the dataset chosen as [label] before anything is added to it.
 ///
 /// A BIDS dataset goes ahead. An empty folder can become one: the add then
 /// writes its dataset_description.json, README and participants.tsv as well.
 /// Anything else is refused with what a dataset needs, because adding to it
 /// would scatter BIDS files through a folder that is not one.
-Future<bool> checkDatasetFolder(
+Future<FolderCheck> checkDatasetFolder(
   BuildContext context,
   String label,
-  List<DatasetFile> existing,
-) async {
+  List<DatasetFile> existing, {
+  String chooseAnother = 'Choose another folder',
+}) async {
   final kind = datasetFolderKind(existing);
-  if (kind == DatasetFolderKind.dataset) return true;
+  if (kind == DatasetFolderKind.dataset) return FolderCheck.proceed;
   final empty = kind == DatasetFolderKind.empty;
-  final ok = await showDialog<bool>(
+  final answer = await showDialog<FolderCheck>(
     context: context,
     builder: (context) => AlertDialog(
       title: Text(
@@ -175,42 +188,152 @@ Future<bool> checkDatasetFolder(
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: Text(empty ? 'Cancel' : 'Choose another folder'),
+          onPressed: () => Navigator.pop(context, FolderCheck.cancel),
+          child: const Text('Cancel'),
         ),
-        if (empty)
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Start a dataset'),
+        FilledButton(
+          onPressed: () => Navigator.pop(
+            context,
+            empty ? FolderCheck.proceed : FolderCheck.chooseAnother,
           ),
+          child: Text(empty ? 'Start a dataset' : chooseAnother),
+        ),
       ],
     ),
   );
-  return ok ?? false;
+  return answer ?? FolderCheck.cancel;
 }
 
-/// Ask for the `ses-` label of a visit recorded into a dataset, proposing
-/// [proposed]. Null when cancelled.
-Future<String?> askSessionLabel(BuildContext context, String proposed) async {
-  final out = await showDialog<String>(
-    context: context,
-    builder: (_) => _SessionLabelDialog(proposed),
-  );
-  return (out == null || out.isEmpty) ? null : out;
+/// Ask for a dataset folder until the one chosen is, or can become, a BIDS
+/// dataset. Null when cancelled.
+Future<({String root, List<DatasetFile> existing})?> pickCheckedDatasetFolder(
+  BuildContext context,
+) async {
+  while (true) {
+    final root = await pickDatasetFolder();
+    if (root == null || !context.mounted) return null;
+    final existing = await readDatasetDirectory(root);
+    if (!context.mounted) return null;
+    switch (await checkDatasetFolder(context, root, existing)) {
+      case FolderCheck.proceed:
+        return (root: root, existing: existing);
+      case FolderCheck.cancel:
+        return null;
+      case FolderCheck.chooseAnother:
+        continue;
+    }
+  }
 }
+
+/// Ask whether a new recording is a loose file or goes into a dataset, and,
+/// when a dataset, which one and under what session label. [what] names the
+/// recording in the dialogs: "this visit", "these notes".
+///
+/// `root` is null for a loose file. The label is proposed as today's date but
+/// stays editable: `ses-YYYYMMDD` is this app's convention, and plenty of
+/// groups use `ses-preop` or `ses-3mo`. Filing into someone's tree under a
+/// scheme they do not use turns a filename edit into a history problem.
+Future<({String? root, BidsName name})?> askNewTarget(
+  BuildContext context,
+  BidsName proposed, {
+  required String what,
+}) async {
+  final theme = Theme.of(context);
+  final choice = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Where should $what be saved?'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'A loose TSV goes wherever you choose. Into a dataset, it is filed '
+            'at its BIDS path and the dataset index files are kept up to date '
+            'as you record.',
+          ),
+          if (!canWriteChosenFolder) ...[
+            const SizedBox(height: 8),
+            Text(kDatasetDesktopOnly, style: theme.textTheme.bodySmall),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, 'loose'),
+          child: const Text('Loose TSV'),
+        ),
+        FilledButton(
+          onPressed: canWriteChosenFolder
+              ? () => Navigator.pop(context, 'dataset')
+              : null,
+          child: const Text('Into a dataset'),
+        ),
+      ],
+    ),
+  );
+  if (choice == null || !context.mounted) return null;
+  if (choice == 'loose') return (root: null, name: proposed);
+
+  final folder = await pickCheckedDatasetFolder(context);
+  if (folder == null || !context.mounted) return null;
+  BidsName named(String session) => BidsName(
+    subject: proposed.subject,
+    session: session,
+    task: proposed.task,
+    run: proposed.run,
+  );
+  final filed = {for (final f in folder.existing) f.path};
+  final label = await askSessionLabel(
+    context,
+    proposed.session,
+    taken: (session) {
+      final n = named(session);
+      return filed.contains('${n.relativeDir}/${n.filename}')
+          ? 'This dataset already holds ${n.filename}. Use another label, '
+                'or cancel and change the run.'
+          : null;
+    },
+  );
+  if (label == null || !context.mounted) return null;
+  final name = named(label);
+  if (!await confirmRecordInto(context, folder.root, name, what: what)) {
+    return null;
+  }
+  return (root: folder.root, name: name);
+}
+
+/// Ask for the `ses-` label of a recording filed into a dataset, proposing
+/// [proposed]. Returns the label as it will be filed, or null when cancelled.
+///
+/// [taken] explains why a label cannot be used, or returns null when it can.
+Future<String?> askSessionLabel(
+  BuildContext context,
+  String proposed, {
+  String? Function(String label)? taken,
+}) => showDialog<String>(
+  context: context,
+  builder: (_) => _SessionLabelDialog(proposed, taken),
+);
 
 /// Owns its controller, so the field outlives the dialog's closing animation.
 class _SessionLabelDialog extends StatefulWidget {
-  const _SessionLabelDialog(this.proposed);
+  const _SessionLabelDialog(this.proposed, this.taken);
 
   final String proposed;
+  final String? Function(String label)? taken;
 
   @override
   State<_SessionLabelDialog> createState() => _SessionLabelDialogState();
 }
 
 class _SessionLabelDialogState extends State<_SessionLabelDialog> {
-  late final _ctrl = TextEditingController(text: widget.proposed);
+  late final _ctrl = TextEditingController(text: widget.proposed)
+    ..addListener(() => setState(() {}));
 
   @override
   void dispose() {
@@ -219,35 +342,50 @@ class _SessionLabelDialogState extends State<_SessionLabelDialog> {
   }
 
   @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Session label'),
-    content: TextField(
-      controller: _ctrl,
-      autofocus: true,
-      decoration: const InputDecoration(
-        labelText: 'ses-',
-        helperText: 'Often the date, but use whatever this study uses.',
+  Widget build(BuildContext context) {
+    final typed = _ctrl.text.trim();
+    final label = BidsName.label(typed);
+    final problem = label.isEmpty
+        ? 'Letters and digits only; it cannot be empty.'
+        : widget.taken?.call(label);
+    return AlertDialog(
+      title: const Text('Session label'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        decoration: InputDecoration(
+          labelText: 'ses-',
+          helperText: label.isNotEmpty && label != typed
+              ? 'Filed as ses-$label: BIDS labels are letters and digits.'
+              : 'Often the date, but use whatever this study uses.',
+          helperMaxLines: 2,
+          errorText: typed.isEmpty ? null : problem,
+          errorMaxLines: 3,
+        ),
       ),
-    ),
-    actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: () => Navigator.pop(context, _ctrl.text.trim()),
-        child: const Text('Use'),
-      ),
-    ],
-  );
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: problem == null
+              ? () => Navigator.pop(context, label)
+              : null,
+          child: const Text('Use'),
+        ),
+      ],
+    );
+  }
 }
 
-/// Say where a visit recorded straight into a dataset will be filed.
+/// Say where a recording filed straight into a dataset will go.
 Future<bool> confirmRecordInto(
   BuildContext context,
   String root,
-  BidsName name,
-) async {
+  BidsName name, {
+  required String what,
+}) async {
   final theme = Theme.of(context);
   final ok = await showDialog<bool>(
     context: context,
@@ -259,14 +397,16 @@ Future<bool> confirmRecordInto(
         children: [
           Text(root, style: theme.textTheme.bodySmall),
           const SizedBox(height: 12),
-          const Text('This visit will be filed as:'),
+          Text(
+            '${what[0].toUpperCase()}${what.substring(1)} will be filed as:',
+          ),
           Text(
             '  ${name.relativeDir}/${name.filename}',
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 8),
           const Text(
-            'when the first block is inserted, and updated at every insert '
+            'when the first entry is recorded, and updated at every entry '
             'after that. $kBidsAddRule',
           ),
         ],
@@ -284,6 +424,42 @@ Future<bool> confirmRecordInto(
     ),
   );
   return ok ?? false;
+}
+
+/// File one recorded TSV of [kind] into the dataset at [root] as [name]: the
+/// TSV and its sidecar at the BIDS path, and the dataset index files brought
+/// up to date. Returns the file's path, or null when the dataset already
+/// holds it.
+///
+/// Goes through [planBidsMerge] like every other write into a dataset, so a
+/// `participants.tsv` carrying the study's own columns keeps them, and a file
+/// already filed there is refused rather than overwritten.
+Future<String?> fileIntoDataset({
+  required String root,
+  required BidsName name,
+  required String tsv,
+  required String kind,
+  required String acqTime,
+}) async {
+  final contract = await loadTsvContract();
+  final incoming = buildBidsDataset(
+    [
+      datasetEntry(
+        name: name,
+        tsv: tsv,
+        contract: contract,
+        kind: kind,
+        acqTime: acqTime,
+      ),
+    ],
+    appName: appName,
+    appVersion: appVersion,
+    repoUrl: repoUrl,
+  );
+  final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
+  if (plan.refused.isNotEmpty) return null;
+  await applyMergeToDirectory(root, plan);
+  return '$root/${name.relativeDir}/${name.filename}';
 }
 
 /// Show exactly what the merge will do and wait for a yes.

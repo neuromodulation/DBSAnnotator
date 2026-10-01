@@ -16,12 +16,21 @@ Step 1: File
    The same File step as the complete workflow, minus everything that only a
    programming session needs.
 
-Enter the patient ID and run number and choose where to save. The filename uses
-``task-notes`` rather than ``task-programming``:
+Enter the patient ID, the task and the run number, then choose where to save.
+The task is ``notes`` unless you name another, so the filename reads:
 
 .. code-block:: text
 
    sub-01_ses-20260203_task-notes_run-01_beh.tsv
+
+**New** offers the same two places as the
+:doc:`complete workflow <complete_workflow>`: a **loose TSV**, or **into a
+dataset**, with the same folder check, session label and confirmation. Filed
+into a dataset, the notes land beside the visit's programming file in
+``sub-<participant>/ses-<session>/beh/``, at the first note rather than when the
+file is created, and get their own row in that session's ``scans.tsv``. A
+programming session and its notes can therefore share one dataset, told apart by
+their ``task-`` labels.
 
 Step 2: Notes
 -------------

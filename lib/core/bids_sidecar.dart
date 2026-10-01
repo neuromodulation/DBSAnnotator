@@ -66,16 +66,21 @@ const _tasks = <String, ({String name, String description})>{
 };
 
 /// Build the sidecar for one [kind] of TSV: `session_tsv` or `annotation_tsv`.
+///
+/// [task] is the `task-` label of the file when the user renamed it; BIDS
+/// derives that label from `TaskName`, so the two must match.
 Map<String, dynamic> buildSidecar(
   Map<String, dynamic> contract,
   String kind, {
   required String appVersion,
+  String? task,
 }) {
   final columns = ((contract[kind] as Map<String, dynamic>)['columns'] as List)
       .cast<Map<String, dynamic>>();
   final bids = contract['bids'] as Map<String, dynamic>? ?? const {};
   return <String, dynamic>{
-    if (_tasks[kind] != null) 'TaskName': _tasks[kind]!.name,
+    if (_tasks[kind] != null)
+      'TaskName': (task == null || task.isEmpty) ? _tasks[kind]!.name : task,
     if (_tasks[kind] != null) 'TaskDescription': _tasks[kind]!.description,
     'GeneratedBy': [
       {'Name': appName, 'Version': appVersion},
@@ -90,13 +95,19 @@ Map<String, dynamic> buildSidecar(
 String sessionSidecarJson(
   Map<String, dynamic> contract, {
   required String appVersion,
-}) => _encode(buildSidecar(contract, 'session_tsv', appVersion: appVersion));
+  String? task,
+}) => _encode(
+  buildSidecar(contract, 'session_tsv', appVersion: appVersion, task: task),
+);
 
 /// The sidecar for an annotations file, pretty-printed.
 String annotationSidecarJson(
   Map<String, dynamic> contract, {
   required String appVersion,
-}) => _encode(buildSidecar(contract, 'annotation_tsv', appVersion: appVersion));
+  String? task,
+}) => _encode(
+  buildSidecar(contract, 'annotation_tsv', appVersion: appVersion, task: task),
+);
 
 /// The sidecar for the combined table, pretty-printed, in header key order.
 ///
