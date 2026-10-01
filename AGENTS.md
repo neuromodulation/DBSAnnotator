@@ -1,0 +1,74 @@
+# Notes for coding agents
+
+Conventions for any coding agent working in this repository. CONTRIBUTING.md is the full
+version for people; this file is the compact one.
+
+## Project
+
+Wyss DBS Annotator is an offline Flutter app for documenting deep brain stimulation
+programming sessions, built for Windows, macOS, Linux, Android and iOS. The TSV and BIDS
+output format is a contract defined in `schema/`, which the app bundles and the docs render
+from. User docs are Sphinx sources in `docs/`, published on Read the Docs.
+
+Programming sessions are outpatient visits: the clinicians and the patient sit around a table
+while configurations are tested. Write "in clinic" or "during the visit", never "bedside".
+
+## Working rules
+
+- Do not commit, push, tag or open pull requests. The maintainer commits.
+- No assistant attribution anywhere: code, docs, commit messages, `Co-Authored-By` trailers.
+- Check live state (git, gh, CI) before repeating a status from earlier notes.
+- Parallel agents get disjoint sets of files. Stop any agent whose scope overlaps another's,
+  since a broad writer silently reverts narrow ones, and re-verify their results yourself.
+
+## Checks
+
+```
+dart format lib test integration_test tool
+flutter analyze --fatal-infos
+flutter test
+uvx pre-commit run --all-files
+sphinx-build -W docs docs/_build/html
+```
+
+`pre-commit run --all-files` sees only tracked files: `git add -N` new files first, and
+`git reset` them afterwards if the maintainer stages by hand. Screenshots and docs videos are
+generated, never edited by hand; CONTRIBUTING.md has the commands.
+
+## Code style
+
+- Comment only what the code cannot say: a constraint, a non-obvious decision, a defect
+  someone would reintroduce. Keep comment lines under about 20% of a file.
+- Doc comments on public API are one or two lines. No section headings inside files.
+- No version history in code ("used to", "was named"). State the constraint, not the story.
+- No em or en dashes anywhere, product strings included. The one exception is the dash key in
+  the sanitiser map of `lib/report/report_text.dart`, which must stay. Fix dashes only in lines
+  you are already editing.
+- Docs prose (`docs/*.rst`) is fuller and explanatory, for a clinician or analyst meeting the
+  format for the first time. Still no filler, scattered bold or rhetorical headings.
+
+## Clinical care
+
+Reports are filed in a patient record.
+
+- Never assert what the data does not support.
+- Never lose data silently.
+
+## Pitfalls
+
+- Never run `sed -i` over `git ls-files`. With `core.autocrlf` it strips CR bytes from PNG and
+  ICO files. Find files with `grep -l` first and check `git diff --numstat` afterwards.
+- No `.gitignore` rule may match `lib/`: `git check-ignore -v lib/main.dart` must print
+  nothing.
+- The contract lives only in `schema/`. Changing a TSV column means changing
+  `lib/core/schema_columns.dart` too; `test/schema_columns_test.dart` fails otherwise.
+- The version is written in four places, pinned by `test/version_parity_test.dart`.
+- `lib/report/` never imports `lib/ui/`.
+- Fake-async widget tests cannot finish real file I/O; use `tester.runAsync`.
+- Git Bash heredocs mangle `\n` and quotes. Write edit scripts to a file and run that.
+
+## Pointers
+
+- CONTRIBUTING.md: checks, screenshots, videos, review expectations.
+- `.github/RELEASING.md`: signing, store submissions, cutting a release.
+- `docs/`: user and format documentation.

@@ -5,16 +5,15 @@ import 'package:dbs_annotator/ui/stim_params_form.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Guards the quick-picks against the contract: StimLimits MUST expose the
-/// `stimulation_presets` values from assets/schema/limits.json. Run
+/// `stimulation_presets` values from schema/limits.json. Run
 /// `flutter test` from the repo root.
 void main() {
   StimLimits loadLimits() {
-    final file = File('assets/schema/limits.json');
+    final file = File('schema/limits.json');
     expect(
       file.existsSync(),
       isTrue,
-      reason:
-          'assets/schema/*.json is a committed contract; restore it from git.',
+      reason: 'schema/*.json is a committed contract; restore it from git.',
     );
     final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
     return StimLimits.fromJson(json);
@@ -55,7 +54,7 @@ void main() {
 
   test('step1 / decimals / omitted_tsv fall back to defaults when absent', () {
     final json =
-        jsonDecode(File('assets/schema/limits.json').readAsStringSync())
+        jsonDecode(File('schema/limits.json').readAsStringSync())
             as Map<String, dynamic>;
     final stim = json['stimulation'] as Map<String, dynamic>;
     for (final key in ['frequency', 'amplitude', 'pulse_width']) {
@@ -81,7 +80,7 @@ void main() {
 
   test('presets are optional: contract without them parses to empty lists', () {
     final json =
-        jsonDecode(File('assets/schema/limits.json').readAsStringSync())
+        jsonDecode(File('schema/limits.json').readAsStringSync())
             as Map<String, dynamic>;
     json.remove('stimulation_presets');
     final limits = StimLimits.fromJson(json);

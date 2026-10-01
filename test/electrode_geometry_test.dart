@@ -8,12 +8,12 @@ import 'package:dbs_annotator/core/electrode/stimulation_rule.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Headless tests for the pure electrode layout math. Uses the committed
-/// contract in assets/schema/electrode_models.json.
+/// contract in schema/electrode_models.json.
 void main() {
   // Runs at group-declaration time, so no expect() here: a missing contract
   // file fails loudly through the StateError below.
   ElectrodeModel loadModel(String name) {
-    final file = File('assets/schema/electrode_models.json');
+    final file = File('schema/electrode_models.json');
     final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
     final catalog = ElectrodeCatalog.fromJson(json);
     return catalog.models[name] ??

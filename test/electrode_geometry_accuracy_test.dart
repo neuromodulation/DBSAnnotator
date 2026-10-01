@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// The committed contract is the source of truth.
 ElectrodeCatalog _catalog() {
-  final raw = File('assets/schema/electrode_models.json').readAsStringSync();
+  final raw = File('schema/electrode_models.json').readAsStringSync();
   return ElectrodeCatalog.fromJson(jsonDecode(raw) as Map<String, dynamic>);
 }
 

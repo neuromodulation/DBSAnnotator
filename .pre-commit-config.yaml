@@ -29,13 +29,13 @@ repos:
         files: '\.(ya?ml|cff)$'
       - id: check-toml
       - id: check-json
-        # schema/*.json and assets/schema/*.json are the domain contract, loaded
+        # schema/*.json is the domain contract, loaded
         # at runtime by rootBundle - a syntax error there is a crash on launch.
       - id: check-merge-conflict
       - id: check-case-conflict
       - id: detect-private-key
         # The braces to .gitignore's belt: `*.pfx` is ignored, but `git add -f`
-        # bypasses ignore rules. See the Windows section of MOBILE_RELEASE.md.
+        # bypasses ignore rules. See the Windows section of .github/RELEASING.md.
       - id: check-added-large-files
         # 600, not the default 500: the largest tracked file is the 496 KB
         # 1024x1024 macOS app icon, so the default would fail the next time the

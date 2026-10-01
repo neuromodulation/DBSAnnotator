@@ -8,8 +8,8 @@ here than most places; see *Clinical care* below.
 
 Everything here is the Flutter app: `lib/` for source, `test/` for tests.
 
-If you change the TSV format, change `schema/*.json` and `assets/schema/*.json`
-together. Both are committed so that a clone builds with nothing generated.
+The TSV format lives in `schema/*.json`, which the app bundles and the docs render
+from. Change it there, and `lib/core/schema_columns.dart` with it.
 
 Some doc comments in `lib/` cite a Python module as `dbs_annotator/<module>.py`.
 Those name the reference implementation each algorithm was checked against; the
@@ -34,6 +34,8 @@ Then:
 2. Make your change, with tests
 3. `flutter analyze && flutter test` must both be clean
 4. Open a pull request
+
+[AGENTS.md](AGENTS.md) holds the same conventions in compact form for coding agents.
 
 ## Checks
 

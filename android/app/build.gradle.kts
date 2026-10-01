@@ -17,7 +17,7 @@ plugins {
 // With neither present, release builds fall back to the DEBUG key so that
 // `flutter build apk --release` still produces a runnable APK for local testing.
 // Such an APK is not distributable: Play rejects it, and a device that installed
-// it cannot later be upgraded by a properly signed build. See MOBILE_RELEASE.md.
+// it cannot later be upgraded by a properly signed build. See .github/RELEASING.md.
 //
 // The fallback is never silent: the line printed below is what stops a release
 // build that quietly used the debug key from looking like a signed one.
@@ -46,7 +46,7 @@ val releaseSigningReady = releaseKeystore != null &&
 if (!releaseSigningReady) {
     val message =
         "no release keystore configured - signing the release build with the " +
-            "DEBUG key. Runnable, but not distributable. See MOBILE_RELEASE.md."
+            "DEBUG key. Runnable, but not distributable. See .github/RELEASING.md."
 
     // CI sets this on release tags only. A warning alone was not enough: the
     // build exited 0, and the workflow then attached the debug-signed APK to a

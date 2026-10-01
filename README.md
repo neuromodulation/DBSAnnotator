@@ -39,12 +39,15 @@ timestamps intact.
 ```
 lib/                 the Flutter application (Dart)
 test/                automated tests
-assets/              bundled schema contract, fonts, app icon
+integration_test/    docs video flows, run on a desktop build
+assets/              fonts and brand images bundled with the app
 android/ ios/ linux/ macos/ windows/
 schema/              the machine-readable domain contract (TSV columns,
                      BIDS naming, stimulation limits, electrode models)
 docs/                documentation source (Read the Docs)
+tool/                fixture, screenshot, video and brand-asset scripts
 paper/               JOSS paper
+.github/             CI, issue templates, release runbook (RELEASING.md)
 ```
 
 ## Getting started
@@ -108,7 +111,7 @@ To replace them, use the **static** TTFs from
 Install from your platform's app store; search for *Wyss DBS Annotator*,
 published by the Wyss Center for Bio and Neuroengineering. To build it yourself,
 see [Building from source](https://dbs-annotator.readthedocs.io/en/latest/installation.html#building-from-source).
-Maintainers publishing a release: see [MOBILE_RELEASE.md](MOBILE_RELEASE.md).
+Maintainers publishing a release: see [.github/RELEASING.md](.github/RELEASING.md).
 
 ## Contributing
 

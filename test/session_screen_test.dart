@@ -21,11 +21,11 @@ void main() {
       jsonDecode(File(path).readAsStringSync()) as Map<String, dynamic>;
 
   final catalog = ElectrodeCatalog.fromJson(
-    readJson('assets/schema/electrode_models.json'),
+    readJson('schema/electrode_models.json'),
   );
-  final limits = StimLimits.fromJson(readJson('assets/schema/limits.json'));
+  final limits = StimLimits.fromJson(readJson('schema/limits.json'));
   final scalePresets = ScalePresets.fromJson(
-    readJson('assets/schema/scale_presets.json'),
+    readJson('schema/scale_presets.json'),
   );
 
   /// Tall surface so the current step's content is mostly on-screen (the

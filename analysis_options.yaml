@@ -5,10 +5,10 @@ analyzer:
     - build/**
     - android/**
     - ios/**
-    - web/**
     - windows/**
     - macos/**
     - linux/**
+    - web/**
 include: package:flutter_lints/flutter.yaml
 
 linter:

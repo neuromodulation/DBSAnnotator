@@ -17,12 +17,10 @@ void main() {
       jsonDecode(File(p).readAsStringSync()) as Map<String, dynamic>;
 
   final catalog = ElectrodeCatalog.fromJson(
-    readJson('assets/schema/electrode_models.json'),
+    readJson('schema/electrode_models.json'),
   );
-  final limits = StimLimits.fromJson(readJson('assets/schema/limits.json'));
-  final presets = ScalePresets.fromJson(
-    readJson('assets/schema/scale_presets.json'),
-  );
+  final limits = StimLimits.fromJson(readJson('schema/limits.json'));
+  final presets = ScalePresets.fromJson(readJson('schema/scale_presets.json'));
 
   Future<void> pump(WidgetTester tester, SessionAuthoring authoring) async {
     await tester.binding.setSurfaceSize(const Size(1400, 2600));

@@ -44,8 +44,6 @@ void main() {
     });
 
     test('the contract and the Dart column lists agree', () {
-      // schema_parity_test.dart checks the bundled copy against these lists;
-      // this checks the repo-root original, which is what the docs render.
       expect(contractColumns(contract, 'session_tsv'), sessionColumns);
       expect(contractColumns(contract, 'annotation_tsv'), annotationColumns);
     });
