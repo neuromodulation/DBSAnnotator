@@ -1,7 +1,5 @@
 /// Canonical TSV column orders. These lists and `schema/tsv_schema.json` are
-/// one contract and test/schema_parity_test.dart fails if they disagree; the
-/// JSON is committed, not generated, so edit it and the bundled
-/// `assets/schema/` copy together.
+/// one contract and test/schema_columns_test.dart fails if they disagree.
 library;
 
 const List<String> annotationColumns = <String>['acq_time', 'notes'];

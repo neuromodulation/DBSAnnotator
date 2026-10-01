@@ -1,7 +1,7 @@
 # Release runbook
 
 Everything needed to turn a verified build into an installable one, per platform.
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) already contains the build
+[`.github/workflows/ci.yml`](workflows/ci.yml) already contains the build
 jobs and reads the secret and variable names below; this document is the one-time
 setup that arms them.
 

@@ -5,16 +5,15 @@ import 'package:dbs_annotator/core/session/scale_presets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Guards the presets against the contract: they MUST parse
-/// assets/schema/scale_presets.json, the committed source of truth for the
+/// schema/scale_presets.json, the committed source of truth for the
 /// bundled scale sets. Run `flutter test` from the repo root.
 void main() {
   ScalePresets loadPresets() {
-    final file = File('assets/schema/scale_presets.json');
+    final file = File('schema/scale_presets.json');
     expect(
       file.existsSync(),
       isTrue,
-      reason:
-          'assets/schema/*.json is a committed contract; restore it from git.',
+      reason: 'schema/*.json is a committed contract; restore it from git.',
     );
     final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
     return ScalePresets.fromJson(json);

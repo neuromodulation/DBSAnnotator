@@ -98,12 +98,8 @@ class ElectrodeCatalog {
   final Map<String, List<String>> manufacturers;
 }
 
-/// Loads the electrode catalog from the bundled asset. The build copies the
-/// repo-root `schema/*.json` contracts into `app/assets/schema/` first, so the
-/// bundled file is always the generated one; tests read the repo root instead.
+/// Loads the bundled electrode catalog; tests read `schema/` via `dart:io`.
 Future<ElectrodeCatalog> loadElectrodeCatalog() async {
-  final raw = await rootBundle.loadString(
-    'assets/schema/electrode_models.json',
-  );
+  final raw = await rootBundle.loadString('schema/electrode_models.json');
   return ElectrodeCatalog.fromJson(jsonDecode(raw) as Map<String, dynamic>);
 }

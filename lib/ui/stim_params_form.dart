@@ -120,7 +120,7 @@ class StimLimits {
 /// Loads the limits contract from the bundled asset, which the build copies
 /// from repo-root `schema/*.json`. Tests read that file directly instead.
 Future<StimLimits> loadStimLimits() async {
-  final raw = await rootBundle.loadString('assets/schema/limits.json');
+  final raw = await rootBundle.loadString('schema/limits.json');
   return StimLimits.fromJson(jsonDecode(raw) as Map<String, dynamic>);
 }
 

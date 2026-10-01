@@ -79,9 +79,8 @@ List<String> clinicalRows(ScalePresets p, String preset) =>
 List<SessionScaleRow> sessionRows(ScalePresets p, String preset) =>
     p.session[preset] ?? const [];
 
-/// Loads the scale-presets contract from the bundled `assets/schema/` mirror
-/// of the repo-root `schema/*.json`; tests read the repo root via `dart:io`.
+/// Loads the bundled scale-presets contract; tests read `schema/` via `dart:io`.
 Future<ScalePresets> loadScalePresets() async {
-  final raw = await rootBundle.loadString('assets/schema/scale_presets.json');
+  final raw = await rootBundle.loadString('schema/scale_presets.json');
   return ScalePresets.fromJson(jsonDecode(raw) as Map<String, dynamic>);
 }

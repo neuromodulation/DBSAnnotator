@@ -5,16 +5,15 @@ import 'package:dbs_annotator/core/electrode/electrode_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Guards the catalog against the contract: it MUST parse
-/// assets/schema/electrode_models.json, the committed source of truth for lead
+/// schema/electrode_models.json, the committed source of truth for lead
 /// geometry. Run `flutter test` from the repo root.
 void main() {
   ElectrodeCatalog loadCatalog() {
-    final file = File('assets/schema/electrode_models.json');
+    final file = File('schema/electrode_models.json');
     expect(
       file.existsSync(),
       isTrue,
-      reason:
-          'assets/schema/*.json is a committed contract; restore it from git.',
+      reason: 'schema/*.json is a committed contract; restore it from git.',
     );
     final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
     return ElectrodeCatalog.fromJson(json);

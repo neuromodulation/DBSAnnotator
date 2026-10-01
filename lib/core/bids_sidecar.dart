@@ -12,10 +12,9 @@ import 'package:flutter/services.dart' show rootBundle;
 
 import '../app_info.dart' show appName;
 
-/// Loads the TSV contract from the bundled `assets/schema/` mirror of the
-/// repo-root `schema/*.json`; tests read the repo root via `dart:io`.
+/// Loads the bundled TSV contract; tests read `schema/` via `dart:io`.
 Future<Map<String, dynamic>> loadTsvContract() async {
-  final raw = await rootBundle.loadString('assets/schema/tsv_schema.json');
+  final raw = await rootBundle.loadString('schema/tsv_schema.json');
   return jsonDecode(raw) as Map<String, dynamic>;
 }
 

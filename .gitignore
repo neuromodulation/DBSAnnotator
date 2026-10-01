@@ -1,30 +1,55 @@
-# Repo-root ignores for the Flutter app, which lives here.
+# Repo-root ignores for the Flutter app, which lives here. Based on Flutter's
+# own template; the platform folders keep their generated .gitignore files.
 #
 # Be careful adding anything that could match `lib/`: the Dart source is at
 # lib/, and an ignore rule covering it fails silently: already-tracked files
 # stay tracked, and only NEW files vanish from `git status`.
 # `git check-ignore -v lib/main.dart` must print nothing.
+#
+# Deliberately NOT ignored, unlike some Flutter templates:
+# - *.lock: pubspec.lock is committed so application builds are reproducible.
+# - The generated plugin registrants of Linux, Windows and macOS, tracked as in
+#   Flutter's app template.
+# - .python-version: commit it if one is ever added.
 
-# ---- Flutter / Dart ----
+# ---- Flutter / Dart / pub ----
 .dart_tool/
 .packages
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
-# pubspec.lock IS committed: this is an application, so builds must be
-# reproducible.
+.pub-cache/
+.pub/
+.pub-preload-cache/
+.fvm/
+**/doc/api/
+coverage/
+flutter_*.png
+linked_*.ds
+unlinked.ds
+unlinked_spec.ds
+app.*.symbols
+app.*.map.json
+/android/app/debug
+/android/app/profile
+/android/app/release
+**/ios/Flutter/.last_build_id
+**/.build/
+.swiftpm/
+migrate_working_dir/
 
-# Local report/preview artifacts from throwaway rasterisation tests.
-preview/
-
-# ---- Signing secrets: NEVER commit (see MOBILE_RELEASE.md) ----
+# ---- Signing secrets and store outputs: NEVER commit (see .github/RELEASING.md) ----
 android/key.properties
 *.jks
 *.keystore
-ios/fastlane/report.xml
-ios/fastlane/Preview.html
-ios/fastlane/*.mobileprovision
 **/*.p8
+*.mobileprovision
+*.ipa
+*.dSYM.zip
+**/fastlane/report.xml
+**/fastlane/Preview.html
+**/fastlane/screenshots
+**/fastlane/test_output
 # Windows code-signing. `dart run msix:create` generates a self-signed test
 # certificate next to the project when none is configured; it is a private key
 # like any other. No CA certificate is ever needed here; the Microsoft Store
@@ -33,22 +58,49 @@ ios/fastlane/*.mobileprovision
 *.cer
 *.p12
 
-# ---- Docs (Sphinx, built by Read the Docs from docs/) ----
-# Byte-compiled output of docs/_ext/. A .pyc was tracked before this rule.
+# ---- Local secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- Docs (Sphinx, built by Read the Docs from docs/) and Python tooling ----
 __pycache__/
 *.py[cod]
 docs/_build/
+# Rendered from schema/tsv_schema.json by docs/_ext/generated_includes.py on
+# every build.
+docs/_generated/
+.venv/
+venv/
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
 
-# ---- Editors / OS ----
+# ---- Coding agents' private files (AGENTS.md is the shared one) ----
+.claude/
+CLAUDE.local.md
+.aider*
+
+# ---- Editors ----
+.vscode/
+.classpath
+.project
+.settings/
+.ccls-cache
 *.iml
+*.ipr
+*.iws
 .idea/
+.atom/
+.buildlog/
+.history
+.svn/
+*.swp
+*.class
+*.log
+
+# ---- OS ----
 .DS_Store
 Thumbs.db
-
-# ---- Stale local scratch ----
-archive/
-test_save_probe.png
-
-# Sphinx build output: docs/_generated/ is rendered from schema/tsv_schema.json
-# by docs/_ext/generated_includes.py on every build, so it is never committed.
-docs/_generated/
+Desktop.ini

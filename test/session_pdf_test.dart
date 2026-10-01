@@ -121,7 +121,7 @@ void main() {
     expect(chart, isNotNull);
 
     final catalog = ElectrodeCatalog.fromJson(
-      jsonDecode(File('assets/schema/electrode_models.json').readAsStringSync())
+      jsonDecode(File('schema/electrode_models.json').readAsStringSync())
           as Map<String, dynamic>,
     );
     final lead = await renderElectrodePng(

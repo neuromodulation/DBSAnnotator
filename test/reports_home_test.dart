@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Future<ElectrodeCatalog> _catalog() async => ElectrodeCatalog.fromJson(
-  jsonDecode(File('assets/schema/electrode_models.json').readAsStringSync())
+  jsonDecode(File('schema/electrode_models.json').readAsStringSync())
       as Map<String, dynamic>,
 );
 

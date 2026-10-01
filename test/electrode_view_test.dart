@@ -16,12 +16,11 @@ void main() {
   const viewSize = Size(300, 560);
 
   ElectrodeModel loadModel(String name) {
-    final file = File('assets/schema/electrode_models.json');
+    final file = File('schema/electrode_models.json');
     expect(
       file.existsSync(),
       isTrue,
-      reason:
-          'assets/schema/*.json is a committed contract; restore it from git.',
+      reason: 'schema/*.json is a committed contract; restore it from git.',
     );
     final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
     final catalog = ElectrodeCatalog.fromJson(json);

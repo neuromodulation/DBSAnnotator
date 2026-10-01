@@ -198,9 +198,7 @@ void main() {
 
     test('renderElectrodePng produces a PNG at the requested size', () async {
       final catalog = ElectrodeCatalog.fromJson(
-        jsonDecode(
-              File('assets/schema/electrode_models.json').readAsStringSync(),
-            )
+        jsonDecode(File('schema/electrode_models.json').readAsStringSync())
             as Map<String, dynamic>,
       );
       final png = await renderElectrodePng(
