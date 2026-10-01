@@ -1,0 +1,144 @@
+/// Notes from an accompanying file are placed by their DATE as well as their
+/// time: a note from another day interleaved by clock time would be reported
+/// as part of a visit it did not happen in.
+library;
+
+import 'dart:io';
+
+import 'package:dbs_annotator/core/annotation.dart';
+import 'package:dbs_annotator/core/session/session_file.dart';
+import 'package:dbs_annotator/core/session/session_row.dart';
+import 'package:dbs_annotator/core/session/tsv_kind.dart';
+import 'package:dbs_annotator/report/longitudinal_data.dart';
+import 'package:dbs_annotator/report/report_data.dart';
+import 'package:dbs_annotator/report/session_docx.dart';
+import 'package:dbs_annotator/report/upload_actions.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+final _fixture = File(
+  'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv',
+).readAsStringSync();
+
+final _rows = parseSessionTsv(_fixture);
+
+/// The fixture's rows moved to [day], keeping their clock times.
+List<SessionRow> _on(String day) =>
+    parseSessionTsv(_fixture.replaceAll('2026-02-03', day));
+
+Annotation _note(String at, String text) =>
+    Annotation(acqTime: at, notes: text);
+
+bool _inTable(SessionReportData d, String text) =>
+    d.tableData.any((r) => r.last == text);
+
+void main() {
+  group('single session report', () {
+    final data = buildSessionReportData(
+      rows: _rows,
+      notes: [
+        _note('2026-02-03T09:06:00+00:00', 'same day'),
+        _note('2026-03-10T09:06:00+00:00', 'later visit'),
+        _note('2026-01-20T14:00:00+00:00', 'earlier call'),
+      ],
+    );
+
+    test('a note from the session day stays in the session table', () {
+      expect(_inTable(data, 'same day'), isTrue);
+    });
+
+    test('notes from other days are kept apart, dated, oldest first', () {
+      expect(_inTable(data, 'later visit'), isFalse);
+      expect(_inTable(data, 'earlier call'), isFalse);
+      expect(data.otherDateNotes.map((n) => n.text), [
+        'earlier call',
+        'later visit',
+      ]);
+      expect(data.otherDateNotes.first.date, '2026-01-20');
+      expect(data.otherDateNotes.first.time, '14:00:00');
+    });
+
+    test('the Word table names them under their own heading', () {
+      final xml = datedNotesDocx(
+        'Notes from other dates',
+        data.otherDateNotes,
+        contentTwips: 9000,
+      );
+      expect(xml, contains('Notes from other dates'));
+      expect(xml, contains('2026-03-10'));
+      expect(
+        datedNotesDocx('x', const [], contentTwips: 9000),
+        isEmpty,
+        reason: 'no heading over nothing',
+      );
+    });
+  });
+
+  test('notes naming another patient keep the session report off', () {
+    Uploaded file(String name, TsvKind kind) => (
+      name: name,
+      kind: kind,
+      rows: kind == TsvKind.programming ? _rows : const [],
+      notes: kind == TsvKind.notes
+          ? [_note('2026-02-03T09:06:00+00:00', 'n')]
+          : const [],
+    );
+    final files = [
+      file(
+        'sub-01_ses-20260203_task-programming_run-01_beh.tsv',
+        TsvKind.programming,
+      ),
+      file('sub-02_ses-20260203_task-notes_run-01_beh.tsv', TsvKind.notes),
+    ];
+    expect(
+      unavailableReason(ReportAction.sessionReport, files),
+      'These files name different patients.',
+    );
+  });
+
+  group('longitudinal report', () {
+    const first = 'sub-01_ses-20260203_task-programming_run-01_beh.tsv';
+    const second = 'sub-01_ses-20260310_task-programming_run-01_beh.tsv';
+    final data = buildLongitudinalReportData(
+      files: {first: _rows, second: _on('2026-03-10')},
+      notes: [
+        _note('2026-02-03T09:06:00+00:00', 'first visit'),
+        _note('2026-03-10T09:06:00+00:00', 'second visit'),
+        _note('2026-02-20T11:00:00+00:00', 'phone call'),
+      ],
+    );
+    SessionReportData visit(String f) =>
+        data.visits.firstWhere((v) => v.filename == f).session;
+
+    test('each note joins the visit of its own day only', () {
+      expect(_inTable(visit(first), 'first visit'), isTrue);
+      expect(_inTable(visit(first), 'second visit'), isFalse);
+      expect(_inTable(visit(second), 'second visit'), isTrue);
+      expect(visit(first).otherDateNotes, isEmpty);
+    });
+
+    test('a note on a day with no session is listed on its own', () {
+      expect(data.notesWithoutVisit.map((n) => n.text), ['phone call']);
+      expect(data.notesWithoutVisit.single.date, '2026-02-20');
+    });
+
+    test('two sessions on one day: a note goes to the one under way', () {
+      const morning = 'sub-01_ses-20260203_task-programming_run-01_beh.tsv';
+      const afternoon = 'sub-01_ses-20260203_task-programming_run-02_beh.tsv';
+      final pm = [
+        for (final r in _rows)
+          SessionRow.fromMap({
+            ...r.toMap(),
+            'acq_time': r.acqTime.replaceFirst('T09:', 'T15:'),
+          }),
+      ];
+      final both = buildLongitudinalReportData(
+        files: {morning: _rows, afternoon: pm},
+        notes: [_note('2026-02-03T15:10:00+00:00', 'afternoon note')],
+      );
+      SessionReportData of(String f) =>
+          both.visits.firstWhere((v) => v.filename == f).session;
+      expect(_inTable(of(afternoon), 'afternoon note'), isTrue);
+      expect(_inTable(of(morning), 'afternoon note'), isFalse);
+    });
+  });
+}

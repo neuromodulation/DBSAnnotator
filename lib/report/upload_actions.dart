@@ -142,12 +142,16 @@ String? unavailableReason(
       if (sessions.isEmpty && notes.isEmpty) {
         return 'Upload a session or notes TSV.';
       }
+      // Notes join the session's report, so they must be the same patient's.
+      if (!patientIdsMatch(files.map((f) => f.name).toList())) {
+        return 'These files name different patients.';
+      }
       return null;
 
     case ReportAction.longitudinalReport:
       if (sessions.length < 2) return 'Needs two or more session TSVs.';
-      if (!patientIdsMatch(sessions.map((f) => f.name).toList())) {
-        return 'These sessions name different patients.';
+      if (!patientIdsMatch(files.map((f) => f.name).toList())) {
+        return 'These files name different patients.';
       }
       return null;
 

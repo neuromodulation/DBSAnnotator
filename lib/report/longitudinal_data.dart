@@ -9,6 +9,7 @@
 /// assert the same false comparability.
 library;
 
+import '../core/annotation.dart';
 import '../core/brand_palette.dart' show kBestFill, kSecondFill;
 import '../core/session/longitudinal.dart'
     show extractPatientId, isScaleValueOmitted, splitScalePairs;
@@ -17,9 +18,11 @@ import '../core/timestamps.dart';
 import '../core/session/scale_scoring.dart';
 import 'report_data.dart'
     show
+        DatedNote,
         ScalesChartSpec,
         SessionReportData,
         buildSessionReportData,
+        datedNotes,
         coerceInt,
         trimZeros;
 
@@ -66,7 +69,12 @@ class LongitudinalReportData {
     required this.mismatchedPatients,
     this.rankedBlocks = const {},
     this.overallRanks = const {},
+    this.notesWithoutVisit = const [],
   });
+
+  /// Notes recorded on a day with no session, oldest first. Notes on a visit
+  /// day are interleaved in that visit's session table instead.
+  final List<DatedNote> notesWithoutVisit;
 
   final String patientId;
   final String generatedOn;
@@ -142,12 +150,45 @@ const longitudinalTableHeaders = [
 String _runOf(String filename) =>
     RegExp(r'run-([A-Za-z0-9]+)').firstMatch(filename)?.group(1) ?? '';
 
+/// [notes] by the session file of their day. With several sessions that day a
+/// note goes to the last one started at or before it, else the first; a note
+/// on a day with no session is in none of the lists.
+Map<String, List<Annotation>> _notesByFile(
+  Map<String, List<SessionRow>> files,
+  List<Annotation> notes,
+) {
+  String startOf(List<SessionRow> rows) =>
+      (rows
+              .map((r) => r.acqTime)
+              .where((a) => recordedDate(a).isNotEmpty)
+              .toList()
+            ..sort())
+          .firstOrNull ??
+      '';
+  final starts = {for (final e in files.entries) e.key: startOf(e.value)};
+  final out = <String, List<Annotation>>{};
+  for (final note in notes) {
+    final day = recordedDate(note.acqTime);
+    final sameDay =
+        starts.entries
+            .where((e) => day.isNotEmpty && recordedDate(e.value) == day)
+            .toList()
+          ..sort((a, b) => a.value.compareTo(b.value));
+    if (sameDay.isEmpty) continue;
+    final before = sameDay.where((e) => e.value.compareTo(note.acqTime) <= 0);
+    final file = (before.isEmpty ? sameDay.first : before.last).key;
+    (out[file] ??= []).add(note);
+  }
+  return out;
+}
+
 /// Build one visit from a file's rows.
 LongitudinalVisit _visitOf(
   String filename,
   List<SessionRow> rows,
-  List<ScalePref> scalePrefs,
-) {
+  List<ScalePref> scalePrefs, {
+  List<Annotation> notes = const [],
+}) {
   final initial = rows.where((r) => coerceInt(r.isInitial) == 1).toList();
   final recording = rows.where((r) => coerceInt(r.isInitial) != 1).toList();
 
@@ -205,6 +246,7 @@ LongitudinalVisit _visitOf(
       rows: rows,
       scalePrefs: scalePrefs.isEmpty ? null : scalePrefs,
       sourceFile: filename,
+      notes: notes,
     ),
   );
 }
@@ -220,14 +262,21 @@ LongitudinalReportData buildLongitudinalReportData({
   /// report is built. A TSV records no memory of the targets used when its own
   /// report was made, so they have to be supplied again here.
   List<ScalePref> scalePrefs = const [],
+
+  /// Notes from uploaded notes files. Each goes to the visit of its own day,
+  /// so it is never shown inside a visit it did not happen in.
+  List<Annotation> notes = const [],
 }) {
   final dt = generatedAt ?? DateTime.now();
   String two(int n) => n.toString().padLeft(2, '0');
   final generatedOn = '${dt.year}-${two(dt.month)}-${two(dt.day)}';
 
+  final byFile = _notesByFile(files, notes);
   final visits = [
-    for (final e in files.entries) _visitOf(e.key, e.value, scalePrefs),
+    for (final e in files.entries)
+      _visitOf(e.key, e.value, scalePrefs, notes: byFile[e.key] ?? const []),
   ]..sort((a, b) => a.date.compareTo(b.date));
+  final placed = {for (final list in byFile.values) ...list};
 
   // Patient identity. Mixing two people into one longitudinal report is a
   // safety problem, so it is surfaced rather than silently merged.
@@ -395,6 +444,7 @@ LongitudinalReportData buildLongitudinalReportData({
       declaredBounds: true,
     ),
     visitTable: table,
+    notesWithoutVisit: datedNotes(notes.where((n) => !placed.contains(n))),
     mismatchedPatients: ids.length <= 1 ? const [] : ids.skip(1).toList(),
     rankedBlocks: rankedBlocks,
     overallRanks: overallRanks,

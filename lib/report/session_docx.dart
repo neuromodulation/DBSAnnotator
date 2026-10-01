@@ -24,6 +24,23 @@ import 'session_pdf.dart'
 // reachable here rather than making every call site learn where they moved.
 export 'docx_ooxml.dart' show DocxPageSize, pngSize;
 
+/// [notes] under [heading] as a Date / Time / Note table; '' when empty.
+String datedNotesDocx(
+  String heading,
+  List<DatedNote> notes, {
+  required int contentTwips,
+}) => notes.isEmpty
+    ? ''
+    : docxHeading2(heading) +
+          docxTable(
+            const ['Date', 'Time', 'Note'],
+            [
+              for (final n in notes) [n.date, n.time, n.text],
+            ],
+            weights: const [2, 1.5, 8],
+            contentTwips: contentTwips,
+          );
+
 /// A borderless table for the electrode-image grid, so the images sit in a
 /// clean 4-column layout with no visible cell edges.
 String _borderlessTable(
@@ -266,6 +283,13 @@ Uint8List buildSessionDocx({
         ),
       );
       body.write(_legendBlock(data));
+      body.write(
+        datedNotesDocx(
+          'Notes from other dates',
+          data.otherDateNotes,
+          contentTwips: pageSize.contentWidthTwips,
+        ),
+      );
     }
   }
 

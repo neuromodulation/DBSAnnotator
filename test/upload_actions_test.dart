@@ -83,7 +83,7 @@ void main() {
       // Combining two people into one longitudinal report is a safety problem.
       expect(
         unavailableReason(ReportAction.longitudinalReport, files),
-        'These sessions name different patients.',
+        'These files name different patients.',
       );
     },
   );

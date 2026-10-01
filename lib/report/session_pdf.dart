@@ -74,6 +74,30 @@ pw.Widget reportGrid(
   tableWidth: widths == null ? pw.TableWidth.min : pw.TableWidth.max,
 );
 
+/// [notes] under [heading] as a Date / Time / Note grid; nothing when empty.
+List<pw.Widget> datedNotesPdf(
+  String heading,
+  List<DatedNote> notes,
+  ReportTextSanitiser t,
+) => notes.isEmpty
+    ? const []
+    : [
+        pw.SizedBox(height: 8),
+        pw.Header(level: 2, text: heading),
+        reportGrid(
+          [
+            ['Date', 'Time', 'Note'],
+            for (final n in notes) [n.date, n.time, n.text],
+          ],
+          t,
+          widths: const {
+            0: pw.FlexColumnWidth(2),
+            1: pw.FlexColumnWidth(1.5),
+            2: pw.FlexColumnWidth(8),
+          },
+        ),
+      ];
+
 /// "Scales rated per block: 5 throughout." / "..: 3-5, so blocks are not
 /// directly comparable." Null when nothing was rated.
 String? _ratedNote(SessionReportData data) {
@@ -566,6 +590,7 @@ Future<ReportBytes> buildSessionPdf({
               },
             ),
             ..._legendBlock(data, t),
+            ...datedNotesPdf('Notes from other dates', data.otherDateNotes, t),
           ],
           pw.SizedBox(height: 8),
         ],

@@ -347,6 +347,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     final data = buildLongitudinalReportData(
       files: {for (final f in _sessions) f.name: f.rows},
+      notes: _notes,
       scalePrefs: _targets ?? const [],
     );
     if (data.isEmpty) {
@@ -672,8 +673,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Widget _fileList(ThemeData theme) {
     final mismatch =
-        _sessions.length > 1 &&
-        !patientIdsMatch(_sessions.map((f) => f.name).toList());
+        _files.length > 1 &&
+        !patientIdsMatch(_files.map((f) => f.name).toList());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

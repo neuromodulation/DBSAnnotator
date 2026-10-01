@@ -119,9 +119,24 @@ across several patients are ordinary things to want, so those stay available.
 Notes alongside a session
 -------------------------
 
-Upload a ``task-notes`` file together with the session it belongs to and each
-note appears in the session data table, placed by its own clock time, with only
-the Time and Notes cells filled.
+Upload a ``task-notes`` file together with a session and the notes join the
+**single session report**. A note recorded **on the day of the session** appears
+in the session data table, placed by its own clock time, with only the Time and
+Notes cells filled. A note from **any other day**, a follow-up call a week later
+for example, is not slipped into that table: placed by clock time alone it would
+read as part of a visit it did not happen in. Those notes follow the table under
+their own heading, **Notes from other dates**, each with its full date and time.
+
+The notes must name the same patient as the session. If they do not, the single
+session report is greyed out with the reason, as the longitudinal report is.
+
+With two or more sessions, the **longitudinal report** uses the notes the same
+way: each note joins the session table of the visit on its own day (when two
+sessions share a day, the one under way at the note's time), and notes from days
+with no session are listed after the Visits table under **Notes on days without
+a session**. The per-visit session tables are the **Combined session data
+table** section, which is off by default; tick it in the section chooser to see
+the notes recorded during each visit.
 
 It gets its own row rather than being written into a block's Notes cell,
 because a note carries no configuration: attaching it to one would assert it was

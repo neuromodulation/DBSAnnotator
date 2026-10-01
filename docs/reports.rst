@@ -76,6 +76,11 @@ block's two sides is light while the rule between blocks is heavy, so each block
 reads as one configuration. With no targets set, nothing is ranked and the Index
 column is left out rather than printed empty.
 
+When a notes file was uploaded with the session, notes taken that day appear in
+the table as rows of their own, by time. Notes from other days follow the table
+under **Notes from other dates**, with their full date, rather than being placed
+among blocks they were not recorded with.
+
 Under the table, the legend: what the green means, the targets, how many scales
 were rated per block, how far repeat ratings of one setting differ, how the index
 is computed, and the disclaimer. It is kept on one page, so the disclaimer is
@@ -160,7 +165,9 @@ Visits
 The date, the program in force at the end of that visit with Left and Right on
 separate lines, the number of blocks, and every clinical scale recorded at that
 visit, one per line. How each scale moved between visits is what the figure
-above shows.
+above shows. Notes uploaded for days on which no session was recorded follow the
+table under **Notes on days without a session**; notes from a visit day appear in
+that visit's session table below.
 
 .. figure:: _static/reports/longitudinal_report_visits.png
    :alt: The per-visit table

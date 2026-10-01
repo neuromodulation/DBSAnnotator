@@ -16,9 +16,11 @@ import 'docx_ooxml.dart';
 import 'longitudinal_data.dart';
 import 'longitudinal_sections.dart';
 import 'report_data.dart' show ReportBytes;
+import 'session_docx.dart' show datedNotesDocx;
 import 'session_pdf.dart'
     show
         ElectrodeReportImages,
+        datedNotesPdf,
         electrodeCellWidth,
         reportGrid,
         kElectrodeGroupGapPt,
@@ -199,6 +201,11 @@ Future<ReportBytes> buildLongitudinalPdf({
               'visit, which is not necessarily one a clinician confirmed.',
               style: const pw.TextStyle(fontSize: 8),
             ),
+            ...datedNotesPdf(
+              'Notes on days without a session',
+              data.notesWithoutVisit,
+              t,
+            ),
           ],
 
           // (d) Every configuration of every visit, grouped by visit rather
@@ -335,6 +342,13 @@ Uint8List buildLongitudinalDocx({
             'The programme shown is the last configuration recorded at that '
             'visit, which is not necessarily one a clinician confirmed.',
             size: 16,
+          ),
+        )
+        ..write(
+          datedNotesDocx(
+            'Notes on days without a session',
+            data.notesWithoutVisit,
+            contentTwips: pageSize.contentWidthTwips,
           ),
         );
     }

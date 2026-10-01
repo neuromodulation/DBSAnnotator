@@ -558,6 +558,7 @@ class SessionReportData {
     required this.initScales,
     required this.initNotes,
     required this.tableData,
+    this.otherDateNotes = const [],
     required this.electrodeModel,
     required this.hasElectrodeConfig,
     required this.initialTokens,
@@ -614,6 +615,11 @@ class SessionReportData {
   /// Lateral table rows, two per recording block (L then R), keyed by
   /// [sessionTableHeaders]. Cells may contain '\n' for stacked values.
   final List<List<String>> tableData;
+
+  /// Notes from an accompanying file recorded on another day than this
+  /// session, oldest first. Interleaving them by clock time would place them
+  /// in a visit they did not happen in.
+  final List<DatedNote> otherDateNotes;
 
   /// Electrode model label (first non-empty of initial/final), may be empty.
   final String electrodeModel;
@@ -1022,6 +1028,21 @@ Map<String, String> _lastConfigLines(SessionRow? r) {
 /// [scalePrefs] carries the per-scale optimisation modes and bounds that drive
 /// the chart's aggregate index, its green bands and the table's row shading.
 /// Omitted means no targets, hence no ranking at all.
+/// A note shown with its full date, outside the session it was not part of.
+typedef DatedNote = ({String date, String time, String text});
+
+/// [notes] as dated rows, oldest first, skipping any with no time or text.
+List<DatedNote> datedNotes(Iterable<Annotation> notes) => [
+  for (final n
+      in notes.toList()..sort((a, b) => a.acqTime.compareTo(b.acqTime)))
+    if (recordedTime(n.acqTime).isNotEmpty && n.notes.trim().isNotEmpty)
+      (
+        date: recordedDate(n.acqTime),
+        time: recordedTime(n.acqTime),
+        text: n.notes,
+      ),
+];
+
 SessionReportData buildSessionReportData({
   required List<SessionRow> rows,
   DateTime? generatedAt,
@@ -1245,13 +1266,20 @@ SessionReportData buildSessionReportData({
   // the Word builder merges vertically, so anything that could place a note
   // between them would break the merge. Each block is one group with one time,
   // each note a group of one.
-  if (notes.isNotEmpty) {
+  final sameDay = [
+    for (final n in notes)
+      if (recordedDate(n.acqTime) == sessionDate) n,
+  ];
+  final otherDateNotes = datedNotes(
+    notes.where((n) => recordedDate(n.acqTime) != sessionDate),
+  );
+  if (sameDay.isNotEmpty) {
     final groups = <(String, List<List<String>>)>[];
     for (var i = 0; i + 1 < tableData.length; i += 2) {
       groups.add((_rowClock(tableData[i]), [tableData[i], tableData[i + 1]]));
     }
     final blank = List<String>.filled(sessionTableHeaders.length, '');
-    for (final note in notes) {
+    for (final note in sameDay) {
       final at = recordedTime(note.acqTime);
       if (at.isEmpty || note.notes.trim().isEmpty) continue;
       groups.add((
@@ -1305,6 +1333,7 @@ SessionReportData buildSessionReportData({
     initScales: initScales,
     initNotes: initNotes,
     tableData: tableData,
+    otherDateNotes: otherDateNotes,
     electrodeModel: electrodeModel,
     hasElectrodeConfig: latestInit != null || latestFinal != null,
     initialTokens: tokensOf(latestInit),
