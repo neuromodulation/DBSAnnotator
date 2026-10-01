@@ -9,6 +9,7 @@ library;
 import '../core/annotation.dart';
 import '../core/bids.dart';
 import '../core/session/longitudinal.dart' show patientIdsMatch;
+import '../core/session/session_file.dart';
 import '../core/session/session_row.dart';
 import '../core/session/tsv_kind.dart';
 
@@ -19,6 +20,39 @@ typedef Uploaded = ({
   List<SessionRow> rows,
   List<Annotation> notes,
 });
+
+/// [content] as an upload, classified by its header, or the reason it is not
+/// one.
+({Uploaded? file, String? rejected}) classifyUpload(
+  String name,
+  String content,
+) {
+  final kind = sniffTsvKind(content);
+  return switch (kind) {
+    TsvKind.programming => (
+      file: (
+        name: name,
+        kind: kind,
+        rows: parseSessionTsv(content),
+        notes: const <Annotation>[],
+      ),
+      rejected: null,
+    ),
+    TsvKind.notes => (
+      file: (
+        name: name,
+        kind: kind,
+        rows: const <SessionRow>[],
+        notes: parseAnnotations(content),
+      ),
+      rejected: null,
+    ),
+    TsvKind.unknown || TsvKind.unreadable => (
+      file: null,
+      rejected: tsvKindMismatch(name, kind, TsvKind.programming),
+    ),
+  };
+}
 
 /// The earliest instant recorded in [file], or null when none parses.
 DateTime? earliestRecorded(Uploaded file) {

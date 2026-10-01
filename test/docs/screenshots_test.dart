@@ -1106,6 +1106,28 @@ void main() {
     await _shootFitted(tester, 'reports_empty', width: _narrow, height: 620);
   });
 
+  testWidgets('reports: load from dataset', (tester) async {
+    String beh(String sub, String ses) =>
+        'sub-$sub/ses-$ses/beh/'
+        'sub-${sub}_ses-${ses}_task-programming_run-01_beh.tsv';
+    debugDataset = (
+      root: 'C:/Studies/OCD-DBS',
+      files: [
+        for (final (sub, ses) in const [
+          ('01', '20260203'),
+          ('01', '20260401'),
+          ('02', '20260210'),
+          ('03', '20260215'),
+        ])
+          (path: beh(sub, ses), content: 'x'),
+      ],
+    );
+    addTearDown(() => debugDataset = null);
+    await _pump(tester, ReportsScreen(catalog: (await _contracts()).$1));
+    await _tapText(tester, 'Load from dataset');
+    await _shootDialog(tester, 'dialog_load_participants');
+  });
+
   testWidgets('reports: one session', (tester) async {
     final contracts = await _contracts();
     await _pump(

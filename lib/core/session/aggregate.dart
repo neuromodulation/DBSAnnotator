@@ -43,6 +43,13 @@ List<String> aggregateColumns() => <String>[
   ...sessionColumns,
 ];
 
+/// What [out] holds, in words: rows, files and subjects.
+String describeAggregate(AggregateResult out) {
+  String n(int count, String noun) => '$count $noun${count == 1 ? '' : 's'}';
+  return '${n(out.rowCount, 'row')} from ${n(out.fileCount, 'file')}, '
+      '${n(out.subjects.length, 'subject')}';
+}
+
 /// Fold [sources] into one table.
 ///
 /// A file is skipped, and named in [AggregateResult.skipped], when its name

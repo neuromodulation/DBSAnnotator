@@ -282,7 +282,9 @@ patient's visits, or several patients for a study, means concatenating a folder
 of files and losing the one thing that told their rows apart, the filename.
 
 **Combined table (TSV)**, on the reports screen, writes the
-imported sessions as one long table with four identity columns prepended:
+imported sessions as one long table with four identity columns prepended, and
+its ``.json`` sidecar beside it (see :doc:`screens/reports` for where both are
+saved):
 
 .. code-block:: text
 

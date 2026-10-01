@@ -8,7 +8,6 @@
 /// snackbar.
 library;
 
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -119,6 +118,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
   List<ScalePref>? _targets;
   Set<ReportSection> _sections = kAllReportSections;
 
+  /// The dataset folder files were loaded from, and their names: the combined
+  /// table goes back into it only when every session came from there.
+  ({String root, Set<String> names})? _datasetSource;
+
   @override
   void initState() {
     super.initState();
@@ -156,41 +159,41 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
     if (picked.isEmpty) return;
 
+    _add([
+      for (final file in picked)
+        (name: file.name, content: await readPickedText(file)),
+    ]);
+  }
+
+  /// Load the recorded TSVs of a dataset, for the participants chosen.
+  Future<void> _loadDataset() async {
+    final loaded = await loadDatasetTsvs(context, _snack);
+    if (loaded == null || !mounted) return;
+    final added = _add(loaded.files);
+    if (loaded.root case final root? when added.isNotEmpty) {
+      _datasetSource = (root: root, names: added.toSet());
+    }
+  }
+
+  /// Classify [files] by their headers and add them, saying which were left
+  /// out and why. A null content is a file that could not be read. Returns
+  /// the names added.
+  List<String> _add(List<({String name, String? content})> files) {
     final added = <Uploaded>[];
     final rejected = <String>[];
-    for (final file in picked) {
-      if (_files.any((f) => f.name == file.name) ||
-          added.any((f) => f.name == file.name)) {
-        rejected.add('${file.name} is already uploaded');
-        continue;
-      }
-      final content = await readPickedText(file);
+    for (final (:name, :content) in files) {
       if (content == null) {
-        rejected.add('${file.name} could not be read');
-        continue;
-      }
-      final kind = sniffTsvKind(content);
-      switch (kind) {
-        case TsvKind.programming:
-          added.add((
-            name: file.name,
-            kind: kind,
-            rows: parseSessionTsv(content),
-            notes: const [],
-          ));
-        case TsvKind.notes:
-          added.add((
-            name: file.name,
-            kind: kind,
-            rows: const [],
-            notes: parseAnnotations(content),
-          ));
-        case TsvKind.unknown:
-        case TsvKind.unreadable:
-          rejected.add(tsvKindMismatch(file.name, kind, TsvKind.programming));
+        rejected.add('$name could not be read');
+      } else if (_files.any((f) => f.name == name) ||
+          added.any((f) => f.name == name)) {
+        rejected.add('$name is already uploaded');
+      } else {
+        final c = classifyUpload(name, content);
+        if (c.file case final file?) added.add(file);
+        if (c.rejected case final why?) rejected.add(why);
       }
     }
-    if (!mounted) return;
+    if (!mounted) return const [];
     if (added.isNotEmpty) {
       setState(() {
         final sorted = chronological([..._files, ...added]);
@@ -202,6 +205,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       });
     }
     if (rejected.isNotEmpty) _snack(rejected.join('; '));
+    return [for (final f in added) f.name];
   }
 
   Future<void> _editTargets() async {
@@ -414,29 +418,64 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
       return;
     }
-    final stem = out.subjects.length == 1
-        ? '${out.subjects.single}_$aggregateStem'
-        : 'study_$aggregateStem';
-
-    await exportFile(
-      context,
-      filename: '$stem.tsv',
-      anchor: _exportKey,
-      failureLabel: 'Combined table export failed',
-      build: () async => (bytes: utf8.encode(out.tsv), warning: null),
-    );
-    if (!mounted) return;
-    _snack(
-      '${out.rowCount} rows from ${out.fileCount} file'
-      '${out.fileCount == 1 ? '' : 's'}, '
-      '${out.subjects.length} subject${out.subjects.length == 1 ? '' : 's'}.',
-    );
     if (out.skipped.isNotEmpty) {
       _snack(
         'Left out: '
         '${out.skipped.map((s) => '${s.filename}: ${s.reason}').join('; ')}',
       );
     }
+    final String sidecar;
+    try {
+      sidecar = aggregateSidecarJson(
+        await loadTsvContract(),
+        appVersion: appVersion,
+      );
+    } catch (e) {
+      if (mounted) _snack('Combined table export failed: $e');
+      return;
+    }
+    final summary = describeAggregate(out);
+
+    final source = _datasetSource;
+    if (!mounted) return;
+    if (source != null &&
+        _sessions.every((f) => source.names.contains(f.name))) {
+      try {
+        final copy = await saveAggregateInto(
+          context,
+          source.root,
+          tsv: out.tsv,
+          sidecar: sidecar,
+          summary: summary,
+        );
+        if (!copy) return;
+      } catch (e) {
+        if (mounted) _snack('Could not save into the dataset: $e');
+        return;
+      }
+    } else if (source != null) {
+      _snack(
+        'Not saved into the dataset: some of these files were not loaded '
+        'from it.',
+      );
+    }
+    if (!mounted) return;
+
+    // The table and the sidecar that documents its columns travel together.
+    final stem = out.subjects.length == 1
+        ? '${out.subjects.single}_$aggregateStem'
+        : 'study_$aggregateStem';
+    await exportFile(
+      context,
+      filename: '$stem.zip',
+      anchor: _exportKey,
+      failureLabel: 'Combined table export failed',
+      build: () async => (
+        bytes: textZip({'$stem.tsv': out.tsv, '$stem.json': sidecar}),
+        warning: null,
+      ),
+    );
+    if (mounted) _snack('$summary.');
   }
 
   /// Fold the uploaded files into a BIDS dataset the user already has.
@@ -500,59 +539,33 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Future<_MergeTarget?> _pickZipTarget() async {
-    final PlatformFile? picked;
-    try {
-      picked = await FilePicker.pickFile(type: FileType.any);
-    } catch (e) {
-      if (mounted) _snack('Could not open the file picker. ($e)');
-      return null;
-    }
-    if (picked == null) return null;
-    final size = await picked.length();
-    if (size > kMaxMergeZipBytes) {
-      // Decoding a dataset that carries imaging would run a tablet out of
-      // memory, so it is refused with its size rather than attempted.
-      if (mounted) {
-        _snack(
-          'That dataset is ${(size / (1024 * 1024)).round()} MB. '
-          'Merging a zip works up to '
-          '${kMaxMergeZipBytes ~/ (1024 * 1024)} MB; use the desktop app.',
+    final zip = await pickDatasetZip(_snack);
+    if (zip == null) return null;
+    final existing = zip.files;
+    final name = zip.name;
+    if (!mounted) return null;
+    final check = await checkDatasetFolder(
+      context,
+      name,
+      existing,
+      chooseAnother: 'Choose another file',
+    );
+    if (check == FolderCheck.chooseAnother) return await _pickZipTarget();
+    if (check != FolderCheck.proceed) return null;
+    return (
+      existing: existing,
+      label: name,
+      apply: (MergePlan plan) async {
+        if (!mounted) return;
+        await exportFile(
+          context,
+          filename: '${name.replaceAll(RegExp(r'\.zip$'), '')}-merged.zip',
+          anchor: _exportKey,
+          failureLabel: 'Merged dataset export failed',
+          build: () async => (bytes: mergedZip(existing, plan), warning: null),
         );
-      }
-      return null;
-    }
-    try {
-      final bytes = await picked.readAsBytes();
-      final existing = readDatasetZip(bytes);
-      final name = picked.name;
-      if (!mounted) return null;
-      final check = await checkDatasetFolder(
-        context,
-        name,
-        existing,
-        chooseAnother: 'Choose another file',
-      );
-      if (check == FolderCheck.chooseAnother) return await _pickZipTarget();
-      if (check != FolderCheck.proceed) return null;
-      return (
-        existing: existing,
-        label: name,
-        apply: (MergePlan plan) async {
-          if (!mounted) return;
-          await exportFile(
-            context,
-            filename: '${name.replaceAll(RegExp(r'\.zip$'), '')}-merged.zip',
-            anchor: _exportKey,
-            failureLabel: 'Merged dataset export failed',
-            build: () async =>
-                (bytes: mergedZip(existing, plan), warning: null),
-          );
-        },
-      );
-    } catch (e) {
-      if (mounted) _snack('Could not read that dataset: $e');
-      return null;
-    }
+      },
+    );
   }
 
   /// The dataset the uploaded files describe: its entries, the whole file
@@ -700,6 +713,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
         icon: const Icon(Icons.upload_file),
         label: const Text('Upload TSVs'),
       ),
+      const SizedBox(width: 8),
+      OutlinedButton.icon(
+        onPressed: _loadDataset,
+        icon: const Icon(Icons.folder_open),
+        label: const Text('Load from dataset'),
+      ),
       const SizedBox(width: 12),
       Expanded(
         child: Text(uploadSummary(_files), style: theme.textTheme.bodyMedium),
@@ -709,6 +728,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           onPressed: () => setState(() {
             _files.clear();
             _targets = null;
+            _datasetSource = null;
           }),
           icon: const Icon(Icons.clear_all),
           label: const Text('Clear'),

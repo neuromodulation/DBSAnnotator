@@ -1,9 +1,10 @@
 Reports and datasets
 ====================
 
-Upload the TSVs you have, then take whatever they support. This screen writes
-nothing to the files you give it: it reads them, shows what is in them, and
-produces documents and datasets from them.
+Upload the TSVs you have, or load them from a BIDS dataset, then take whatever
+they support. This screen never changes the files you give it: it reads them,
+shows what is in them, and produces documents and datasets from them. The one
+thing it writes into a dataset is the combined table, under ``derivatives/``.
 
 .. raw:: html
 
@@ -34,6 +35,32 @@ name rather than loaded as a screen of blank rows.
 A file already in the list is refused by name. Two files with the same basename
 would collide in a BIDS dataset and would be double-counted in a combined table,
 so the duplicate is dropped rather than silently merged.
+
+.. _load-from-dataset:
+
+Loading from a dataset
+----------------------
+
+When your visits are already filed in a BIDS dataset, **Load from dataset** reads
+them from there instead of one upload at a time. On Windows, macOS and Linux you
+choose the dataset folder; on iPadOS and Android you choose the dataset as a
+``.zip``, because those systems do not let an app read a folder you pick.
+
+Every session and notes TSV under ``sub-<participant>/ses-<session>/beh/`` is
+found, including older ``_events.tsv`` files. Sidecars, imaging, other datatypes
+and everything under ``derivatives/`` are left alone. A checklist then shows each
+participant with the number of files found, all ticked: untick the ones you do
+not want, for example to keep a longitudinal report to one patient.
+
+.. figure:: ../_static/screenshots/dialog_load_participants.png
+   :alt: The checklist of participants found in the dataset, all ticked, with
+         the number of files for each
+   :width: 42%
+   :align: center
+
+The chosen
+files join the list exactly as if you had uploaded them, so every action below
+works the same way, and a single file can still be removed.
 
 What each upload enables
 ------------------------
@@ -240,3 +267,32 @@ The longitudinal report spans visits, so it carries no ``ses-`` and no
 
 See :doc:`../reports` for what each document contains, and
 :ref:`the combined table <combined-table>` for what the aggregated TSV holds.
+
+The combined table
+------------------
+
+The combined table always comes with its ``.json`` sidecar, which documents the
+four key columns and every session column, so the table can be read without this
+documentation at hand.
+
+When every session in the list was :ref:`loaded from a dataset folder
+<load-from-dataset>`, **Export** saves the table into that dataset first, where
+BIDS puts a table that spans sessions:
+
+.. code-block:: text
+
+   derivatives/dbs-annotator-aggregate/
+       dataset_description.json
+       desc-aggregate_beh.tsv
+       desc-aggregate_beh.json
+
+The folder's ``dataset_description.json`` marks it as a derivative and names the
+app that produced it; it is written once and never replaced. The table itself is
+regenerated from the raw files, so exporting again replaces it, and the previous
+version is kept beside it with a ``.bak-`` suffix. Nothing in the raw
+``sub-*`` tree is written. The app then asks whether to save a copy somewhere
+else too, as a ``.zip`` holding the table and its sidecar.
+
+If the list mixes files from the dataset with files uploaded from elsewhere, or
+the dataset was loaded as a ``.zip``, nothing is written into the dataset and the
+table and sidecar are exported as a ``.zip`` as usual.

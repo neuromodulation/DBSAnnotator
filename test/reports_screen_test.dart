@@ -53,10 +53,15 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Upload a TSV first.'), findsNWidgets(5));
+    final load = tester.widget<OutlinedButton>(
+      find.widgetWithText(OutlinedButton, 'Load from dataset'),
+    );
+    expect(load.onPressed, isNotNull);
     for (final button in tester.widgetList<OutlinedButton>(
       find.byType(OutlinedButton),
     )) {
-      expect(button.onPressed, isNull, reason: 'nothing is tappable yet');
+      if (button == load) continue;
+      expect(button.onPressed, isNull, reason: 'no action is tappable yet');
     }
   });
 }

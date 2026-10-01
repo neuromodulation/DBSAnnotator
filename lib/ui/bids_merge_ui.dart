@@ -544,3 +544,231 @@ Future<String?> pickDatasetFolder() async {
     return null;
   }
 }
+
+/// A dataset `.zip` picked from storage and read. Null when cancelled or when
+/// it cannot be used, with the reason passed to [say].
+Future<({String name, List<DatasetFile> files})?> pickDatasetZip(
+  void Function(String) say,
+) async {
+  final PlatformFile? picked;
+  try {
+    picked = await FilePicker.pickFile(type: FileType.any);
+  } catch (e) {
+    say('Could not open the file picker. ($e)');
+    return null;
+  }
+  if (picked == null) return null;
+  final size = await picked.length();
+  if (size > kMaxMergeZipBytes) {
+    // Decoding a dataset that carries imaging would run a tablet out of
+    // memory, so it is refused with its size rather than attempted.
+    say(
+      'That dataset is ${(size / (1024 * 1024)).round()} MB. A zip works up '
+      'to ${kMaxMergeZipBytes ~/ (1024 * 1024)} MB; use the desktop app.',
+    );
+    return null;
+  }
+  try {
+    return (
+      name: picked.name,
+      files: readDatasetZip(await picked.readAsBytes()),
+    );
+  } catch (e) {
+    say('Could not read that dataset: $e');
+    return null;
+  }
+}
+
+/// Stands in for the dataset picker in tests: the folder and its files.
+({String? root, List<DatasetFile> files})? debugDataset;
+
+/// The recorded TSVs of a dataset the user picks, narrowed to the participants
+/// they choose: a folder on the desktop, the dataset `.zip` on the tablets.
+/// `root` is the folder, null for a zip. Null when cancelled, with any reason
+/// passed to [say].
+Future<({String? root, List<({String name, String content})> files})?>
+loadDatasetTsvs(BuildContext context, void Function(String) say) async {
+  final ({String? root, List<DatasetFile> files}) source;
+  if (debugDataset case final d?) {
+    source = d;
+  } else if (canWriteChosenFolder) {
+    final root = await pickDatasetFolder();
+    if (root == null) return null;
+    try {
+      source = (root: root, files: await readDatasetDirectory(root));
+    } catch (e) {
+      say('Could not read that folder: $e');
+      return null;
+    }
+  } else {
+    final zip = await pickDatasetZip(say);
+    if (zip == null) return null;
+    source = (root: null, files: zip.files);
+  }
+  final byParticipant = recordedFiles([
+    for (final f in source.files)
+      if (f.content != kUnreadContent) f,
+  ]);
+  if (byParticipant.isEmpty) {
+    say('No session or notes TSVs found there. $kBidsFolderRule');
+    return null;
+  }
+  if (!context.mounted) return null;
+  final chosen = await showDialog<Set<String>>(
+    context: context,
+    builder: (_) => _ParticipantsDialog(byParticipant),
+  );
+  if (chosen == null || chosen.isEmpty) return null;
+  return (
+    root: source.root,
+    files: [
+      for (final p in chosen)
+        for (final f in byParticipant[p]!)
+          (name: f.path.split('/').last, content: f.content),
+    ],
+  );
+}
+
+class _ParticipantsDialog extends StatefulWidget {
+  const _ParticipantsDialog(this.byParticipant);
+
+  final Map<String, List<DatasetFile>> byParticipant;
+
+  @override
+  State<_ParticipantsDialog> createState() => _ParticipantsDialogState();
+}
+
+class _ParticipantsDialogState extends State<_ParticipantsDialog> {
+  late final Set<String> _chosen = {...widget.byParticipant.keys};
+
+  @override
+  Widget build(BuildContext context) {
+    final all = _chosen.length == widget.byParticipant.length;
+    return AlertDialog(
+      title: const Text('Load which participants?'),
+      content: SizedBox(
+        width: 420,
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final MapEntry(key: p, value: files)
+                in widget.byParticipant.entries)
+              CheckboxListTile(
+                dense: true,
+                value: _chosen.contains(p),
+                title: Text('sub-$p'),
+                subtitle: Text(
+                  '${files.length} file${files.length == 1 ? '' : 's'}',
+                ),
+                onChanged: (on) => setState(
+                  () => on == true ? _chosen.add(p) : _chosen.remove(p),
+                ),
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => setState(
+            () => all
+                ? _chosen.clear()
+                : _chosen.addAll(widget.byParticipant.keys),
+          ),
+          child: Text(all ? 'Select none' : 'Select all'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _chosen.isEmpty
+              ? null
+              : () => Navigator.pop(context, _chosen),
+          child: const Text('Load'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Write the combined table and its [sidecar] into the dataset at [root],
+/// where BIDS puts a cross-session derivation. Returns the table's path.
+///
+/// The table is derived from the raw files, so a newer one replaces it; the
+/// previous copy is kept beside it, and the raw tree is never written.
+Future<String> writeAggregateInto(
+  String root, {
+  required String tsv,
+  required String sidecar,
+}) async {
+  final dir = '$root/$aggregateDerivativeDir';
+  await Directory(dir).create(recursive: true);
+  final stamp = DateTime.now().millisecondsSinceEpoch;
+  for (final (name, content) in [
+    ('$aggregateStem.tsv', tsv),
+    ('$aggregateStem.json', sidecar),
+  ]) {
+    final file = File('$dir/$name');
+    if (file.existsSync()) {
+      if (await file.readAsString() == content) continue;
+      await file.copy('${file.path}.bak-$stamp');
+    }
+    await writeStringAtomic(file.path, content);
+  }
+  final description = derivativeDescription(
+    dir: aggregateDerivativeDir,
+    name: '$appName combined sessions',
+    appName: appName,
+    appVersion: appVersion,
+    repoUrl: repoUrl,
+  );
+  final described = File('$root/${description.path}');
+  if (!described.existsSync()) {
+    await writeStringAtomic(described.path, description.content);
+  }
+  return '$dir/$aggregateStem.tsv';
+}
+
+/// Save the combined table into the dataset at [root] (see
+/// [writeAggregateInto]), say so, and ask whether to save a copy elsewhere
+/// too. Throws when the write fails.
+Future<bool> saveAggregateInto(
+  BuildContext context,
+  String root, {
+  required String tsv,
+  required String sidecar,
+  required String summary,
+}) async {
+  final path = await writeAggregateInto(root, tsv: tsv, sidecar: sidecar);
+  if (!context.mounted) return false;
+  final copy = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Saved into the dataset'),
+      content: Text(
+        '$summary, saved with its sidecar as\n$path\n\n'
+        'Save a copy somewhere else too?',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('No'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Save a copy'),
+        ),
+      ],
+    ),
+  );
+  return copy ?? false;
+}
+
+/// A zip of text files, by name.
+Uint8List textZip(Map<String, String> files) {
+  final archive = Archive();
+  files.forEach((name, text) {
+    archive.addFile(ArchiveFile.bytes(name, utf8.encode(text)));
+  });
+  return Uint8List.fromList(ZipEncoder().encode(archive));
+}
