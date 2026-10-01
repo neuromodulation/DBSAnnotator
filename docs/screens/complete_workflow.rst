@@ -55,10 +55,16 @@ you picked is neither, **Choose another folder** opens the picker again. It then
 asks for the session label, proposed as today's date but editable:
 ``ses-YYYYMMDD`` is this app's convention, and plenty of studies use
 ``ses-preop`` or ``ses-3mo``. As you type, the dialog shows the label as it will
-be filed (``3-mo`` becomes ``3mo``), and it will not accept a label under which
-this visit is already filed in that dataset, so the clash surfaces before you
-record anything rather than at the first block. The label you choose is also the
-one used when you export this visit. The visit is
+be filed (``3-mo`` becomes ``3mo``).
+
+A dataset can hold any number of recordings per participant and session:
+several ``ses-preop`` visits, programming and notes side by side. The one thing
+two files cannot share is the whole name, participant, session, task and run
+together, because the second would replace the first on disk. So when the name
+this visit would get is already in the dataset, the dialog says so and the visit
+is filed under the next free run instead (``run-02``, ``run-03``), and the
+**Run** field changes to match. Nothing is refused and nothing is overwritten.
+The label you choose is also the one used when you export this visit. The visit is
 filed at its BIDS path when the **first block is inserted**, not when the file
 is created: a dataset holding a header-only TSV that no ``scans.tsv`` lists is
 one that does not validate, and before the first block there is nothing to file.
@@ -66,8 +72,7 @@ From then on every insert rewrites it in place, and the dataset index files stay
 consistent. It goes through the same rules as
 :ref:`adding to a dataset <dataset-merge-rules>`, so your
 ``dataset_description.json`` and ``participants.tsv`` columns (the dataset's
-own description and participant list) are safe, and a
-visit already filed there is refused rather than overwritten. This option is
+own description and participant list) are safe. This option is
 available on Windows, macOS and Linux. On iPadOS and Android, which do not let an
 app write into a folder you pick, the choice still appears with **Into a
 dataset** greyed out and the reason beneath it: record a loose TSV, then add it

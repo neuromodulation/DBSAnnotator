@@ -175,8 +175,8 @@ the dataset is changed.
 
 **Nothing is written until you have seen what will happen.** Every Add opens a
 dialog that restates how the visit is added and lists every file that will be
-added, every index file that will gain rows, everything left unchanged, and
-anything refused. This is the only operation in the app that writes to data it
+added, every index file that will gain rows, any file moved to the next free
+run, and everything left unchanged. This is the only operation in the app that writes to data it
 did not create, and it has no undo.
 
 .. figure:: ../_static/screenshots/dialog_add_to_dataset.png
@@ -202,8 +202,11 @@ The rules it follows, and why each one exists:
        ``sex`` or ``diagnosis`` survive, and a new subject is appended with
        those cells empty.
    * - ``sub-*/ses-*/beh/*``
-     - Added only. A path that already exists is **refused and named**, because
-       overwriting it would replace recorded clinical data.
+     - Added only, never overwritten. A file whose name the dataset already
+       uses for a different recording is filed under the next free run
+       (``run-02``, ``run-03``) and listed as such, so any number of recordings
+       per session can be added. A file identical to one already there is
+       left as it is.
    * - Everything else
      - Untouched. Other datatypes, derivatives and anything you keep alongside
        are never even read.

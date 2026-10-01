@@ -83,13 +83,13 @@ void main() {
     Future<void> open(
       WidgetTester tester,
       String proposed, {
-      String? Function(String)? taken,
+      String? Function(String)? note,
     }) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
             builder: (context) => TextButton(
-              onPressed: () => askSessionLabel(context, proposed, taken: taken),
+              onPressed: () => askSessionLabel(context, proposed, note: note),
               child: const Text('go'),
             ),
           ),
@@ -116,18 +116,15 @@ void main() {
       expect(useEnabled(tester), isFalse);
     });
 
-    testWidgets('a label already filed says so and cannot be used', (
+    testWidgets('a name already filed is explained, not refused', (
       tester,
     ) async {
       await open(
         tester,
         'preop',
-        taken: (label) => label == 'preop' ? 'already there' : null,
+        note: (label) => label == 'preop' ? 'filed as run-02' : null,
       );
-      expect(find.text('already there'), findsOneWidget);
-      expect(useEnabled(tester), isFalse);
-      await tester.enterText(find.byType(TextField), 'postop');
-      await tester.pump();
+      expect(find.textContaining('filed as run-02'), findsOneWidget);
       expect(useEnabled(tester), isTrue);
     });
   });

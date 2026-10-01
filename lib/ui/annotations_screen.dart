@@ -197,7 +197,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         _datasetRoot = into.root;
         _datasetName = into.name;
         _subjectCtrl.text = subject;
-        _runCtrl.text = run;
+        _runCtrl.text = into.name.run;
         _currentStep = 1;
       });
       _snack(

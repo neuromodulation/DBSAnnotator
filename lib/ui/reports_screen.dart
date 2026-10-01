@@ -23,7 +23,6 @@ import '../core/bids_sidecar.dart';
 import '../core/electrode/electrode_model.dart';
 import '../core/prefs/user_prefs.dart';
 import '../core/session/aggregate.dart';
-import '../core/session/session_file.dart';
 import '../core/session/longitudinal.dart';
 import '../core/session/scale_scoring.dart';
 import '../core/session/session_row.dart';
@@ -490,7 +489,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       if (mounted) _snack('Could not read the TSV contract: $e');
       return;
     }
-    final built = _datasetFiles(contract);
+    final built = datasetFromUploads(_files, contract);
     if (built.files.isEmpty) {
       if (mounted) {
         _snack('No uploaded file carries BIDS entities in its name.');
@@ -502,7 +501,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final target = inPlace ? await _pickFolderTarget() : await _pickZipTarget();
     if (target == null || !mounted) return;
 
-    final plan = planBidsMerge(target.existing, built.files);
+    final placed = datasetFromUploads(
+      _files,
+      contract,
+      existing: target.existing,
+    );
+    final plan = planBidsMerge(target.existing, placed.files);
     if (plan.write.isEmpty) {
       _snack(
         plan.refused.isEmpty
@@ -511,7 +515,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
       return;
     }
-    if (!await confirmMerge(context, plan, target.label) || !mounted) return;
+    final ok = await confirmMerge(
+      context,
+      plan,
+      target.label,
+      renumbered: placed.renumbered,
+    );
+    if (!ok || !mounted) return;
 
     try {
       await target.apply(plan);
@@ -568,82 +578,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
     );
   }
 
-  /// The dataset the uploaded files describe: its entries, the whole file
-  /// list, and the names left out for want of BIDS entities.
-  ///
-  /// Shared by the zip export and the merge, so the two cannot disagree about
-  /// what a dataset made from this upload contains.
-  ({List<DatasetEntry> entries, List<DatasetFile> files, List<String> skipped})
-  _datasetFiles(Map<String, dynamic> contract) {
-    final entries = <DatasetEntry>[];
-    final skipped = <String>[];
-    for (final file in _files) {
-      final name = BidsName.parse(file.name);
-      if (name == null || name.session.isEmpty) {
-        skipped.add(file.name);
-        continue;
-      }
-      final isSession = file.kind == TsvKind.programming;
-      entries.add(
-        datasetEntry(
-          // Re-emitted with the current suffix and column names, so a 0.4.x
-          // `_events.tsv` lands in the dataset as a valid `_beh.tsv`.
-          name: BidsName(
-            subject: name.subject,
-            session: name.session,
-            task: name.task.isEmpty
-                ? (isSession ? 'programming' : 'notes')
-                : name.task,
-            run: name.run,
-          ),
-          tsv: isSession
-              ? serializeSessionTsv(file.rows)
-              : writeAnnotations(file.notes),
-          contract: contract,
-          kind: isSession ? 'session_tsv' : 'annotation_tsv',
-          acqTime: isSession
-              ? (file.rows.isEmpty ? '' : file.rows.first.acqTime)
-              : (file.notes.isEmpty ? '' : file.notes.first.acqTime),
-        ),
-      );
-    }
-    if (entries.isEmpty) {
-      return (entries: entries, files: const [], skipped: skipped);
-    }
-
-    // The combined table goes where BIDS puts a cross-session derivation: its
-    // own directory under `derivatives/`, with its own dataset_description.
-    final aggregate = buildAggregate([
-      for (final f in _sessions) (filename: f.name, rows: f.rows),
-    ]);
-    final files = <DatasetFile>[
-      ...buildBidsDataset(
-        entries,
-        appName: appName,
-        appVersion: appVersion,
-        repoUrl: repoUrl,
-      ),
-      if (aggregate.rowCount > 0) ...[
-        derivativeDescription(
-          dir: aggregateDerivativeDir,
-          name: '$appName combined sessions',
-          appName: appName,
-          appVersion: appVersion,
-          repoUrl: repoUrl,
-        ),
-        (
-          path: '$aggregateDerivativeDir/$aggregateStem.tsv',
-          content: aggregate.tsv,
-        ),
-        (
-          path: '$aggregateDerivativeDir/$aggregateStem.json',
-          content: aggregateSidecarJson(contract, appVersion: appVersion),
-        ),
-      ],
-    ];
-    return (entries: entries, files: files, skipped: skipped);
-  }
-
   Future<void> _exportBids() async {
     final Map<String, dynamic> contract;
     try {
@@ -652,7 +586,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       if (mounted) _snack('BIDS export failed: $e');
       return;
     }
-    final built = _datasetFiles(contract);
+    final built = datasetFromUploads(_files, contract);
     if (!mounted) return;
     if (built.entries.isEmpty) {
       _snack('No uploaded file carries BIDS entities in its name.');

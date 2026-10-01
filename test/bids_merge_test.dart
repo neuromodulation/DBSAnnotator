@@ -8,6 +8,7 @@
 /// survive.
 library;
 
+import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/bids_dataset.dart';
 import 'package:dbs_annotator/core/bids_merge.dart';
 import 'package:dbs_annotator/core/tsv.dart';
@@ -203,6 +204,71 @@ void main() {
     final text = describeMergePlan(planBidsMerge(_curated(), _newVisit()));
     expect(text, contains('added'));
     expect(text, contains('gaining rows'));
+  });
+
+  group('a name already taken', () {
+    const preop = BidsName(
+      subject: '01',
+      session: 'preop',
+      task: 'programming',
+      run: '01',
+    );
+    DatasetEntry entry(String tsv, [BidsName name = preop]) =>
+        (name: name, tsv: tsv, sidecar: '{}', acqTime: 'n/a');
+    String at(BidsName n) => '${n.relativeDir}/${n.filename}';
+
+    test('a different recording moves to the next free run', () {
+      final r = renumberClashes(
+        [(path: at(preop), content: 'first')],
+        [entry('second')],
+      );
+      expect(r.entries.single.name.run, '02');
+      expect(r.renumbered.single, contains('run-02'));
+    });
+
+    test('an identical recording keeps its name, adding nothing', () {
+      final r = renumberClashes(
+        [(path: at(preop), content: 'same')],
+        [entry('same')],
+      );
+      expect(r.entries.single.name.run, '01');
+      expect(r.renumbered, isEmpty);
+    });
+
+    test('two incoming recordings with one name both get filed', () {
+      final r = renumberClashes(const [], [entry('a'), entry('b')]);
+      expect(r.entries.map((e) => e.name.run), ['01', '02']);
+    });
+
+    test('nextFreeRun skips every run already used', () {
+      final taken = {
+        for (final run in ['01', '02', '03'])
+          at(
+            BidsName(
+              subject: '01',
+              session: 'preop',
+              task: 'programming',
+              run: run,
+            ),
+          ),
+      };
+      expect(nextFreeRun(preop, taken).run, '04');
+    });
+
+    test('nothing is refused once clashes are renumbered', () {
+      final existing = [(path: at(preop), content: 'first')];
+      final r = renumberClashes(existing, [entry('second')]);
+      final plan = planBidsMerge(
+        existing,
+        buildBidsDataset(
+          r.entries,
+          appName: 'a',
+          appVersion: '0',
+          repoUrl: 'u',
+        ),
+      );
+      expect(plan.refused, isEmpty);
+    });
   });
 
   group('what kind of folder was chosen', () {

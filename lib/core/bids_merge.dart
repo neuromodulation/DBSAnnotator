@@ -9,6 +9,7 @@
 /// and the classification is the whole feature.
 library;
 
+import 'bids.dart';
 import 'bids_dataset.dart';
 import 'tsv.dart';
 
@@ -163,6 +164,51 @@ List<String>? _headerOf(String tsv) {
   final rows = parseTsv(tsv);
   if (rows.isEmpty || rows.first.isEmpty) return null;
   return [for (final c in rows.first) c.trim()];
+}
+
+String _pathOf(BidsName n) => '${n.relativeDir}/${n.filename}';
+
+/// [name], or the first later run whose path is not in [taken].
+BidsName nextFreeRun(BidsName name, Set<String> taken) {
+  var n = name;
+  while (taken.contains(_pathOf(n))) {
+    n = BidsName(
+      subject: n.subject,
+      session: n.session,
+      task: n.task,
+      run: BidsName.index('${int.parse(BidsName.index(n.run)) + 1}'),
+      suffix: n.suffix,
+      extension: n.extension,
+    );
+  }
+  return n;
+}
+
+/// [entries], with any whose path a different recording in [existing] (or an
+/// earlier entry) already uses moved to the next free run, so a second
+/// recording is filed beside the first instead of being refused or written
+/// over it. An entry identical to the file at its path keeps that path: adding
+/// it again adds nothing. `renumbered` says which moved where.
+({List<DatasetEntry> entries, List<String> renumbered}) renumberClashes(
+  List<DatasetFile> existing,
+  List<DatasetEntry> entries,
+) {
+  final content = {for (final f in existing) f.path: f.content};
+  final taken = {...content.keys};
+  final out = <DatasetEntry>[];
+  final renumbered = <String>[];
+  for (final e in entries) {
+    var name = e.name;
+    if (content[_pathOf(name)] != e.tsv) {
+      name = nextFreeRun(name, taken);
+      if (name.run != BidsName.index(e.name.run)) {
+        renumbered.add('${e.name.filename} as run-${name.run}');
+      }
+    }
+    taken.add(_pathOf(name));
+    out.add((name: name, tsv: e.tsv, sidecar: e.sidecar, acqTime: e.acqTime));
+  }
+  return (entries: out, renumbered: renumbered);
 }
 
 /// One line describing [plan], for the confirmation shown before it runs.

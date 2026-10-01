@@ -703,7 +703,7 @@ class _SessionScreenState extends State<SessionScreen> {
         _datasetName = into.name;
         _savePathIsSandboxCopy = false;
         _subjectCtrl.text = subject;
-        _runCtrl.text = run;
+        _runCtrl.text = into.name.run;
         _currentStep = 1;
       });
       _snack(

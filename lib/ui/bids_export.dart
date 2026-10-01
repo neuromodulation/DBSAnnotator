@@ -16,7 +16,13 @@ import 'package:flutter/material.dart';
 import '../app_info.dart';
 import '../core/bids.dart';
 import '../core/bids_dataset.dart';
+import '../core/annotation.dart';
+import '../core/bids_merge.dart';
 import '../core/bids_sidecar.dart';
+import '../core/session/aggregate.dart';
+import '../core/session/session_file.dart';
+import '../core/session/tsv_kind.dart';
+import '../report/upload_actions.dart';
 import 'share_util.dart';
 
 /// Zip the dataset built from [entries] and deliver it.
@@ -89,3 +95,103 @@ DatasetEntry datasetEntry({
 
 String _encode(Map<String, dynamic> sidecar) =>
     '${const JsonEncoder.withIndent('  ').convert(sidecar)}\n';
+
+/// The dataset [uploads] describe: its entries, the whole file list,
+/// and the names left out for want of BIDS entities.
+///
+/// Shared by the zip export and the merge, so the two cannot disagree about
+/// what a dataset made from this upload contains.
+///
+/// With [existing], a file whose name that dataset already uses for a
+/// different recording moves to the next free run (see [renumberClashes]).
+({
+  List<DatasetEntry> entries,
+  List<DatasetFile> files,
+  List<String> skipped,
+  List<String> renumbered,
+})
+datasetFromUploads(
+  List<Uploaded> uploads,
+  Map<String, dynamic> contract, {
+  List<DatasetFile> existing = const [],
+}) {
+  final entries = <DatasetEntry>[];
+  final skipped = <String>[];
+  for (final file in uploads) {
+    final name = BidsName.parse(file.name);
+    if (name == null || name.session.isEmpty) {
+      skipped.add(file.name);
+      continue;
+    }
+    final isSession = file.kind == TsvKind.programming;
+    entries.add(
+      datasetEntry(
+        // Re-emitted with the current suffix and column names, so a 0.4.x
+        // `_events.tsv` lands in the dataset as a valid `_beh.tsv`.
+        name: BidsName(
+          subject: name.subject,
+          session: name.session,
+          task: name.task.isEmpty
+              ? (isSession ? 'programming' : 'notes')
+              : name.task,
+          run: name.run,
+        ),
+        tsv: isSession
+            ? serializeSessionTsv(file.rows)
+            : writeAnnotations(file.notes),
+        contract: contract,
+        kind: isSession ? 'session_tsv' : 'annotation_tsv',
+        acqTime: isSession
+            ? (file.rows.isEmpty ? '' : file.rows.first.acqTime)
+            : (file.notes.isEmpty ? '' : file.notes.first.acqTime),
+      ),
+    );
+  }
+  final placed = renumberClashes(existing, entries);
+  if (entries.isEmpty) {
+    return (
+      entries: entries,
+      files: const [],
+      skipped: skipped,
+      renumbered: const [],
+    );
+  }
+
+  // The combined table goes where BIDS puts a cross-session derivation: its
+  // own directory under `derivatives/`, with its own dataset_description.
+  final aggregate = buildAggregate([
+    for (final f in uploads)
+      if (f.kind == TsvKind.programming) (filename: f.name, rows: f.rows),
+  ]);
+  final files = <DatasetFile>[
+    ...buildBidsDataset(
+      placed.entries,
+      appName: appName,
+      appVersion: appVersion,
+      repoUrl: repoUrl,
+    ),
+    if (aggregate.rowCount > 0) ...[
+      derivativeDescription(
+        dir: aggregateDerivativeDir,
+        name: '$appName combined sessions',
+        appName: appName,
+        appVersion: appVersion,
+        repoUrl: repoUrl,
+      ),
+      (
+        path: '$aggregateDerivativeDir/$aggregateStem.tsv',
+        content: aggregate.tsv,
+      ),
+      (
+        path: '$aggregateDerivativeDir/$aggregateStem.json',
+        content: aggregateSidecarJson(contract, appVersion: appVersion),
+      ),
+    ],
+  ];
+  return (
+    entries: placed.entries,
+    files: files,
+    skipped: skipped,
+    renumbered: placed.renumbered,
+  );
+}

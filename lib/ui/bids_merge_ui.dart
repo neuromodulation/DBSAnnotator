@@ -287,20 +287,23 @@ Future<({String? root, BidsName name})?> askNewTarget(
     task: proposed.task,
     run: proposed.run,
   );
+  // A name already filed moves to the next free run: the dataset can hold
+  // any number of recordings per session, but two cannot share a file name.
   final filed = {for (final f in folder.existing) f.path};
   final label = await askSessionLabel(
     context,
     proposed.session,
-    taken: (session) {
-      final n = named(session);
-      return filed.contains('${n.relativeDir}/${n.filename}')
-          ? 'This dataset already holds ${n.filename}. Use another label, '
-                'or cancel and change the run.'
-          : null;
+    note: (session) {
+      final asked = named(session);
+      final free = nextFreeRun(asked, filed);
+      return free.run == BidsName.index(asked.run)
+          ? null
+          : '${asked.filename} is already in this dataset, so this recording '
+                'is filed as run-${free.run}.';
     },
   );
   if (label == null || !context.mounted) return null;
-  final name = named(label);
+  final name = nextFreeRun(named(label), filed);
   if (!await confirmRecordInto(context, folder.root, name, what: what)) {
     return null;
   }
@@ -310,22 +313,22 @@ Future<({String? root, BidsName name})?> askNewTarget(
 /// Ask for the `ses-` label of a recording filed into a dataset, proposing
 /// [proposed]. Returns the label as it will be filed, or null when cancelled.
 ///
-/// [taken] explains why a label cannot be used, or returns null when it can.
+/// [note] says what filing under a label implies, or returns null.
 Future<String?> askSessionLabel(
   BuildContext context,
   String proposed, {
-  String? Function(String label)? taken,
+  String? Function(String label)? note,
 }) => showDialog<String>(
   context: context,
-  builder: (_) => _SessionLabelDialog(proposed, taken),
+  builder: (_) => _SessionLabelDialog(proposed, note),
 );
 
 /// Owns its controller, so the field outlives the dialog's closing animation.
 class _SessionLabelDialog extends StatefulWidget {
-  const _SessionLabelDialog(this.proposed, this.taken);
+  const _SessionLabelDialog(this.proposed, this.note);
 
   final String proposed;
-  final String? Function(String label)? taken;
+  final String? Function(String label)? note;
 
   @override
   State<_SessionLabelDialog> createState() => _SessionLabelDialogState();
@@ -345,9 +348,7 @@ class _SessionLabelDialogState extends State<_SessionLabelDialog> {
   Widget build(BuildContext context) {
     final typed = _ctrl.text.trim();
     final label = BidsName.label(typed);
-    final problem = label.isEmpty
-        ? 'Letters and digits only; it cannot be empty.'
-        : widget.taken?.call(label);
+    final note = label.isEmpty ? null : widget.note?.call(label);
     return AlertDialog(
       title: const Text('Session label'),
       content: TextField(
@@ -355,12 +356,17 @@ class _SessionLabelDialogState extends State<_SessionLabelDialog> {
         autofocus: true,
         decoration: InputDecoration(
           labelText: 'ses-',
-          helperText: label.isNotEmpty && label != typed
-              ? 'Filed as ses-$label: BIDS labels are letters and digits.'
-              : 'Often the date, but use whatever this study uses.',
-          helperMaxLines: 2,
-          errorText: typed.isEmpty ? null : problem,
-          errorMaxLines: 3,
+          helperText: [
+            if (label.isNotEmpty && label != typed)
+              'Filed as ses-$label: BIDS labels are letters and digits.'
+            else if (label.isNotEmpty)
+              'Often the date, but use whatever this study uses.',
+            ?note,
+          ].join('\n'),
+          helperMaxLines: 4,
+          errorText: typed.isNotEmpty && label.isEmpty
+              ? 'Letters and digits only.'
+              : null,
         ),
       ),
       actions: [
@@ -369,9 +375,7 @@ class _SessionLabelDialogState extends State<_SessionLabelDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: problem == null
-              ? () => Navigator.pop(context, label)
-              : null,
+          onPressed: label.isEmpty ? null : () => Navigator.pop(context, label),
           child: const Text('Use'),
         ),
       ],
@@ -466,11 +470,15 @@ Future<String?> fileIntoDataset({
 ///
 /// This is a gate, not a courtesy: writing into a dataset the app did not
 /// create is the one operation here with no undo.
+///
+/// [renumbered] lists the files moved to a free run because their name was
+/// taken by a different recording.
 Future<bool> confirmMerge(
   BuildContext context,
   MergePlan plan,
-  String target,
-) async {
+  String target, {
+  List<String> renumbered = const [],
+}) async {
   final theme = Theme.of(context);
   final ok = await showDialog<bool>(
     context: context,
@@ -489,6 +497,7 @@ Future<bool> confirmMerge(
               const SizedBox(height: 12),
               for (final (label, paths) in [
                 ('Added', plan.added),
+                ('Filed under the next free run', renumbered),
                 ('Gaining rows', plan.rowMerged),
                 ('Left unchanged', plan.keptAsIs),
                 ('Refused: already recorded', plan.refused),
