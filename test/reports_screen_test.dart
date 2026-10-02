@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:dbs_annotator/core/session/session_row.dart';
+import 'package:dbs_annotator/report/upload_actions.dart';
 import 'package:dbs_annotator/ui/reports_screen.dart';
+import 'package:dbs_annotator/ui/session/entries_table.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -47,7 +51,7 @@ void main() {
       'Single session report',
       'Longitudinal report',
       'Combined table (TSV)',
-      'BIDS dataset (zip)',
+      'Create a BIDS dataset (zip)',
       'Add to an existing dataset',
     ]) {
       expect(find.text(label), findsOneWidget, reason: label);
@@ -63,5 +67,64 @@ void main() {
       if (button == load) continue;
       expect(button.onPressed, isNull, reason: 'no action is tappable yet');
     }
+
+    // The info stays open on a disabled row: it says what the row needs.
+    expect(find.byTooltip('About this export'), findsNWidgets(5));
+    await tester.tap(find.byTooltip('About this export').first);
+    await tester.pumpAndSettle();
+    for (final heading in const [
+      'How it is exported',
+      'What it needs',
+      'What it creates',
+    ]) {
+      expect(find.text(heading), findsOneWidget, reason: heading);
+    }
+    expect(find.text(ReportAction.sessionReport.needs), findsOneWidget);
+  });
+
+  testWidgets('one session: the page scrolls as a whole, and the dataset add '
+      'files only the TSV unless the report is ticked', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(1000, 700));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    const name = 'sub-01_ses-20260203_task-programming_run-01_beh.tsv';
+    final upload = classifyUpload(
+      name,
+      File('test/fixtures/$name').readAsStringSync(),
+    ).file!;
+    await tester.pumpWidget(
+      MaterialApp(home: ReportsScreen(initialFiles: [upload])),
+    );
+    await tester.pump();
+
+    final page = find.byType(Scrollable).first;
+    await tester.drag(page, const Offset(0, -1500));
+    await tester.pumpAndSettle();
+    expect(tester.state<ScrollableState>(page).position.pixels, greaterThan(0));
+    expect(find.byType(SessionEntriesTable), findsOneWidget);
+    expect(
+      find.text('Upload TSVs').hitTestable(),
+      findsNothing,
+      reason: 'scrolled away with the rest of the page',
+    );
+    await tester.drag(page, const Offset(0, 3000));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Add to dataset'));
+    await tester.pumpAndSettle();
+    final boxes = tester
+        .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+        .map((b) => b.value)
+        .toList();
+    expect(boxes, [true, false]);
+    final format = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.text('PDF'),
+    );
+    expect(format, findsNothing, reason: 'no format without the report');
+    await tester.tap(find.text('Report'));
+    await tester.pumpAndSettle();
+    expect(format, findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
   });
 }

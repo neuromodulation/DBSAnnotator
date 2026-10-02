@@ -3,13 +3,17 @@
 /// as part of a visit it did not happen in.
 library;
 
+import 'dart:convert';
 import 'dart:io';
+
+import 'package:archive/archive.dart';
 
 import 'package:dbs_annotator/core/annotation.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/core/session/tsv_kind.dart';
 import 'package:dbs_annotator/report/longitudinal_data.dart';
+import 'package:dbs_annotator/report/longitudinal_pdf.dart';
 import 'package:dbs_annotator/report/report_data.dart';
 import 'package:dbs_annotator/report/session_docx.dart';
 import 'package:dbs_annotator/report/upload_actions.dart';
@@ -46,24 +50,18 @@ void main() {
       expect(_inTable(data, 'same day'), isTrue);
     });
 
-    test('notes from other days are kept apart, dated, oldest first', () {
+    test('notes from other days stay out of the session table', () {
       expect(_inTable(data, 'later visit'), isFalse);
       expect(_inTable(data, 'earlier call'), isFalse);
-      expect(data.otherDateNotes.map((n) => n.text), [
-        'earlier call',
-        'later visit',
-      ]);
-      expect(data.otherDateNotes.first.date, '2026-01-20');
-      expect(data.otherDateNotes.first.time, '14:00:00');
     });
 
-    test('the Word table names them under their own heading', () {
+    test('the Word notes table carries its heading and full dates', () {
       final xml = datedNotesDocx(
-        'Notes from other dates',
-        data.otherDateNotes,
+        'Notes on days without a session',
+        datedNotes([_note('2026-03-10T09:06:00+00:00', 'later visit')]),
         contentTwips: 9000,
       );
-      expect(xml, contains('Notes from other dates'));
+      expect(xml, contains('Notes on days without a session'));
       expect(xml, contains('2026-03-10'));
       expect(
         datedNotesDocx('x', const [], contentTwips: 9000),
@@ -73,7 +71,7 @@ void main() {
     });
   });
 
-  test('notes naming another patient keep the session report off', () {
+  test('notes naming another patient keep the longitudinal report off', () {
     Uploaded file(String name, TsvKind kind) => (
       name: name,
       kind: kind,
@@ -90,9 +88,34 @@ void main() {
       file('sub-02_ses-20260203_task-notes_run-01_beh.tsv', TsvKind.notes),
     ];
     expect(
-      unavailableReason(ReportAction.sessionReport, files),
+      unavailableReason(ReportAction.longitudinalReport, files),
       'These files name different patients.',
     );
+  });
+
+  test('notes alone: every note listed by date, the patient named', () async {
+    const notesFile = 'sub-07_ses-20260203_task-notes_run-01_beh.tsv';
+    final data = buildLongitudinalReportData(
+      files: const {},
+      notes: [
+        _note('2026-03-10T09:06:00+00:00', 'second'),
+        _note('2026-02-03T09:06:00+00:00', 'first'),
+      ],
+      noteFilenames: const [notesFile],
+    );
+    expect(data.isEmpty, isTrue);
+    expect(data.patientId, '07');
+    expect(data.notesWithoutVisit.map((n) => n.text), ['first', 'second']);
+    final pdf = await buildLongitudinalPdf(data: data);
+    expect(pdf.bytes.sublist(0, 4), '%PDF'.codeUnits);
+    final doc = utf8.decode(
+      ZipDecoder()
+          .decodeBytes(buildLongitudinalDocx(data: data))
+          .findFile('word/document.xml')!
+          .readBytes()!,
+    );
+    expect(doc, contains('No session TSV was uploaded.'));
+    expect(doc, contains('second'));
   });
 
   group('longitudinal report', () {
@@ -113,7 +136,6 @@ void main() {
       expect(_inTable(visit(first), 'first visit'), isTrue);
       expect(_inTable(visit(first), 'second visit'), isFalse);
       expect(_inTable(visit(second), 'second visit'), isTrue);
-      expect(visit(first).otherDateNotes, isEmpty);
     });
 
     test('a note on a day with no session is listed on its own', () {

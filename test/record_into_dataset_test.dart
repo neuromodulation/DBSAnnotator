@@ -9,7 +9,9 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:dbs_annotator/app_info.dart';
 import 'package:dbs_annotator/core/bids.dart';
 import 'package:dbs_annotator/core/bids_dataset.dart';
@@ -174,5 +176,27 @@ void main() {
       _visit(contract),
     );
     expect(plan.write, isEmpty);
+  });
+
+  test('a report travels as bytes and is never overwritten', () async {
+    const path = '$reportsDerivativeDir/sub-01/ses-preop/beh/r_report.pdf';
+    final bytes = Uint8List.fromList([0x25, 0x50, 0x44, 0x46, 0xff]);
+    final incoming = [(path: path, content: kBinaryContent)];
+
+    final plan = planBidsMerge(await readDatasetDirectory(root.path), incoming);
+    expect(plan.added, [path]);
+    await applyMergeToDirectory(root.path, plan, binary: {path: bytes});
+    expect(File('${root.path}/$path').readAsBytesSync(), bytes);
+
+    final zip = ZipDecoder().decodeBytes(
+      mergedZip(const [], plan, binary: {path: bytes}),
+    );
+    expect(zip.findFile(path)!.readBytes(), bytes);
+
+    final again = planBidsMerge(
+      await readDatasetDirectory(root.path),
+      incoming,
+    );
+    expect(again.refused, [path]);
   });
 }

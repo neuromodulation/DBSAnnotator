@@ -45,8 +45,8 @@ it happens:
    stimulation changes begin.
 
 **Observations.**
-   Side effects and free-text notes attached to the block they were seen at, not
-   to the session as a whole.
+   Free-text notes attached to the block they were written at, not to the
+   session as a whole.
 
 **Time.**
    Every entry is timestamped with its UTC offset. This is what makes it
@@ -70,8 +70,9 @@ step that can silently lose a field.
 scale). That is the shape that pivots and groups without reshaping, and it lets
 a site using a different scale set add rows rather than columns.
 
-**Say only what the data supports.** Reports state "last recorded
-configuration", not "final settings", because nothing in the record shows that a
+**Say only what the data supports.** Reports call a configuration the one the
+patient was left on only when the clinician marked it so; otherwise they state
+"last recorded configuration", because nothing else in the record shows that a
 clinician confirmed a choice. Where the app ranks configurations, it refuses to
 do so until someone has said what "better" means for each scale. See
 :ref:`what-the-reports-do-not-say`.

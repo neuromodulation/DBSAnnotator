@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:dbs_annotator/core/brand_palette.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
+import 'package:dbs_annotator/report/docx_ooxml.dart';
 import 'package:dbs_annotator/report/report_data.dart';
 import 'package:dbs_annotator/report/report_sections.dart';
 import 'package:dbs_annotator/report/session_docx.dart';
@@ -32,7 +34,8 @@ void main() {
       isInitial: '1',
       scaleName: 'UPDRS-III',
       scaleValue: '32',
-      electrodeModel: 'SenSight B33005',
+      leftElectrodeModel: 'SenSight B33005',
+      rightElectrodeModel: 'SenSight B33005',
       leftAnode: 'C',
       leftCathode: '1',
       rightAnode: 'C',
@@ -46,7 +49,8 @@ void main() {
       isInitial: '0',
       scaleName: 'Tremor',
       scaleValue: '2',
-      electrodeModel: 'SenSight B33005',
+      leftElectrodeModel: 'SenSight B33005',
+      rightElectrodeModel: 'SenSight B33005',
       programId: 'A',
       leftStimFreq: '130',
       leftAnode: 'C',
@@ -69,7 +73,8 @@ void main() {
       isInitial: '0',
       scaleName: 'Tremor',
       scaleValue: '5',
-      electrodeModel: 'SenSight B33005',
+      leftElectrodeModel: 'SenSight B33005',
+      rightElectrodeModel: 'SenSight B33005',
       programId: 'B',
       leftStimFreq: '180',
       leftAnode: 'C',
@@ -234,11 +239,20 @@ void main() {
       // Tremor is minimised by default, so block 1 (value 2) beats block 2 (5).
       // The hexes are spelled out because this is the only automated guard on
       // what colour reaches a filed clinical document.
-      expect(doc, contains('w:fill="0DE69F"'), reason: 'best-block shading');
-      expect(doc, contains('w:fill="95F9D8"'), reason: 'second-best shading');
+      expect(
+        doc,
+        contains('w:fill="${docxHex(rankRowTint(kBestFill))}"'),
+        reason: 'best-block tint',
+      );
+      expect(doc, contains('w:color="0DE69F"'), reason: 'best-block edge');
+      expect(
+        doc,
+        contains('w:fill="${docxHex(rankRowTint(kSecondFill))}"'),
+        reason: 'second-best tint',
+      );
       expect(doc, contains('w:sz="24"'), reason: '3pt block separator rule');
-      expect(doc, contains('Highest aggregate index (rank 1)'));
-      expect(doc, contains('Second highest (rank 2)'));
+      expect(doc, contains('Highest aggregate index in this session (rank 1)'));
+      expect(doc, contains('Second highest in this session (rank 2)'));
       expect(
         doc,
         isNot(contains('Optimal')),
@@ -272,7 +286,8 @@ void main() {
       final doc = _part(bytes, 'word/document.xml');
       expect(doc, contains('Attestation'));
       expect(doc, contains('Recorded by'));
-      expect(doc, contains('Reviewed by'));
+      expect(doc, contains('Rated by'));
+      expect(doc, isNot(contains('Reviewed by')));
     });
 
     test('emits a page size and margins', () {

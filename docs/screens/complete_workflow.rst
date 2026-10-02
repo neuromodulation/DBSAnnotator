@@ -1,13 +1,12 @@
 Complete workflow
 =================
 
-The full session: stimulation parameters, electrode configuration, scale ratings,
-side effects and notes, recorded configuration by configuration.
+The full session: stimulation parameters, electrode configuration, scale ratings
+and notes, recorded configuration by configuration.
 
 The screen is a four-step wizard. Steps 2 and 4 share a two-row layout that
 follows the order the work is actually done in: what was *delivered* on top
-(parameters and electrodes), what was *observed* below (scales, side effects
-and notes).
+(parameters and electrodes), what was *observed* below (scales and notes).
 
 .. raw:: html
 
@@ -122,10 +121,10 @@ When a copy was kept, the next time you open the workflow it is offered back:
 status line under the buttons reports what was found: the row count, the next
 block number, and the append number (``append_id`` in the file: how many times
 it has been reopened to add blocks), so an append is never a guess. Opening a
-file also adopts the **electrode model named in that file**, so the lead diagrams
-show the patient's actual hardware rather than whatever the dropdown last held.
-If the file names a model that is not in the catalogue, the app says so rather
-than drawing the wrong lead.
+file also adopts the **electrode models named in that file**, one per side, so
+the lead diagrams show the patient's actual hardware rather than whatever the
+dropdown last held. If the file names a model that is not in the catalogue, the
+app says so rather than drawing the wrong lead.
 
 A file that is not a programming session, an annotations file for instance, is
 refused with an explanation rather than loading as empty rows.
@@ -147,7 +146,9 @@ The state the patient arrived in, before anything is changed.
 **Electrode model.** Choose the implanted lead. The catalogue covers Medtronic,
 Boston Scientific, Abbott, PINS and ALEVA leads, including segmented
 (directional) models. The diagrams are drawn to each lead's real contact heights
-and spacings, so two different leads look different.
+and spacings, so two different leads look different. **Same model on both
+sides** is ticked by default; untick it when the two leads differ, and a second
+menu sets the right lead. Each side's model is written to its own column.
 
 **Parameters, per side.** Frequency, amplitude and pulse width, with quick-pick
 presets. When more than one cathode is active, an amplitude split appears so you
@@ -217,8 +218,13 @@ Clinical scales settings
 Opened by the gear on the **Clinical scales** card in step 2.
 
 Edits the disease preset buttons for the baseline assessment: the group names
-(OCD, MDD, PD, ET, Dystonia, TS) and the scale names inside each. A clinical
-scale is just a name and a score, so a row here is one field.
+(OCD, MDD, PD, ET, Dystonia, TS), the scale names inside each, and each scale's
+**Min** and **Max**. The range is optional and is used only to draw the
+longitudinal report's clinical figure on the scale's own axis; it is never
+printed. The bundled scales come with their published total ranges where a name
+identifies one instrument (Y-BOCS 0 to 40, MADRS 0 to 60, and so on). Names that
+stand for more than one, such as HAM-D, UPDRS-III or MDS-UPDRS, are left blank
+for you to fill in.
 
 Selecting contacts
 ~~~~~~~~~~~~~~~~~~
@@ -304,7 +310,7 @@ The loop, repeated once per configuration tried.
 
 .. figure:: ../_static/screenshots/session_step3_recording.png
    :alt: The Recording step: program, parameters and lead diagrams above; scale
-         ratings, side effects and notes below, with the Insert button
+         ratings and notes below, with the Insert button
    :width: 100%
 
    One configuration rated and ready to insert. *Energy* is marked not assessed.
@@ -314,13 +320,24 @@ was not assessed can be marked omitted, which writes ``n/a`` rather than a
 made-up number. That is the grey bar with the crossed-out icon in the
 screenshot above.
 
-**Side effects** have their own field, separate from notes, because a side effect
-is the tolerability record for that configuration and should not be buried in
-free text.
+Anything observed at that configuration, a side effect included, goes in the
+block's **Notes**, which belong to the configuration active when they were typed.
 
-Insert to record the block. Notes and side effects clear, ready for the next one;
+Insert to record the block. The notes clear, ready for the next one;
 the parameters stay, so a single amplitude change is one edit rather than a full
 re-entry.
+
+**Patient leaves on this**, above the Insert button, marks the block being
+inserted as the configuration the patient goes home with (``is_final`` in the
+file). When the session ends, by leaving the workflow, closing the window or
+exporting a report, the app asks which block that is, defaulting to the one
+marked, else the last, with **Not recorded** as a choice. Reports call a
+configuration "left on" only when it was marked this way, and "last recorded"
+otherwise.
+
+Exporting a report also asks, optionally, who recorded the session and who
+rated the scales. The names are printed in the report's attestation block and
+saved nowhere else.
 
 The same step in the dark theme:
 

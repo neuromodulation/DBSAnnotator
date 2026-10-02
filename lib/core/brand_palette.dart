@@ -33,6 +33,18 @@ const int kGreyLight = 0xFFE6E6E6;
 const int kBestFill = kGreen;
 const int kSecondFill = kGreenLighter;
 
+/// A ranked table row's shading: [rankFill] at 30% over white, so the text
+/// stays easy to read and the row prints pale. The full colour goes on the
+/// row's left edge, which is what points at it.
+int rankRowTint(int rankFill) {
+  int mix(int shift) {
+    final c = (rankFill >> shift) & 0xFF;
+    return (255 - (255 - c) * 0.3).round() << shift;
+  }
+
+  return 0xFF000000 | mix(16) | mix(8) | mix(0);
+}
+
 /// Report chrome: rules, footers, meta lines and table header fills.
 ///
 /// [kInkMuted] is 5.02:1 on white, so a footer set in it still passes AA.

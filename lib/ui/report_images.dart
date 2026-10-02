@@ -60,13 +60,15 @@ Future<Uint8List?> renderElectrodePng(
 /// Word document are guaranteed to show identical images.
 ///
 /// Only what [sections] will actually embed is rendered: PNG encoding costs a
-/// few hundred ms on the UI isolate.
+/// few hundred ms on the UI isolate. [right] is the right lead's model when it
+/// differs from the left one, [model].
 Future<({ElectrodeReportImages? electrodes, Uint8List? chart})>
 renderReportGraphics(
   SessionReportData data,
   ElectrodeModel? model,
-  Set<ReportSection> sections,
-) async {
+  Set<ReportSection> sections, {
+  ElectrodeModel? right,
+}) async {
   // Every rasterisation is best-effort: a report without a picture beats no
   // report, and both builders degrade to token text when an image is missing.
   Uint8List? chart;
@@ -77,7 +79,10 @@ renderReportGraphics(
       debugPrint('Scales chart could not be rendered: $e\n$st');
     }
   }
-  if (model == null || !sections.contains(ReportSection.electrodes)) {
+  final rightModel = right ?? model;
+  if (model == null ||
+      rightModel == null ||
+      !sections.contains(ReportSection.electrodes)) {
     return (electrodes: null, chart: chart);
   }
 
@@ -88,7 +93,7 @@ renderReportGraphics(
     if (row == null) return null;
     try {
       return await renderElectrodePng(
-        model,
+        left ? model : rightModel,
         left ? row.leftAnode : row.rightAnode,
         left ? row.leftCathode : row.rightCathode,
       );

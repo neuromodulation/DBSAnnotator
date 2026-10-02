@@ -69,7 +69,7 @@ clone builds and tests immediately.
 
 | Home screen entry | What it is for |
 |---|---|
-| **Complete workflow** | Record a programming visit: stimulation parameters, electrode contacts, clinical and session scales, side effects, notes |
+| **Complete workflow** | Record a programming visit: stimulation parameters, electrode contacts, clinical and session scales, notes |
 | **Annotations only** | Timestamped free-text notes and nothing else |
 | **Reports and datasets** | Upload TSVs and get a session report, a longitudinal report across visits, a combined table or a BIDS dataset |
 
@@ -89,22 +89,6 @@ df.pivot_table(index=["append_id", "block_id"], columns="scale_name", values="sc
 Reports come out as PDF and Word, both built from the same numbers so they
 cannot disagree. The full format reference is in the
 [documentation](https://dbs-annotator.readthedocs.io/).
-
-## Fonts
-
-`assets/fonts/IBMPlexSans-{Regular,Bold}.ttf` are committed (SIL Open Font
-License, see `assets/fonts/LICENSE-IBMPlexSans.txt`). They do two jobs:
-
-- **PDF reports.** Without them the exporter falls back to Helvetica, which is
-  Latin-1 only, so a curly quote or an accented character in a clinical note
-  becomes `?`. The app warns when that happens.
-- **Documentation screenshots.** `flutter_tester` ships no fonts at all, so the
-  capture harness registers these; on a host without them it falls back to a
-  system font and the images stop being reproducible between machines.
-
-To replace them, use the **static** TTFs from
-<https://fonts.google.com/specimen/IBM+Plex+Sans> or
-<https://github.com/IBM/plex/releases>.
 
 ## Installing
 

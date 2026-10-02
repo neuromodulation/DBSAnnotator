@@ -60,8 +60,9 @@ void main() {
   });
 
   test('the invariants hold however many scales there are', () {
-    // Shrink-to-fit stops at a 6 pt floor, so a long legend can still be wider
-    // than the canvas; it must never grow taller into the plot.
+    // Shrink-to-fit stops at the 10 px print floor and then wraps into rows,
+    // so a long legend grows taller; it must still end above the plot and
+    // leave the plot most of the canvas.
     for (final n in [1, 5, 12, 30]) {
       final b = band(_spec(scales: n));
       expect(
@@ -76,7 +77,7 @@ void main() {
       );
       expect(
         b.padTop,
-        lessThan(120),
+        lessThan(160),
         reason: '$n scales must not eat the plot',
       );
     }

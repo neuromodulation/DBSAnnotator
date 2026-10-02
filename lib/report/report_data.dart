@@ -432,15 +432,31 @@ const sessionTableColumnWeights = <double>[
 /// A signed change: "-5", "+0.25", or "0" for none, never "+0".
 String _signed(double d) => d == 0 ? '0' : '${d > 0 ? '+' : ''}${_num(d)}';
 
-/// Whole values without decimals, otherwise at most two.
-String _num(double v) {
-  if (v == v.roundToDouble()) return v.toStringAsFixed(0);
-  var out = v.toStringAsFixed(2);
-  while (out.endsWith('0')) {
-    out = out.substring(0, out.length - 1);
-  }
-  return out;
-}
+/// The final configuration's heading when the clinician marked it.
+const kLeftOnTitle = 'Left on (marked by the clinician)';
+
+/// The final configuration's heading otherwise: the last block in the file,
+/// which a setting tried and rejected would occupy just the same.
+const kLastRecordedTitle = 'Last recorded configuration';
+
+/// Two decimals, as every rating in the reports is printed.
+String _num(double v) => v.toStringAsFixed(2);
+
+/// The Index column as printed in a session report: the rank's scope is in the
+/// header, because the longitudinal report ranks the same block across visits.
+const kSessionIndexHeader = 'Index (rank in this session)';
+
+/// The same column in the longitudinal per-visit tables.
+const kVisitsIndexHeader = 'Index (rank across all visits)';
+
+/// Columns printed right-aligned, so their digits line up down the column.
+const kNumericTableHeaders = {
+  'Freq (Hz)',
+  'Amp (mA)',
+  'PW (\u00B5s)',
+  kSessionIndexHeader,
+  kVisitsIndexHeader,
+};
 
 final int _indexColumn = sessionTableHeaders.indexOf('Index');
 
@@ -490,6 +506,8 @@ class ScalesChartSpec {
     required this.xLabel,
     required this.yLabel,
     this.xTickLabels = const {},
+    this.xGroups = const [],
+    this.rankScope = '',
   });
 
   /// One entry per scale, in encounter order: name -> {x -> value}. Missing x
@@ -536,6 +554,14 @@ class ScalesChartSpec {
   /// something.
   final Map<int, String> xTickLabels;
 
+  /// A second row of x labels, each centred under the x positions [from] to
+  /// [to] with a separator after it: the visit date under its blocks.
+  final List<({int from, int to, String label})> xGroups;
+
+  /// Where the rank bands rank, appended to "Rank 1" in the legend, so a reader
+  /// holding two reports sees why the same block ranks differently in each.
+  final String rankScope;
+
   bool get isEmpty => series.isEmpty || xs.isEmpty;
 }
 
@@ -558,8 +584,8 @@ class SessionReportData {
     required this.initScales,
     required this.initNotes,
     required this.tableData,
-    this.otherDateNotes = const [],
     required this.electrodeModel,
+    this.leftOnMarked = false,
     required this.hasElectrodeConfig,
     required this.initialTokens,
     required this.finalTokens,
@@ -616,13 +642,18 @@ class SessionReportData {
   /// [sessionTableHeaders]. Cells may contain '\n' for stacked values.
   final List<List<String>> tableData;
 
-  /// Notes from an accompanying file recorded on another day than this
-  /// session, oldest first. Interleaving them by clock time would place them
-  /// in a visit they did not happen in.
-  final List<DatedNote> otherDateNotes;
-
-  /// Electrode model label (first non-empty of initial/final), may be empty.
+  /// Electrode model label (first non-empty of initial/final): one name when
+  /// both leads are the same model, else each side's. May be empty.
   final String electrodeModel;
+
+  /// Whether the clinician marked the block the patient was left on, which is
+  /// then the final configuration instead of the last one recorded.
+  final bool leftOnMarked;
+
+  /// The heading over the final configuration: only a marked block is called
+  /// the one the patient was left on.
+  String get finalConfigTitle =>
+      leftOnMarked ? kLeftOnTitle : kLastRecordedTitle;
 
   final bool hasElectrodeConfig;
 
@@ -774,7 +805,10 @@ class SessionReportData {
   /// The table as printed: with no targets nothing is ranked, so the Index
   /// column would be blank and read as missing data. Its width goes to Notes.
   List<String> get tableHeaders => hasTargets
-      ? sessionTableHeaders
+      ? [
+          for (final h in sessionTableHeaders)
+            h == 'Index' ? kSessionIndexHeader : h,
+        ]
       : [
           for (final h in sessionTableHeaders)
             if (h != 'Index') h,
@@ -813,7 +847,6 @@ ScalesChartSpec buildScalesChartSpec({
   Map<String, Map<int, double>> amplitude = const {},
   Map<String, Map<int, double>> frequency = const {},
   Map<String, Map<int, double>> pulseWidth = const {},
-  String title = 'Session Scales Timeline',
   String xLabel = 'Block',
   String yLabel = 'Scale Value',
 }) {
@@ -863,9 +896,11 @@ ScalesChartSpec buildScalesChartSpec({
     aggregateIndex: index,
     bestXs: blocksAtRank(ranks, 1),
     secondXs: blocksAtRank(ranks, 2),
-    title: title,
+    // No title: the report's section heading and caption already name it.
+    title: '',
     xLabel: xLabel,
     yLabel: yLabel,
+    rankScope: 'in this session',
   );
 }
 
@@ -993,11 +1028,20 @@ Map<String, String> _lastConfigLines(SessionRow? r) {
   ) {
     final cathodes = contactsWithCurrent(cathode, amp);
     final anodes = contactsWithCurrent(anode, '');
-    if (cathodes.isEmpty && anodes.isEmpty) return '';
     final total = _paramRange([amp], splitSum: true);
-    final dose = total == null ? '' : ' = ${trimZeros(total.$2)} mA';
     final f = freq.trim().isEmpty ? '' : ', ${numCell(freq)} Hz';
     final p = pw.trim().isEmpty ? '' : ', ${numCell(pw)} \u00B5s';
+    // Parameters without contacts are still printed: a side's dose is not
+    // dropped because its contacts were not recorded.
+    if (cathodes.isEmpty && anodes.isEmpty) {
+      final params = [
+        if (total != null) '${trimZeros(total.$2)} mA',
+        if (f.isNotEmpty) f.substring(2),
+        if (p.isNotEmpty) p.substring(2),
+      ];
+      return params.join(', ');
+    }
+    final dose = total == null ? '' : ' = ${trimZeros(total.$2)} mA';
     return '$cathodes-'
         '${anodes.isEmpty ? '' : ' / $anodes+'}$dose$f$p';
   }
@@ -1121,11 +1165,25 @@ SessionReportData buildSessionReportData({
 
   // Electrode configuration: latest baseline row = initial settings, latest
   // recording row = final settings.
-  final latestFinal = _latestRow(recordingRows);
-  final electrodeModel = [
-    latestInit?.electrodeModel.trim() ?? '',
-    latestFinal?.electrodeModel.trim() ?? '',
+  // The block the clinician marked as the one the patient was left on wins
+  // over the last one recorded, which may be a setting tried and rejected.
+  final marked = finalBlockIn(recordingRows);
+  final leftOn = marked == null
+      ? null
+      : _latestRow([
+          for (final r in recordingRows)
+            if (r.blockId == marked) r,
+        ]);
+  final latestFinal = leftOn ?? _latestRow(recordingRows);
+  String modelOf(String Function(SessionRow) side) => [
+    for (final r in [latestInit, latestFinal])
+      if (r != null) side(r).trim(),
   ].firstWhere((m) => m.isNotEmpty, orElse: () => '');
+  final leftModel = modelOf((r) => r.leftElectrodeModel);
+  final rightModel = modelOf((r) => r.rightElectrodeModel);
+  final electrodeModel = rightModel.isEmpty || rightModel == leftModel
+      ? leftModel
+      : 'left $leftModel, right $rightModel';
 
   // Deliberately no fallback to `defaultScalePrefsFor`: fabricating `min` over
   // 0..10 for a file nobody configured produced a ranking, two green bands and
@@ -1270,9 +1328,6 @@ SessionReportData buildSessionReportData({
     for (final n in notes)
       if (recordedDate(n.acqTime) == sessionDate) n,
   ];
-  final otherDateNotes = datedNotes(
-    notes.where((n) => recordedDate(n.acqTime) != sessionDate),
-  );
   if (sameDay.isNotEmpty) {
     final groups = <(String, List<List<String>>)>[];
     for (var i = 0; i + 1 < tableData.length; i += 2) {
@@ -1333,8 +1388,8 @@ SessionReportData buildSessionReportData({
     initScales: initScales,
     initNotes: initNotes,
     tableData: tableData,
-    otherDateNotes: otherDateNotes,
     electrodeModel: electrodeModel,
+    leftOnMarked: leftOn != null,
     hasElectrodeConfig: latestInit != null || latestFinal != null,
     initialTokens: tokensOf(latestInit),
     finalTokens: tokensOf(latestFinal),

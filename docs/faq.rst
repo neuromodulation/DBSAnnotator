@@ -60,9 +60,12 @@ Reports
    Because no scale targets have been set, so nothing has been ranked. Set them
    at export, or from the Recording step. See :ref:`scale-targets`.
 
-**Why does the report say "last recorded configuration" rather than "final"?**
-   Because the data records only which block came last, not that a clinician
-   confirmed a choice. See :ref:`what-the-reports-do-not-say`.
+**Why does the report say "last recorded configuration" rather than "left on"?**
+   Because no block was marked as the one the patient was left on. Mark it with
+   **Patient leaves on this** on the recording step, or in the question asked
+   when the session ends; an unmarked file records only which block came last,
+   not that a clinician confirmed a choice. See
+   :ref:`what-the-reports-do-not-say`.
 
 **Can I get the report as a Word file I can edit?**
    Yes. Both formats come from the same numbers, so the ``.docx`` says exactly
@@ -83,5 +86,6 @@ Troubleshooting
    matching report.
 
 **The lead diagram does not match the patient's implant.**
-   Check the electrode model. When a file is opened, the app adopts the model
-   named inside it and tells you if that name is not in the catalogue.
+   Check the electrode model of each side. When a file is opened, the app
+   adopts the models named inside it and tells you if a name is not in the
+   catalogue.

@@ -23,6 +23,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../app_info.dart' show appName, appVersion;
+import '../core/brand_palette.dart' show rankRowTint;
+import 'attestation.dart';
 import 'report_data.dart';
 import 'report_fonts.dart';
 import 'report_palette.dart';
@@ -49,6 +51,12 @@ const kElectrodeGroupGapPt = 36.0;
 /// One lead's width when four share [available] points.
 double electrodeCellWidth(double available) =>
     (available - kElectrodeGroupGapPt - 2 * kElectrodePairGapPt) / 4;
+
+/// Right alignment for the numeric columns among [headers].
+Map<int, pw.Alignment> numericColumnAlignments(List<String> headers) => {
+  for (final (i, h) in headers.indexed)
+    if (kNumericTableHeaders.contains(h)) i: pw.Alignment.centerRight,
+};
 
 /// A compact bordered grid; the first row is the header when [header] is set.
 /// Without [widths] the table is only as wide as its content.
@@ -160,7 +168,7 @@ pw.Widget _electrodeCell(
           pw.Text(
             detail,
             textAlign: pw.TextAlign.center,
-            style: const pw.TextStyle(fontSize: 6.5),
+            style: const pw.TextStyle(fontSize: 8),
           ),
         pw.SizedBox(height: 2),
         if (png != null)
@@ -171,7 +179,7 @@ pw.Widget _electrodeCell(
             child: pw.Center(
               child: pw.Text(
                 '(not recorded)',
-                style: const pw.TextStyle(fontSize: 7, color: pdfInk),
+                style: const pw.TextStyle(fontSize: 8, color: pdfInk),
               ),
             ),
           ),
@@ -200,7 +208,7 @@ List<pw.Widget> _legendBlock(SessionReportData data, ReportTextSanitiser t) {
       pw.SizedBox(height: 4),
       pw.Text(
         t(data.targetsText),
-        style: const pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic),
+        style: const pw.TextStyle(fontSize: 9, color: pdfInk),
       ),
     ];
   }
@@ -241,9 +249,9 @@ List<pw.Widget> _legendLines(
             fontWeight: pw.FontWeight.bold,
           ),
         ),
-        swatch(pdfBestFill, 'Highest aggregate index (rank 1)'),
+        swatch(pdfBestFill, 'Highest aggregate index in this session (rank 1)'),
         pw.SizedBox(width: 14),
-        swatch(pdfSecondFill, 'Second highest (rank 2)'),
+        swatch(pdfSecondFill, 'Second highest in this session (rank 2)'),
       ],
     ),
     if (data.targetsText.isNotEmpty)
@@ -271,7 +279,7 @@ List<pw.Widget> _legendLines(
     pw.SizedBox(height: 2),
     pw.Text(
       kRankingDisclaimer,
-      style: const pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic),
+      style: const pw.TextStyle(fontSize: 9, color: pdfInk),
     ),
   ];
 }
@@ -297,6 +305,7 @@ Future<ReportBytes> buildSessionPdf({
   Uint8List? chartPng,
   PdfPageFormat pageFormat = PdfPageFormat.a4,
   Set<ReportSection> sections = kAllReportSections,
+  ReportAttestation attestation = kNoAttestation,
 }) async {
   // Prefer rendered electrode images when the screen supplied them.
   final ei = electrodeImages;
@@ -320,9 +329,7 @@ Future<ReportBytes> buildSessionPdf({
   }
 
   // Header is table row 0, so data row i is table row i + 1.
-  final rowFills = {
-    for (final e in data.rowFills.entries) e.key + 1: PdfColor.fromInt(e.value),
-  };
+  final rowFills = {for (final e in data.rowFills.entries) e.key + 1: e.value};
 
   // Unicode theme when the IBM Plex assets are bundled; null means built-in
   // Helvetica, which can only encode Latin-1. dart_pdf does not throw on an
@@ -383,7 +390,7 @@ Future<ReportBytes> buildSessionPdf({
           child: pw.Text(
             '$appName - Session report',
             style: const pw.TextStyle(
-              fontSize: 20,
+              fontSize: 17,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
@@ -444,7 +451,7 @@ Future<ReportBytes> buildSessionPdf({
                         crossAxisAlignment: pw.CrossAxisAlignment.start,
                         children: [
                           pw.Text(
-                            'Last recorded configuration',
+                            data.finalConfigTitle,
                             style: const pw.TextStyle(
                               fontSize: 10,
                               fontWeight: pw.FontWeight.bold,
@@ -520,10 +527,7 @@ Future<ReportBytes> buildSessionPdf({
                   // caption carries subject, session, n and what the green means.
                   pw.Text(
                     t(data.figureCaption),
-                    style: const pw.TextStyle(
-                      fontSize: 8,
-                      fontStyle: pw.FontStyle.italic,
-                    ),
+                    style: const pw.TextStyle(fontSize: 8, color: pdfInk),
                   ),
                   pw.SizedBox(height: 8),
                 ],
@@ -549,6 +553,7 @@ Future<ReportBytes> buildSessionPdf({
               headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
               cellStyle: cellStyle,
               cellAlignment: pw.Alignment.centerLeft,
+              cellAlignments: numericColumnAlignments(data.tableHeaders),
               headers: data.tableHeaders,
               data: tableData,
               // The line between a block's own L and R rows is light; the
@@ -577,20 +582,24 @@ Future<ReportBytes> buildSessionPdf({
                   return const pw.BoxDecoration();
                 }
                 return pw.BoxDecoration(
-                  color: fill,
-                  border: isBoundary
-                      ? const pw.Border(
-                          top: pw.BorderSide(
+                  color: fill == null
+                      ? null
+                      : PdfColor.fromInt(rankRowTint(fill)),
+                  border: pw.Border(
+                    top: isBoundary
+                        ? const pw.BorderSide(
                             width: 1.6,
                             color: PdfColors.black,
-                          ),
-                        )
-                      : null,
+                          )
+                        : pw.BorderSide.none,
+                    left: fill != null && col == 0
+                        ? pw.BorderSide(width: 2, color: PdfColor.fromInt(fill))
+                        : pw.BorderSide.none,
+                  ),
                 );
               },
             ),
             ..._legendBlock(data, t),
-            ...datedNotesPdf('Notes from other dates', data.otherDateNotes, t),
           ],
           pw.SizedBox(height: 8),
         ],
@@ -620,8 +629,8 @@ Future<ReportBytes> buildSessionPdf({
                     pw.Row(
                       children: [
                         for (final (i, title) in [
-                          'Initial settings',
-                          'Last recorded settings',
+                          'At start of session',
+                          data.finalConfigTitle,
                         ].indexed) ...[
                           if (i > 0) pw.SizedBox(width: kElectrodeGroupGapPt),
                           pw.SizedBox(
@@ -681,7 +690,7 @@ Future<ReportBytes> buildSessionPdf({
                     pw.Text(
                       'Orange = anode (+)   Blue = cathode (-)   Grey = inactive.   '
                       "A percentage is that contact's share of the total current.",
-                      style: const pw.TextStyle(fontSize: 7, color: pdfInk),
+                      style: const pw.TextStyle(fontSize: 8, color: pdfInk),
                     ),
                   ] else ...[
                     // Text fallback, no rasteriser available. Vendor nomenclature
@@ -689,8 +698,8 @@ Future<ReportBytes> buildSessionPdf({
                     // it here and `2b(3.3)` elsewhere describes one lead two
                     // ways.
                     for (final pair in [
-                      ('Initial settings', data.initialTokens),
-                      ('Last recorded settings', data.finalTokens),
+                      ('At start of session', data.initialTokens),
+                      (data.finalConfigTitle, data.finalTokens),
                     ])
                       if (pair.$2 != null) ...[
                         pw.SizedBox(height: 4),
@@ -733,59 +742,11 @@ Future<ReportBytes> buildSessionPdf({
                 2: pw.FlexColumnWidth(),
               },
             ),
-
-            // The response half of a dose-response record: every parameter gets
-            // a range above, so without this no scale does.
-            if (data.response.isNotEmpty) ...[
-              pw.SizedBox(height: 8),
-              // A four-row table split over a page break is unreadable.
-              pw.Inseparable(
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      'Response (first to last rated block)',
-                      style: const pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                    pw.SizedBox(height: 2),
-                    reportGrid(data.responseGrid, t),
-                  ],
-                ),
-              ),
-            ],
           ],
         ],
         // Without this the document asserts that a machine produced it and that
         // no human stands behind it.
-        pw.SizedBox(height: 18),
-        pw.Text(
-          'Attestation',
-          style: const pw.TextStyle(
-            fontSize: 10,
-            fontWeight: pw.FontWeight.bold,
-          ),
-        ),
-        pw.SizedBox(height: 10),
-        pw.Row(
-          children: [
-            for (final label in ['Recorded by', 'Reviewed by', 'Date'])
-              pw.Expanded(
-                child: pw.Container(
-                  margin: const pw.EdgeInsets.only(right: 16),
-                  padding: const pw.EdgeInsets.only(top: 14),
-                  decoration: const pw.BoxDecoration(
-                    border: pw.Border(
-                      top: pw.BorderSide(color: pdfInk, width: 0.8),
-                    ),
-                  ),
-                  child: pw.Text(
-                    label,
-                    style: const pw.TextStyle(fontSize: 8, color: pdfInk),
-                  ),
-                ),
-              ),
-          ],
-        ),
+        ...attestationPdf(attestationFields(attestation, rated: true), t),
       ],
     ),
   );

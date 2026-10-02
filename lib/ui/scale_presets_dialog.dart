@@ -2,16 +2,26 @@ import 'package:flutter/material.dart';
 
 import '../core/session/scale_presets.dart';
 
-/// Edit the clinical scale presets (disease group -> scale names), mirroring the
-/// desktop `ClinicalScalesSettingsDialog`. Returns the edited map on Save &
-/// Close, or null on Cancel.
-Future<Map<String, List<String>>?> showClinicalPresetsDialog(
+/// Edit the clinical scale presets (disease group -> scale names) and each
+/// scale's range, mirroring the desktop `ClinicalScalesSettingsDialog`. The
+/// range only sets the clinical figure's y axis, so it may be left blank.
+/// Returns the edited groups and ranges on Save & Close, or null on Cancel.
+Future<({Map<String, List<String>> groups, Map<String, List<String>> ranges})?>
+showClinicalPresetsDialog(
   BuildContext context, {
   required Map<String, List<String>> presets,
+  Map<String, ScaleRange> ranges = const {},
 }) async {
   final groups = [
     for (final e in presets.entries)
-      _Group(e.key, [for (final n in e.value) _ScaleRow(name: n)]),
+      _Group(e.key, [
+        for (final n in e.value)
+          _ScaleRow(
+            name: n,
+            min: ranges[n]?.min ?? '',
+            max: ranges[n]?.max ?? '',
+          ),
+      ]),
   ];
   final out = await showDialog<Map<String, List<List<String>>>>(
     context: context,
@@ -22,10 +32,18 @@ Future<Map<String, List<String>>?> showClinicalPresetsDialog(
     ),
   );
   if (out == null) return null;
-  // Clinical rows are name-only ([name]); flatten to a name list.
-  return {
-    for (final e in out.entries) e.key: [for (final r in e.value) r[0]],
-  };
+  // Clinical rows are [name, min, max]: the names per group, and one range per
+  // scale wherever both bounds were given.
+  return (
+    groups: {
+      for (final e in out.entries) e.key: [for (final r in e.value) r[0]],
+    },
+    ranges: {
+      for (final rows in out.values)
+        for (final r in rows)
+          if (r[1].isNotEmpty && r[2].isNotEmpty) r[0]: [r[1], r[2]],
+    },
+  );
 }
 
 /// Edit the session scale presets (disease group -> (name,min,max,mode) rows),
@@ -53,8 +71,8 @@ Future<Map<String, List<List<String>>>?> showSessionPresetsDialog(
   );
 }
 
-/// One editable scale row. [min]/[max] are only shown for session presets; the
-/// report [mode] is carried through unchanged (defaulting for new rows).
+/// One editable scale row. The report [mode] is carried through unchanged
+/// (defaulting for new rows) and only session rows use it.
 class _ScaleRow {
   _ScaleRow({
     String name = '',
@@ -132,10 +150,14 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
     final name = await _promptText(context, 'New preset group', 'Group name');
     if (name == null || name.trim().isEmpty) return;
     setState(() {
-      _groups.add(_Group(name.trim(), [_ScaleRow()]));
+      _groups.add(_Group(name.trim(), [_newRow()]));
       _selected = _groups.length - 1;
     });
   }
+
+  /// A new row: 0 to 10 for a session scale, no range for a clinical one.
+  _ScaleRow _newRow() =>
+      widget.isSession ? _ScaleRow() : _ScaleRow(min: '', max: '');
 
   void _deleteGroup(int i) {
     setState(() {
@@ -156,7 +178,7 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
         rows.add(
           widget.isSession
               ? [n, r.min.text.trim(), r.max.text.trim(), r.mode]
-              : [n],
+              : [n, r.min.text.trim(), r.max.text.trim()],
         );
       }
       out[name] = rows;
@@ -254,7 +276,7 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton.icon(
-            onPressed: () => setState(() => g.rows.add(_ScaleRow())),
+            onPressed: () => setState(() => g.rows.add(_newRow())),
             icon: const Icon(Icons.add),
             label: const Text('Add scale'),
           ),
@@ -277,12 +299,10 @@ class _ScalePresetsDialogState extends State<_ScalePresetsDialog> {
               ),
             ),
           ),
-          if (widget.isSession) ...[
-            const SizedBox(width: 8),
-            SizedBox(width: 64, child: _numField(r.min, 'Min')),
-            const SizedBox(width: 8),
-            SizedBox(width: 64, child: _numField(r.max, 'Max')),
-          ],
+          const SizedBox(width: 8),
+          SizedBox(width: 64, child: _numField(r.min, 'Min')),
+          const SizedBox(width: 8),
+          SizedBox(width: 64, child: _numField(r.max, 'Max')),
           IconButton(
             icon: const Icon(Icons.remove_circle_outline),
             tooltip: 'Remove scale',

@@ -15,6 +15,7 @@ import '../report/annotations_report.dart';
 import '../report/session_docx.dart' show DocxPageSize;
 import 'bids_export.dart';
 import 'bids_merge_ui.dart';
+import 'report_sections_dialog.dart' show askAttestation;
 import 'save_target.dart';
 import 'share_util.dart';
 import 'theme.dart';
@@ -492,6 +493,8 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _snack('Add at least one note before exporting a report.');
       return;
     }
+    final attestation = await askAttestation(context, rated: false);
+    if (attestation == null || !mounted) return;
     final name = _bidsName();
     final subject = name.subject;
     // `_report` is not a BIDS suffix; a report is a derivative, not raw data.
@@ -513,11 +516,18 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         );
         if (docx) {
           return (
-            bytes: buildAnnotationsDocx(data, pageSize: DocxPageSize.a4),
+            bytes: buildAnnotationsDocx(
+              data,
+              pageSize: DocxPageSize.a4,
+              attestation: attestation,
+            ),
             warning: null,
           );
         }
-        final report = await buildAnnotationsPdf(data);
+        final report = await buildAnnotationsPdf(
+          data,
+          attestation: attestation,
+        );
         return (
           bytes: report.bytes,
           warning: report.lostCharacters

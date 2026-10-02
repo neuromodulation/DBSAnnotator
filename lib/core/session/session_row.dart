@@ -15,9 +15,11 @@ class SessionRow {
     this.blockId = '',
     this.appendId = '',
     this.isInitial = '',
+    this.isFinal = '',
     this.scaleName = '',
     this.scaleValue = '',
-    this.electrodeModel = '',
+    this.leftElectrodeModel = '',
+    this.rightElectrodeModel = '',
     this.programId = '',
     this.leftStimFreq = '',
     this.leftAnode = '',
@@ -41,9 +43,16 @@ class SessionRow {
   /// reopened: file-scoped, so equal values in two files are unrelated.
   final String appendId;
   final String isInitial;
+
+  /// `1` on the rows of the block the patient was left on, `0` elsewhere, and
+  /// empty in files written before the column existed.
+  final String isFinal;
   final String scaleName;
   final String scaleValue;
-  final String electrodeModel;
+
+  /// The lead model per side, as named in `schema/electrode_models.json`.
+  final String leftElectrodeModel;
+  final String rightElectrodeModel;
   final String programId;
   final String leftStimFreq;
   final String leftAnode;
@@ -67,9 +76,11 @@ class SessionRow {
     blockId: readColumn(m, 'block_id'),
     appendId: readColumn(m, 'append_id'),
     isInitial: readColumn(m, 'is_initial'),
+    isFinal: readColumn(m, 'is_final'),
     scaleName: readColumn(m, 'scale_name'),
     scaleValue: readColumn(m, 'scale_value'),
-    electrodeModel: readColumn(m, 'electrode_model'),
+    leftElectrodeModel: readColumn(m, 'left_electrode_model'),
+    rightElectrodeModel: readColumn(m, 'right_electrode_model'),
     programId: readColumn(m, 'program_id'),
     leftStimFreq: readColumn(m, 'left_stim_freq'),
     leftAnode: readColumn(m, 'left_anode'),
@@ -110,9 +121,11 @@ class SessionRow {
     'block_id': blockId,
     'append_id': appendId,
     'is_initial': isInitial,
+    'is_final': isFinal,
     'scale_name': scaleName,
     'scale_value': scaleValue,
-    'electrode_model': electrodeModel,
+    'left_electrode_model': leftElectrodeModel,
+    'right_electrode_model': rightElectrodeModel,
     'program_id': programId,
     'left_stim_freq': leftStimFreq,
     'left_anode': leftAnode,
@@ -128,13 +141,23 @@ class SessionRow {
   };
 }
 
-/// The electrode model named by [rows], or '' when none of them say. The name
-/// keys `ElectrodeCatalog.models`, and a file opened against the wrong model
-/// labels one lead's contacts with another lead's geometry.
-String electrodeModelIn(Iterable<SessionRow> rows) {
+/// The electrode model [rows] name for one side, the left unless [right], or
+/// '' when none of them say. The name keys `ElectrodeCatalog.models`, and a
+/// file opened against the wrong model labels one lead's contacts with another
+/// lead's geometry.
+String electrodeModelIn(Iterable<SessionRow> rows, {bool right = false}) {
   for (final row in rows) {
-    final name = row.electrodeModel.trim();
+    final name = (right ? row.rightElectrodeModel : row.leftElectrodeModel)
+        .trim();
     if (name.isNotEmpty) return name;
   }
   return '';
+}
+
+/// The block [rows] mark as the one the patient was left on, or null.
+String? finalBlockIn(Iterable<SessionRow> rows) {
+  for (final row in rows) {
+    if (isInitialValue(row.isFinal)) return row.blockId;
+  }
+  return null;
 }

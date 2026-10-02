@@ -143,6 +143,6 @@ void main() {
     expect(find.textContaining('sub-01_ses-a_'), findsOneWidget);
     expect(find.textContaining('sub-01_ses-b_'), findsOneWidget);
     expect(find.textContaining('sub-02_'), findsNothing);
-    expect(find.text('Needs two or more session TSVs.'), findsNothing);
+    expect(find.text('Needs two or more TSVs.'), findsNothing);
   });
 }

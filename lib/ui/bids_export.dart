@@ -159,10 +159,7 @@ datasetFromUploads(
 
   // The combined table goes where BIDS puts a cross-session derivation: its
   // own directory under `derivatives/`, with its own dataset_description.
-  final aggregate = buildAggregate([
-    for (final f in uploads)
-      if (f.kind == TsvKind.programming) (filename: f.name, rows: f.rows),
-  ]);
+  final aggregate = buildAggregate(aggregateSources(uploads));
   final files = <DatasetFile>[
     ...buildBidsDataset(
       placed.entries,

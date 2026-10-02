@@ -123,7 +123,6 @@ const _amplitude = '5.5';
 const _pulseWidth = '90';
 const _initialNotes =
     'Baseline on admission settings. Medication unchanged since last visit.';
-const _sideEffects = 'Transient paraesthesia in the right hand at 5.5 mA.';
 const _recordingNotes =
     'Noticeably less checking behaviour; patient reports a lighter mood.';
 
@@ -833,7 +832,6 @@ void main() {
     await _next(tester);
 
     await _seedRatings(tester);
-    await _type(tester, 'Side effects (if any)', _sideEffects);
     await _type(tester, 'Notes', _recordingNotes);
 
     // The step is ~4800 px tall, so it is documented in two parts.

@@ -61,16 +61,18 @@ void main() {
     expect(result!.pulseWidths, [60]);
   });
 
-  testWidgets('clinical presets dialog returns group -> name lists', (
+  testWidgets('clinical presets dialog returns names and their ranges', (
     tester,
   ) async {
-    Map<String, List<String>>? result;
+    ({Map<String, List<String>> groups, Map<String, List<String>> ranges})?
+    result;
     await pumpHost(tester, (context) async {
       result = await showClinicalPresetsDialog(
         context,
         presets: const {
           'OCD': ['Y-BOCS', 'MADRS'],
         },
+        ranges: const {'Y-BOCS': (min: '0', max: '40')},
       );
     });
 
@@ -80,8 +82,12 @@ void main() {
     await tester.tap(find.text('Save & Close'));
     await tester.pumpAndSettle();
 
-    expect(result, {
+    expect(result!.groups, {
       'OCD': ['Y-BOCS', 'MADRS'],
+    });
+    // MADRS had no range, so none is invented for it.
+    expect(result!.ranges, {
+      'Y-BOCS': ['0', '40'],
     });
   });
 

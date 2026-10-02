@@ -36,7 +36,8 @@ class SessionAuthoring {
     required Map<String, String> stim,
     List<ScaleEntry> scales = const [],
     String programId = '',
-    String electrodeModel = '',
+    String leftElectrodeModel = '',
+    String rightElectrodeModel = '',
     String notes = '',
     DateTime? at,
   }) {
@@ -46,7 +47,8 @@ class SessionAuthoring {
       isInitial: isInitial,
       scales: scales,
       programId: programId,
-      electrodeModel: electrodeModel,
+      leftElectrodeModel: leftElectrodeModel,
+      rightElectrodeModel: rightElectrodeModel,
       notes: notes,
       leftStimFreq: stim['left_stim_freq'] ?? '',
       leftAnode: stim['left_anode'] ?? '',
@@ -63,6 +65,17 @@ class SessionAuthoring {
     rows.addAll(inserted);
     _blockId += 1;
     return inserted;
+  }
+
+  /// Mark [blockId] as the block the patient was left on, clearing any other
+  /// mark; null clears them all. Rows are rewritten rather than appended, so
+  /// the file still has one row per scale per block.
+  void markFinalBlock(String? blockId) {
+    for (var i = 0; i < rows.length; i++) {
+      final mark = blockId != null && rows[i].blockId == blockId ? '1' : '0';
+      if (rows[i].isFinal == mark) continue;
+      rows[i] = SessionRow.fromMap({...rows[i].toMap(), 'is_final': mark});
+    }
   }
 
   /// The full TSV document, with the canonical column header.

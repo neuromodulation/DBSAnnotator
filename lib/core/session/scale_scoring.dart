@@ -202,7 +202,7 @@ Map<int, double> computeAggregateIndex(
 ///
 /// [rankBlocks] ties on the value as PRINTED, so a reader can never see two
 /// identical numbers carrying different ranks or different colours.
-const int indexDecimals = 3;
+const int indexDecimals = 2;
 
 /// Blocks ranked by aggregate index, 1 = best, with equal indices sharing a
 /// rank.

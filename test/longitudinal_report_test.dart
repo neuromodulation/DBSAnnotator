@@ -11,6 +11,7 @@ import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/report/longitudinal_data.dart';
 import 'package:dbs_annotator/report/longitudinal_pdf.dart';
+import 'package:dbs_annotator/report/report_data.dart' show kVisitsIndexHeader;
 import 'package:flutter_test/flutter_test.dart';
 
 String _part(List<int> bytes, String name) => utf8.decode(
@@ -136,7 +137,7 @@ void main() {
     // The table prints the same overall rank the shading shows: the first
     // visit's best block is second overall, so it must not read "rank 1".
     final first = ranked.visits.first;
-    final col = first.session.tableHeaders.indexOf('Index');
+    final col = ranked.tableHeadersFor(first).indexOf(kVisitsIndexHeader);
     final cells = [
       for (final r in ranked.tableRowsFor(first))
         if (r[col].isNotEmpty) r[col],
@@ -163,12 +164,13 @@ void main() {
     // 2 blocks + 1 block = 3 positions.
     expect(chart.xs, [0, 1, 2]);
     expect(chart.series['Tremor'], {0: 6.0, 1: 4.0, 2: 3.0});
-    // The first block of a visit carries the full label and later blocks the
-    // bare block number, so a long session does not stamp its date under every
-    // point.
-    expect(chart.xTickLabels[0], '20260101_01_1');
-    expect(chart.xTickLabels[1], '2');
-    expect(chart.xTickLabels[2], '20260615_02_1');
+    // Each tick is the block number; the visit's date is printed once,
+    // centred under its blocks, so nothing has to be rotated to fit.
+    expect(chart.xTickLabels, {0: '1', 1: '2', 2: '1'});
+    expect(chart.xGroups, [
+      (from: 0, to: 1, label: '2026-01-01'),
+      (from: 2, to: 2, label: '2026-06-15'),
+    ]);
   });
 
   test('the visit table reports the programme and the change', () {
@@ -177,12 +179,17 @@ void main() {
     expect(data.visitTable[0][3], '2', reason: 'two blocks');
     expect(data.visitTable[0][4], 'UPDRS-III: 40');
     expect(data.visitTable[1][4], 'UPDRS-III: 28');
-    expect(data.visitTable[1][2], contains('3.5 mA'));
-    expect(data.visitTable[1][2], contains('Group B'));
+    // The latest visit's programme is the page-1 summary's, not repeated.
+    expect(data.visitTable[1][2], kSeeSummary);
+    final summary = latestVisitSummary(data)!;
+    expect(summary.heading, contains('2026-06-15'));
+    expect(summary.lines.join('\n'), contains('3.5 mA'));
+    expect(summary.lines, contains('Group: B'));
     // Left and Right on their own lines of one cell, read down not across.
-    final lines = data.visitTable[1][2].split('\n');
-    expect(lines[0], startsWith('Left: '));
-    expect(lines[1], startsWith('Right: '));
+    // A side with nothing recorded is left out rather than printed as "-".
+    final lines = data.visitTable[0][2].split('\n');
+    expect(lines.first, startsWith('Left: '));
+    expect(lines.last, 'Group: A');
   });
 
   test('every clinical scale is listed, one per line', () {
@@ -265,7 +272,7 @@ void main() {
     expect(pdf.bytes.sublist(0, 4), '%PDF'.codeUnits);
     expect(
       _part(buildLongitudinalDocx(data: empty), 'word/document.xml'),
-      contains('No visits imported.'),
+      contains('No session TSV was uploaded.'),
     );
   });
 

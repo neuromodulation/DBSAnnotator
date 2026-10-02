@@ -14,6 +14,7 @@ import 'package:pdf/widgets.dart' as pw;
 import '../app_info.dart' show appName, appVersion;
 import '../core/annotation.dart';
 import '../core/timestamps.dart';
+import 'attestation.dart';
 import 'docx_ooxml.dart';
 import 'report_data.dart' show ReportBytes;
 import 'report_fonts.dart';
@@ -106,38 +107,11 @@ AnnotationsReportData buildAnnotationsReportData({
   );
 }
 
-/// The three attestation rules, drawn the same way as the session report's.
-List<pw.Widget> _attestation() => [
-  pw.SizedBox(height: 18),
-  pw.Text(
-    'Attestation',
-    style: const pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
-  ),
-  pw.SizedBox(height: 10),
-  pw.Row(
-    children: [
-      for (final label in ['Recorded by', 'Reviewed by', 'Date'])
-        pw.Expanded(
-          child: pw.Container(
-            margin: const pw.EdgeInsets.only(right: 16),
-            padding: const pw.EdgeInsets.only(top: 14),
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(top: pw.BorderSide(color: pdfInk, width: 0.8)),
-            ),
-            child: pw.Text(
-              label,
-              style: const pw.TextStyle(fontSize: 8, color: pdfInk),
-            ),
-          ),
-        ),
-    ],
-  ),
-];
-
 /// The notes report as a PDF.
 Future<ReportBytes> buildAnnotationsPdf(
   AnnotationsReportData data, {
   PdfPageFormat pageFormat = PdfPageFormat.a4,
+  ReportAttestation attestation = kNoAttestation,
 }) async {
   final fonts = await loadReportFonts();
   final theme = fonts.theme;
@@ -176,7 +150,7 @@ Future<ReportBytes> buildAnnotationsPdf(
           child: pw.Text(
             '$appName - Session notes',
             style: const pw.TextStyle(
-              fontSize: 20,
+              fontSize: 17,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
@@ -219,7 +193,7 @@ Future<ReportBytes> buildAnnotationsPdf(
               1: pw.FlexColumnWidth(7),
             },
           ),
-        ..._attestation(),
+        ...attestationPdf(attestationFields(attestation, rated: false), t),
       ],
     ),
   );
@@ -230,9 +204,10 @@ Future<ReportBytes> buildAnnotationsPdf(
 Uint8List buildAnnotationsDocx(
   AnnotationsReportData data, {
   DocxPageSize pageSize = DocxPageSize.a4,
+  ReportAttestation attestation = kNoAttestation,
 }) {
   final body = StringBuffer()
-    ..write(docxPara('$appName - Session notes', bold: true, size: 40))
+    ..write(docxPara('$appName - Session notes', bold: true, size: 34))
     ..write(
       docxPara(
         'Patient: sub-${data.subjectId}    Session: ${data.sessionStamp}',
@@ -268,14 +243,7 @@ Uint8List buildAnnotationsDocx(
     );
   }
 
-  body
-    ..write(docxHeading2('Attestation'))
-    ..write(
-      docxPara(
-        'Recorded by: ${'_' * 26}    '
-        'Reviewed by: ${'_' * 26}    Date: ${'_' * 14}',
-      ),
-    );
+  body.write(attestationDocx(attestationFields(attestation, rated: false)));
 
   return packDocx(
     body: body.toString(),

@@ -24,11 +24,13 @@ import '../core/electrode/electrode_model.dart';
 import '../core/prefs/user_prefs.dart';
 import '../core/session/aggregate.dart';
 import '../core/session/longitudinal.dart';
+import '../core/session/scale_presets.dart';
 import '../core/session/scale_scoring.dart';
 import '../core/session/session_row.dart';
 import '../core/session/tsv_kind.dart';
 import '../core/timestamps.dart';
 import '../report/annotations_report.dart';
+import '../report/attestation.dart';
 import '../report/entry_charts.dart';
 import '../report/longitudinal_data.dart';
 import '../report/longitudinal_pdf.dart';
@@ -40,6 +42,7 @@ import '../report/session_pdf.dart';
 import '../report/upload_actions.dart';
 import 'bids_export.dart';
 import 'bids_merge_ui.dart';
+import 'report_action_row.dart';
 import 'report_images.dart';
 import 'report_sections_dialog.dart';
 import 'save_target.dart';
@@ -86,7 +89,6 @@ Widget _timelineChart(
       spec: buildScalesChartSpec(
         timeline: timeline,
         prefs: const [],
-        title: '',
         xLabel: 'Block',
         yLabel: 'Scale value',
       ),
@@ -230,89 +232,149 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   // ---- Actions ----
 
-  Future<void> _sessionReport({required bool docx}) async {
-    final isSession = _sessions.isNotEmpty;
-    final source = isSession ? _sessions.single.name : _files.first.name;
-    final sections = isSession
-        ? await showReportSectionsDialog(
-            context,
-            _sections,
-            onEditTargets: _editTargets,
-          )
-        : kAllReportSections;
-    if (sections == null || !mounted) return;
-    if (isSession) setState(() => _sections = sections);
+  bool get _isSession => _sessions.isNotEmpty;
 
-    final subject = BidsName.parse(source)?.subject ?? 'unknown';
-    final base = source
-        .replaceAll(RegExp(r'\.tsv$'), '')
-        .replaceAll(
-          RegExp('_(${BidsName.behSuffix}|${BidsName.legacySuffix})\$'),
-          '',
-        );
+  String get _source => _isSession ? _sessions.single.name : _files.first.name;
 
-    await exportFile(
+  /// The source TSV's name without its suffix, the stem of its report.
+  String get _reportBase => _source
+      .replaceAll(RegExp(r'\.tsv$'), '')
+      .replaceAll(
+        RegExp('_(${BidsName.behSuffix}|${BidsName.legacySuffix})\$'),
+        '',
+      );
+
+  /// The sections to render, asked for a session and all of them for notes.
+  /// Null when cancelled.
+  Future<Set<ReportSection>?> _askSessionSections() async {
+    if (!_isSession) return kAllReportSections;
+    final sections = await showReportSectionsDialog(
       context,
-      filename: '${base}_report.${docx ? 'docx' : 'pdf'}',
-      anchor: _exportKey,
-      failureLabel: 'Report export failed',
-      build: () async {
-        if (!isSession) {
-          final data = buildAnnotationsReportData(
-            entries: _notes,
-            subjectId: subject,
-            sourceFile: source,
-          );
-          if (docx) {
-            return (
-              bytes: buildAnnotationsDocx(
-                data,
-                pageSize: _letter ? DocxPageSize.letter : DocxPageSize.a4,
-              ),
-              warning: null,
-            );
-          }
-          final report = await buildAnnotationsPdf(
-            data,
-            pageFormat: _letter ? PdfPageFormat.letter : PdfPageFormat.a4,
-          );
-          return (bytes: report.bytes, warning: _warn(report.lostCharacters));
-        }
+      _sections,
+      onEditTargets: _editTargets,
+    );
+    if (sections != null && mounted) setState(() => _sections = sections);
+    return sections;
+  }
 
-        final data = buildSessionReportData(
-          rows: _rows,
-          scalePrefs: _targets,
-          sourceFile: source,
-          notes: _notes,
+  Future<ExportPayload> _buildSessionReport({
+    required bool docx,
+    required Set<ReportSection> sections,
+    required ReportAttestation attestation,
+  }) async {
+    final subject = BidsName.parse(_source)?.subject ?? 'unknown';
+    if (!_isSession) {
+      final data = buildAnnotationsReportData(
+        entries: _notes,
+        subjectId: subject,
+        sourceFile: _source,
+      );
+      if (docx) {
+        return (
+          bytes: buildAnnotationsDocx(
+            data,
+            pageSize: _letter ? DocxPageSize.letter : DocxPageSize.a4,
+            attestation: attestation,
+          ),
+          warning: null,
         );
-        final gfx = await renderReportGraphics(
-          data,
-          _catalog?.models[electrodeModelIn(_rows)],
-          sections,
-        );
-        if (docx) {
-          return (
-            bytes: buildSessionDocx(
-              data: data,
-              subjectId: subject,
-              electrodeImages: gfx.electrodes,
-              chartPng: gfx.chart,
-              pageSize: _letter ? DocxPageSize.letter : DocxPageSize.a4,
-              sections: sections,
-            ),
-            warning: null,
-          );
-        }
-        final report = await buildSessionPdf(
+      }
+      final report = await buildAnnotationsPdf(
+        data,
+        pageFormat: _letter ? PdfPageFormat.letter : PdfPageFormat.a4,
+        attestation: attestation,
+      );
+      return (bytes: report.bytes, warning: _warn(report.lostCharacters));
+    }
+
+    final data = buildSessionReportData(
+      rows: _rows,
+      scalePrefs: _targets,
+      sourceFile: _source,
+    );
+    final gfx = await renderReportGraphics(
+      data,
+      _catalog?.models[electrodeModelIn(_rows)],
+      sections,
+      right: _catalog?.models[electrodeModelIn(_rows, right: true)],
+    );
+    if (docx) {
+      return (
+        bytes: buildSessionDocx(
           data: data,
           subjectId: subject,
           electrodeImages: gfx.electrodes,
           chartPng: gfx.chart,
-          pageFormat: _letter ? PdfPageFormat.letter : PdfPageFormat.a4,
+          pageSize: _letter ? DocxPageSize.letter : DocxPageSize.a4,
           sections: sections,
+          attestation: attestation,
+        ),
+        warning: null,
+      );
+    }
+    final report = await buildSessionPdf(
+      data: data,
+      subjectId: subject,
+      electrodeImages: gfx.electrodes,
+      chartPng: gfx.chart,
+      pageFormat: _letter ? PdfPageFormat.letter : PdfPageFormat.a4,
+      sections: sections,
+      attestation: attestation,
+    );
+    return (bytes: report.bytes, warning: _warn(report.lostCharacters));
+  }
+
+  Future<void> _sessionReport({required bool docx}) async {
+    final sections = await _askSessionSections();
+    if (sections == null || !mounted) return;
+    final attestation = await askAttestation(context, rated: _isSession);
+    if (attestation == null || !mounted) return;
+    await exportFile(
+      context,
+      filename: '${_reportBase}_report.${docx ? 'docx' : 'pdf'}',
+      anchor: _exportKey,
+      failureLabel: 'Report export failed',
+      build: () => _buildSessionReport(
+        docx: docx,
+        sections: sections,
+        attestation: attestation,
+      ),
+    );
+  }
+
+  /// File the one uploaded TSV, its report, or both into a dataset.
+  Future<void> _addSingleToDataset() async {
+    final choice = await askSingleSessionAdd(context);
+    if (choice == null || !mounted) return;
+
+    ExportPayload? report;
+    if (choice.report) {
+      final sections = await _askSessionSections();
+      if (sections == null || !mounted) return;
+      final attestation = await askAttestation(context, rated: _isSession);
+      if (attestation == null || !mounted) return;
+      try {
+        report = await _buildSessionReport(
+          docx: choice.docx,
+          sections: sections,
+          attestation: attestation,
         );
-        return (bytes: report.bytes, warning: _warn(report.lostCharacters));
-      },
+      } catch (e) {
+        if (mounted) _snack('Report export failed: $e');
+        return;
+      }
+    }
+    if (!mounted) return;
+    await _addToDataset(
+      inPlace: canWriteChosenFolder,
+      tsv: choice.tsv,
+      report: report == null
+          ? null
+          : (
+              bytes: Uint8List.fromList(report.bytes),
+              extension: choice.docx ? 'docx' : 'pdf',
+              warning: report.warning,
+            ),
     );
   }
 
@@ -334,24 +396,42 @@ class _ReportsScreenState extends State<ReportsScreen> {
       for (final s in LongitudinalSection.values)
         if (saved?.contains(s.name) ?? false) s,
     };
-    final sections = await showLongitudinalSectionsDialog(
-      context,
-      last.isEmpty ? kDefaultLongitudinalSections : last,
-      onEditTargets: _editTargets,
-    );
+    // Same-day notes print only in the per-visit tables, so with a notes file
+    // uploaded that section starts ticked.
+    final sections = await showLongitudinalSectionsDialog(context, {
+      ...last.isEmpty ? kDefaultLongitudinalSections : last,
+      if (_notes.isNotEmpty) LongitudinalSection.sessionTable,
+    }, onEditTargets: _editTargets);
     if (sections == null || !mounted) return;
     setState(
       () => _prefs.longitudinalSections = [for (final s in sections) s.name],
     );
+    final attestation = await askAttestation(context, rated: true);
+    if (attestation == null || !mounted) return;
     saveUserPrefs(_prefs);
 
+    // A TSV records scale names and scores only, so the clinical figure's
+    // ranges come from the user's clinical presets.
+    var ranges = <String, (double, double)>{};
+    try {
+      final presets = mergeScalePresets(await loadScalePresets(), _prefs);
+      ranges = numericRanges(presets.clinicalRanges);
+    } catch (e) {
+      debugPrint('Clinical scale ranges unavailable: $e');
+    }
+    if (!mounted) return;
     final data = buildLongitudinalReportData(
+      clinicalRanges: ranges,
       files: {for (final f in _sessions) f.name: f.rows},
       notes: _notes,
+      noteFilenames: [
+        for (final f in _files)
+          if (f.kind == TsvKind.notes) f.name,
+      ],
       scalePrefs: _targets ?? const [],
     );
-    if (data.isEmpty) {
-      _snack('The uploaded files contain no visits to report.');
+    if (data.isEmpty && data.notesWithoutVisit.isEmpty) {
+      _snack('The uploaded files contain no visits or notes to report.');
       return;
     }
     final name =
@@ -389,6 +469,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
               electrodeImages: leads,
               pageSize: _letter ? DocxPageSize.letter : DocxPageSize.a4,
               sections: sections,
+              attestation: attestation,
             ),
             warning: null,
           );
@@ -400,6 +481,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
           electrodeImages: leads,
           pageFormat: _letter ? PdfPageFormat.letter : PdfPageFormat.a4,
           sections: sections,
+          attestation: attestation,
         );
         return (bytes: report.bytes, warning: _warn(report.lostCharacters));
       },
@@ -407,9 +489,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 
   Future<void> _exportAggregate() async {
-    final out = buildAggregate([
-      for (final f in _sessions) (filename: f.name, rows: f.rows),
-    ]);
+    final out = buildAggregate(aggregateSources(_files));
     if (out.rowCount == 0) {
       _snack(
         out.skipped.isEmpty
@@ -438,8 +518,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
     final source = _datasetSource;
     if (!mounted) return;
-    if (source != null &&
-        _sessions.every((f) => source.names.contains(f.name))) {
+    if (source != null && _files.every((f) => source.names.contains(f.name))) {
       try {
         final copy = await saveAggregateInto(
           context,
@@ -482,7 +561,13 @@ class _ReportsScreenState extends State<ReportsScreen> {
   ///
   /// The plan is shown and confirmed before a byte is written: this is the one
   /// action here that touches data the app did not create, and it has no undo.
-  Future<void> _addToDataset({required bool inPlace}) async {
+  ///
+  /// [tsv] false files only the [report], beside the visit's own path.
+  Future<void> _addToDataset({
+    required bool inPlace,
+    bool tsv = true,
+    ({Uint8List bytes, String extension, String? warning})? report,
+  }) async {
     final Map<String, dynamic> contract;
     try {
       contract = await loadTsvContract();
@@ -507,12 +592,24 @@ class _ReportsScreenState extends State<ReportsScreen> {
       contract,
       existing: target.existing,
     );
-    final plan = planBidsMerge(target.existing, placed.files);
+    final incoming = [if (tsv) ...placed.files];
+    final binary = <String, Uint8List>{};
+    if (report != null) {
+      // Beside the visit where it is filed now, after any move to a free run.
+      final filed = reportIntoDataset(
+        (tsv ? placed : built).files,
+        report.extension,
+        target.existing,
+      );
+      incoming.addAll(filed.files);
+      binary[filed.path] = report.bytes;
+    }
+    final plan = planBidsMerge(target.existing, incoming);
     if (plan.write.isEmpty) {
       _snack(
         plan.refused.isEmpty
             ? 'That dataset already has these files.'
-            : 'Nothing to add: ${plan.refused.length} already recorded there.',
+            : 'Nothing to add: ${plan.refused.join(', ')} already there.',
       );
       return;
     }
@@ -520,17 +617,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
       context,
       plan,
       target.label,
-      renumbered: placed.renumbered,
+      renumbered: tsv ? placed.renumbered : const [],
     );
     if (!ok || !mounted) return;
 
     try {
-      await target.apply(plan);
+      await target.apply(plan, binary);
     } catch (e) {
       if (mounted) _snack('The merge stopped partway: $e');
       return;
     }
-    if (mounted) _snack(describeMergePlan(plan));
+    if (mounted) {
+      _snack([describeMergePlan(plan), ?report?.warning].join('. '));
+    }
   }
 
   /// The chosen dataset, and how to write the merge back into it.
@@ -541,7 +640,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
       return (
         existing: folder.existing,
         label: folder.root,
-        apply: (MergePlan plan) => applyMergeToDirectory(folder.root, plan),
+        apply: (plan, binary) =>
+            applyMergeToDirectory(folder.root, plan, binary: binary),
       );
     } catch (e) {
       if (mounted) _snack('Could not read that folder: $e');
@@ -566,14 +666,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return (
       existing: existing,
       label: name,
-      apply: (MergePlan plan) async {
+      apply: (plan, binary) async {
         if (!mounted) return;
         await exportFile(
           context,
           filename: '${name.replaceAll(RegExp(r'\.zip$'), '')}-merged.zip',
           anchor: _exportKey,
           failureLabel: 'Merged dataset export failed',
-          build: () async => (bytes: mergedZip(existing, plan), warning: null),
+          build: () async =>
+              (bytes: mergedZip(existing, plan, binary: binary), warning: null),
         );
       },
     );
@@ -620,22 +721,19 @@ class _ReportsScreenState extends State<ReportsScreen> {
         title: const Text('Reports and datasets'),
         actions: const [TextSizeButtons(), HelpButton(), ThemeToggleButton()],
       ),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _uploadBar(theme),
-            if (_files.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              _fileList(theme),
-            ],
-            const SizedBox(height: 12),
-            _actions(theme),
-            const Divider(height: 24),
-            Expanded(child: _preview(theme)),
+        children: [
+          _uploadBar(theme),
+          if (_files.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _fileList(theme),
           ],
-        ),
+          const SizedBox(height: 12),
+          _actions(theme),
+          const Divider(height: 24),
+          _preview(theme),
+        ],
       ),
     );
   }
@@ -701,38 +799,30 @@ class _ReportsScreenState extends State<ReportsScreen> {
               ],
             ),
           ),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 140),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final f in _files)
-                ListTile(
-                  dense: true,
-                  leading: Icon(
-                    f.kind == TsvKind.programming
-                        ? Icons.table_chart_outlined
-                        : Icons.sticky_note_2_outlined,
-                    size: 20,
-                  ),
-                  title: Text(f.name, style: theme.textTheme.bodyMedium),
-                  subtitle: Text(
-                    f.kind == TsvKind.programming
-                        ? '${blockCount(f.rows)} blocks'
-                        : '${f.notes.length} notes',
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.close, size: 18),
-                    tooltip: 'Remove',
-                    onPressed: () => setState(() {
-                      _files.remove(f);
-                      _targets = null;
-                    }),
-                  ),
-                ),
-            ],
+        for (final f in _files)
+          ListTile(
+            dense: true,
+            leading: Icon(
+              f.kind == TsvKind.programming
+                  ? Icons.table_chart_outlined
+                  : Icons.sticky_note_2_outlined,
+              size: 20,
+            ),
+            title: Text(f.name, style: theme.textTheme.bodyMedium),
+            subtitle: Text(
+              f.kind == TsvKind.programming
+                  ? '${blockCount(f.rows)} blocks'
+                  : '${f.notes.length} notes',
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.close, size: 18),
+              tooltip: 'Remove',
+              onPressed: () => setState(() {
+                _files.remove(f);
+                _targets = null;
+              }),
+            ),
           ),
-        ),
       ],
     );
   }
@@ -743,7 +833,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       for (final action in _shown)
-        _ActionRow(
+        ReportActionRow(
           action: action,
           reason: unavailableReason(
             action,
@@ -755,16 +845,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
     ],
   );
 
-  _ActionButton _btn(
+  ReportActionButton _btn(
     String label,
     Future<void> Function() run, [
     String? unavailable,
   ]) => (label: label, run: run, unavailable: unavailable);
 
-  List<_ActionButton> _buttonsFor(ReportAction action) => switch (action) {
+  List<ReportActionButton> _buttonsFor(ReportAction action) => switch (action) {
     ReportAction.sessionReport => [
       _btn('PDF', () => _sessionReport(docx: false)),
       _btn('Word', () => _sessionReport(docx: true)),
+      _btn(
+        'Add to dataset',
+        _addSingleToDataset,
+        withBidsEntities(_files).isEmpty
+            ? 'The file name carries no sub- entity.'
+            : null,
+      ),
     ],
     ReportAction.longitudinalReport => [
       _btn('PDF', () => _longitudinalReport(docx: false)),
@@ -791,7 +888,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   Widget _preview(ThemeData theme) {
     if (_files.isEmpty) {
-      return Center(
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
         child: Text(
           'Upload one or more TSV files to see what can be produced from them.',
           style: theme.textTheme.bodyLarge?.copyWith(
@@ -803,7 +901,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
     }
     if (_sessions.length == 1) {
       final rows = _sessions.single.rows;
-      return ListView(
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             children: [
@@ -844,16 +943,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
     if (_sessions.length > 1) {
       final timeline = combinedScaleTimeline(_sessions.map((f) => f.rows));
       if (timeline.isEmpty) {
-        return Center(
-          child: Text(
-            'No session scale values in the uploaded files.',
-            style: theme.textTheme.bodyLarge,
-          ),
+        return Text(
+          'No session scale values in the uploaded files.',
+          style: theme.textTheme.bodyLarge,
+          textAlign: TextAlign.center,
         );
       }
-      return _timelineChart(context, timeline);
+      return SizedBox(height: 360, child: _timelineChart(context, timeline));
     }
-    return ListView(
+    return Column(
       children: [
         for (final n in _notes.take(50))
           ListTile(
@@ -869,81 +967,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
   }
 }
 
-/// One offered action: what it makes, and either the buttons to make it or the
-/// reason it cannot be made.
-/// One button on an action row: what it says, what it does, and why it is off
-/// when it is. A per-button reason exists because the two ways of merging do
-/// not have the same platform support.
-typedef _ActionButton = ({
-  String label,
-  Future<void> Function() run,
-  String? unavailable,
-});
-
-/// One offered action: what it makes, and either the buttons to make it or the
-/// reason it cannot be made.
-class _ActionRow extends StatelessWidget {
-  const _ActionRow({
-    required this.action,
-    required this.reason,
-    required this.buttons,
-  });
-
-  final ReportAction action;
-
-  /// Null when the upload supports this action at all.
-  final String? reason;
-  final List<_ActionButton> buttons;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final enabled = reason == null;
-    final ink = enabled ? null : theme.disabledColor;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  action.label,
-                  style: theme.textTheme.titleSmall?.copyWith(color: ink),
-                ),
-                Text(
-                  reason ?? action.description,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: enabled ? theme.colorScheme.onSurfaceVariant : ink,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          for (final button in buttons) ...[
-            Tooltip(
-              message: button.unavailable ?? '',
-              child: OutlinedButton(
-                onPressed: enabled && button.unavailable == null
-                    ? button.run
-                    : null,
-                child: Text(button.label),
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 /// A dataset chosen for a merge: what it already holds, what to call it in the
 /// confirmation, and how to write the merge back.
 typedef _MergeTarget = ({
   List<DatasetFile> existing,
   String label,
-  Future<void> Function(MergePlan plan) apply,
+  Future<void> Function(MergePlan plan, Map<String, Uint8List> binary) apply,
 });

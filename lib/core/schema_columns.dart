@@ -9,9 +9,11 @@ const List<String> sessionColumns = <String>[
   'block_id',
   'append_id',
   'is_initial',
+  'is_final',
   'scale_name',
   'scale_value',
-  'electrode_model',
+  'left_electrode_model',
+  'right_electrode_model',
   'program_id',
   'left_stim_freq',
   'left_anode',
@@ -32,6 +34,9 @@ const Map<String, List<String>> legacyColumnAliases = <String, List<String>>{
   'block_id': <String>['block_ID'],
   'append_id': <String>['session_id', 'session_ID'],
   'program_id': <String>['program_ID'],
+  // One model for both leads, before each side had its own.
+  'left_electrode_model': <String>['electrode_model'],
+  'right_electrode_model': <String>['electrode_model'],
 };
 
 /// Read [column] from a TSV record, falling back to its superseded spellings.

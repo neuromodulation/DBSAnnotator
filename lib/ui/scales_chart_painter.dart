@@ -37,7 +37,7 @@ const _titleSize = 15.0;
 const _legendGapAfterSample = 5.0;
 
 /// Vertical gap between stacked panels, in logical px.
-const _panelGap = 14.0;
+const _panelGap = 8.0;
 
 /// One stacked panel of the figure.
 class _PanelSpec {
@@ -110,9 +110,15 @@ _PanelSpec? _parameterPanel(Map<String, Map<int, double>> raw, String unit) {
   );
 }
 
+/// Logical width of a report figure. It is printed across the full text width,
+/// about 523 pt on A4, so 1 px prints at about 0.82 pt and the 10 px text floor
+/// prints at 8 pt.
+const kReportChartWidth = 640.0;
+
 /// The raster size the report embeds: the base figure, plus room for each
 /// plotted parameter panel. A stated one is thin enough to share the base
-/// height, which keeps the usual figure on the report's first page.
+/// height. The stacked base is the least that keeps the index and dose panels
+/// legible with 8 pt text; it fits under the baseline table on an A4 page 1.
 Size reportChartSize(ScalesChartSpec spec) {
   var extra = 0.0;
   for (final raw in [spec.frequency, spec.pulseWidth]) {
@@ -121,7 +127,13 @@ Size reportChartSize(ScalesChartSpec spec) {
       extra += _plottedPanelExtra + _panelGap;
     }
   }
-  return Size(800, 376 + extra);
+  // A lone scales panel, as in both longitudinal figures, needs less height
+  // than one stacked over the index and dose; the shorter base is what lets
+  // two of them share page 1 on US Letter.
+  final stacked =
+      spec.aggregateIndex.isNotEmpty ||
+      spec.amplitude.values.any((m) => m.isNotEmpty);
+  return Size(kReportChartWidth, (stacked ? 288 : 212) + extra);
 }
 
 class ScalesChartPainter extends CustomPainter {
@@ -147,7 +159,7 @@ class ScalesChartPainter extends CustomPainter {
       _padLeft,
       band.padTop,
       size.width - 20,
-      size.height - _bottomPad(),
+      size.height - _bottomPad(size.width),
     );
     if (area.width <= 10 || area.height <= 40) return;
 
@@ -227,11 +239,14 @@ class ScalesChartPainter extends CustomPainter {
 
     // One band spanning every panel, so a scale dip can be read against the
     // dose that caused it.
-    _paintBands(
-      canvas,
-      Rect.fromLTRB(area.left, rects.first.top, area.right, rects.last.bottom),
-      xPos,
+    final stack = Rect.fromLTRB(
+      area.left,
+      rects.first.top,
+      area.right,
+      rects.last.bottom,
     );
+    _paintBands(canvas, stack, xPos);
+    _paintGroupSeparators(canvas, stack, xPos);
 
     for (var i = 0; i < panels.length; i++) {
       _paintPanel(canvas, rects[i], panels[i], xPos);
@@ -352,6 +367,7 @@ class ScalesChartPainter extends CustomPainter {
         dash: dash,
         strokeWidth: panel.mono ? 3 : 2,
         markerRadius: panel.mono ? 0 : 3,
+        marker: seriesMarker(i - 1),
       );
       if (!panel.mono) continue;
       for (final x in spec.xs) {
@@ -365,20 +381,30 @@ class ScalesChartPainter extends CustomPainter {
     }
   }
 
-  /// Long labels are rotated; horizontally they overlap after three visits.
-  bool get _rotateTicks =>
-      spec.xTickLabels.values.any((label) => label.length > 4);
+  /// The widest tick label, at the size it is drawn horizontally.
+  double get _longestTick => spec.xTickLabels.values
+      .map((l) => (chartTextPainter(l, color: ink, size: 10)..layout()).width)
+      .fold(0.0, math.max);
+
+  /// Labels are rotated only when they would overlap side by side on a canvas
+  /// [width] wide: two visit dates fit flat, a dozen do not.
+  bool _rotateTicks(double width) {
+    if (spec.xTickLabels.isEmpty || spec.xs.isEmpty) return false;
+    final step = (width - _padLeft - 20) / spec.xs.length;
+    return _longestTick + 8 > step;
+  }
 
   /// Room under the plot. Slanted tick labels hang down by their own length
   /// times sin 45, so the margin grows with the longest one rather than
   /// clipping it into the axis title.
-  double _bottomPad() {
-    if (!_rotateTicks) return _padBottom;
-    final longest = spec.xTickLabels.values
-        .map((l) => (chartTextPainter(l, color: ink, size: 8)..layout()).width)
-        .fold(0.0, math.max);
-    return math.max(_padBottom, 8 + longest * math.sqrt1_2 + 34);
+  double _bottomPad(double width) {
+    if (!_rotateTicks(width)) return _padBottom + _groupRowHeight;
+    return math.max(_padBottom, 8 + _longestTick * math.sqrt1_2 + 34) +
+        _groupRowHeight;
   }
+
+  /// Room for the row of group labels under the ticks, when there is one.
+  double get _groupRowHeight => spec.xGroups.isEmpty ? 0 : 16;
 
   /// The shared x axis, under the bottom panel.
   void _paintXAxis(
@@ -390,7 +416,7 @@ class ScalesChartPainter extends CustomPainter {
     final axis = Paint()
       ..color = ink
       ..strokeWidth = 1.2;
-    final rotate = _rotateTicks;
+    final rotate = _rotateTicks(size.width);
     for (final x in spec.xs) {
       final px = xPos(x);
       canvas.drawLine(
@@ -405,7 +431,7 @@ class ScalesChartPainter extends CustomPainter {
           canvas,
           label,
           Offset(px, plot.bottom + 8),
-          size: 8,
+          size: 10,
           color: ink,
           angle: -math.pi / 4,
           anchorEnd: true,
@@ -421,6 +447,17 @@ class ScalesChartPainter extends CustomPainter {
         );
       }
     }
+    // The group row sits between the ticks and the axis title.
+    for (final g in spec.xGroups) {
+      drawChartText(
+        canvas,
+        g.label,
+        Offset((xPos(g.from) + xPos(g.to)) / 2, size.height - 38),
+        align: TextAlign.center,
+        size: 10,
+        color: ink,
+      );
+    }
     drawChartText(
       canvas,
       spec.xLabel,
@@ -429,6 +466,22 @@ class ScalesChartPainter extends CustomPainter {
       size: 12,
       color: ink,
     );
+  }
+
+  /// A thin rule after each group but the last, from the top of the plot down
+  /// through the tick labels, so where one visit ends reads at a glance.
+  void _paintGroupSeparators(
+    Canvas canvas,
+    Rect plot,
+    double Function(num) xPos,
+  ) {
+    final rule = Paint()
+      ..color = ink.withValues(alpha: 0.55)
+      ..strokeWidth = 1;
+    for (var i = 0; i + 1 < spec.xGroups.length; i++) {
+      final x = xPos(spec.xGroups[i].to + 0.5);
+      canvas.drawLine(Offset(x, plot.top), Offset(x, plot.bottom + 20), rule);
+    }
   }
 
   /// Green vertical bands behind everything, marking the best and second-best
@@ -464,6 +517,14 @@ class ScalesChartPainter extends CustomPainter {
           ..drawRect(r, paint)
           ..save()
           ..clipRect(r);
+        drawChartText(
+          canvas,
+          argb == kBestFill ? '1' : '2',
+          Offset(r.center.dx, r.top + 2),
+          align: TextAlign.center,
+          size: 10,
+          color: ink,
+        );
         for (var hx = r.left - r.height; hx < r.right + r.height; hx += step) {
           canvas.drawLine(
             Offset(hx, r.bottom),
@@ -512,15 +573,31 @@ class ScalesChartPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 0.8,
       )
-      // Clip the contents: shrink-to-fit stops at a 6 pt floor, so a session
-      // with very many scales can still exceed the box, and a sample line
-      // spilling out of the frame looks like a rendering fault.
+      // Clip the contents: a single label wider than the canvas can still
+      // exceed the box, and a sample line spilling out of the frame looks
+      // like a rendering fault.
       ..save()
       ..clipRect(box);
 
-    var x = box.left + 8;
-    final y = box.center.dy;
-    for (var i = 0; i < legend.entries.length; i++) {
+    for (final (row, indices) in legend.rows.indexed) {
+      var x = box.left + 8;
+      final y = box.top + 2.5 + legend.rowHeight * (row + 0.5);
+      for (final i in indices) {
+        x = _paintLegendEntry(canvas, legend, i, x, y);
+      }
+    }
+    canvas.restore();
+  }
+
+  /// One legend sample and its label at [x], returning where the next starts.
+  double _paintLegendEntry(
+    Canvas canvas,
+    ChartLegend legend,
+    int i,
+    double x,
+    double y,
+  ) {
+    {
       final (_, color, dash, kind) = legend.entries[i];
       if (kind == ChartLegendKind.band) {
         // The two greens differ in lightness only, so on a mono printer the
@@ -568,15 +645,14 @@ class ScalesChartPainter extends CustomPainter {
             Paint()..color = color,
           );
         } else {
-          canvas.drawCircle(Offset(markerX, y), 2.6, Paint()..color = color);
+          drawMarker(canvas, Offset(markerX, y), 2.8, color, seriesMarker(i));
         }
       }
       x += legend.sample + _legendGapAfterSample;
       final p = legend.painters[i];
       p.paint(canvas, Offset(x, y - p.height / 2));
-      x += p.width + legend.gapBetween;
+      return x + p.width + legend.gapBetween;
     }
-    canvas.restore();
   }
 
   @override
@@ -601,11 +677,21 @@ enum ChartLegendKind {
 typedef ChartLegend = ({
   List<(String, Color, List<double>?, ChartLegendKind)> entries,
   List<TextPainter> painters,
+
+  /// Entry indices per legend row, top to bottom.
+  List<List<int>> rows,
   double sample,
   double gapBetween,
+
+  /// The widest row.
   double total,
+  double rowHeight,
   double height,
 });
+
+/// "Rank 1", with the scope the rank was taken over when the spec names one.
+String _rank(int n, ScalesChartSpec spec) =>
+    spec.rankScope.isEmpty ? 'Rank $n' : 'Rank $n ${spec.rankScope}';
 
 /// The measured top band: title, then legend, then the plot.
 ///
@@ -659,45 +745,59 @@ class ChartTopBand {
       if (p.spec.aggregateIndex.isNotEmpty)
         ('Aggregate Index', p.ink, null, ChartLegendKind.aggregate),
       if (p.spec.bestXs.isNotEmpty)
-        ('Rank 1', const Color(kBestFill), null, ChartLegendKind.band),
+        (_rank(1, p.spec), const Color(kBestFill), null, ChartLegendKind.band),
       if (p.spec.secondXs.isNotEmpty)
-        ('Rank 2', const Color(kSecondFill), null, ChartLegendKind.band),
+        (
+          _rank(2, p.spec),
+          const Color(kSecondFill),
+          null,
+          ChartLegendKind.band,
+        ),
     ];
     if (entries.isEmpty) return null;
 
-    var font = 9.0;
+    var font = 11.0;
     var sample = 22.0;
     var gapBetween = 14.0;
-    List<TextPainter> painters;
-    double total;
+    final maxWidth = size.width - 20;
+    var painters = <TextPainter>[];
+    double widthOf(int i) => sample + _legendGapAfterSample + painters[i].width;
+    double rowWidth(List<int> row) =>
+        row.fold<double>(0, (sum, i) => sum + widthOf(i)) +
+        gapBetween * (row.length - 1);
     while (true) {
       painters = [
         for (final e in entries)
           chartTextPainter(e.$1, color: p.ink, size: font),
       ];
-      total =
-          painters.fold<double>(
-            0,
-            (sum, t) => sum + sample + _legendGapAfterSample + t.width,
-          ) +
-          gapBetween * (entries.length - 1);
-      if (total <= size.width - 20 || font <= 6) break;
+      final all = [for (var i = 0; i < entries.length; i++) i];
+      if (rowWidth(all) <= maxWidth || font <= 10) break;
       font -= 0.5;
-      sample = math.max(12, sample - 1);
-      gapBetween = math.max(6, gapBetween - 1);
+      sample = math.max(16, sample - 1);
+      gapBetween = math.max(8, gapBetween - 1);
     }
-    // Box height from the tallest label, so a larger font is never clipped.
+    final rows = <List<int>>[[]];
+    for (var i = 0; i < entries.length; i++) {
+      if (rows.last.isNotEmpty && rowWidth([...rows.last, i]) > maxWidth) {
+        rows.add([]);
+      }
+      rows.last.add(i);
+    }
+    // Row height from the tallest label, so a larger font is never clipped.
     final textHeight = painters.fold<double>(
       0,
       (m, t) => math.max(m, t.height),
     );
+    final rowHeight = math.max(14.0, textHeight + 3);
     return (
       entries: entries,
       painters: painters,
+      rows: rows,
       sample: sample,
       gapBetween: gapBetween,
-      total: total,
-      height: math.max(18.0, textHeight + 8),
+      total: rows.map(rowWidth).fold(0.0, math.max),
+      rowHeight: rowHeight,
+      height: rowHeight * rows.length + 5,
     );
   }
 }
@@ -710,7 +810,7 @@ class ChartTopBand {
 Future<Uint8List?> renderScalesChartPng(
   ScalesChartSpec spec, {
   Size? size,
-  double pixelRatio = 3.0,
+  double pixelRatio = 4.0,
 }) async {
   if (spec.isEmpty) return null;
   final canvasSize = size ?? reportChartSize(spec);

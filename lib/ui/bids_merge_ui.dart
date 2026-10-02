@@ -38,6 +38,11 @@ const int kMaxMergeZipBytes = 200 * 1024 * 1024;
 /// app would write.
 const String kUnreadContent = '\u0000unread';
 
+/// Planned content of a binary file, such as a report, whose bytes travel
+/// beside the plan. Never equal to [kUnreadContent], so an existing file at
+/// that path is refused rather than kept.
+const String kBinaryContent = '\u0000binary';
+
 bool _isTextPath(String path) =>
     path.endsWith('.tsv') ||
     path.endsWith('.json') ||
@@ -98,7 +103,13 @@ List<DatasetFile> readDatasetZip(Uint8List bytes) {
 /// do not exist: the index files are backed up first, then the new leaf files
 /// (a pure addition, where a half-done write leaves an unreferenced file the
 /// validator will see and nothing is destroyed), then the indexes themselves.
-Future<void> applyMergeToDirectory(String root, MergePlan plan) async {
+///
+/// [binary] holds the bytes of planned files whose content is [kBinaryContent].
+Future<void> applyMergeToDirectory(
+  String root,
+  MergePlan plan, {
+  Map<String, Uint8List> binary = const {},
+}) async {
   String full(String rel) => '$root/$rel';
 
   final stamp = DateTime.now().millisecondsSinceEpoch;
@@ -113,19 +124,64 @@ Future<void> applyMergeToDirectory(String root, MergePlan plan) async {
       if (indexes.contains(file.path) != pass) continue;
       final target = File(full(file.path));
       await target.parent.create(recursive: true);
-      await writeStringAtomic(target.path, file.content);
+      if (binary[file.path] case final bytes?) {
+        await target.writeAsBytes(bytes, flush: true);
+      } else {
+        await writeStringAtomic(target.path, file.content);
+      }
     }
   }
 }
 
+/// A report filed under [reportsDerivativeDir] at the path of the visit in
+/// [visitFiles], with the derivative's description when [existing] has none.
+/// The report's own entry carries [kBinaryContent]; its bytes go beside the
+/// plan under the returned path.
+({List<DatasetFile> files, String path}) reportIntoDataset(
+  List<DatasetFile> visitFiles,
+  String extension,
+  List<DatasetFile> existing,
+) {
+  final visit = visitFiles
+      .map((f) => f.path)
+      .firstWhere((p) => p.contains('/beh/') && p.endsWith('_beh.tsv'));
+  final path =
+      '$reportsDerivativeDir/'
+      '${visit.replaceAll(RegExp(r'_beh\.tsv$'), '')}_report.$extension';
+  final description = derivativeDescription(
+    dir: reportsDerivativeDir,
+    name: '$appName reports',
+    appName: appName,
+    appVersion: appVersion,
+    repoUrl: repoUrl,
+  );
+  return (
+    files: [
+      if (!existing.any((f) => f.path == description.path)) description,
+      (path: path, content: kBinaryContent),
+    ],
+    path: path,
+  );
+}
+
 /// The merged dataset as a new zip, leaving the original untouched.
-Uint8List mergedZip(List<DatasetFile> existing, MergePlan plan) {
+Uint8List mergedZip(
+  List<DatasetFile> existing,
+  MergePlan plan, {
+  Map<String, Uint8List> binary = const {},
+}) {
   final byPath = {for (final f in existing) f.path: f.content};
   for (final f in plan.write) {
     byPath[f.path] = f.content;
   }
   final archive = Archive();
   for (final path in byPath.keys.toList()..sort()) {
+    if (byPath[path] == kBinaryContent) {
+      if (binary[path] case final bytes?) {
+        archive.addFile(ArchiveFile.bytes(path, bytes));
+      }
+      continue;
+    }
     final content = byPath[path]!;
     // A file whose bytes were never read cannot be re-emitted, and writing a
     // placeholder in its place would corrupt it.
@@ -541,6 +597,78 @@ Future<bool> confirmMerge(
     ),
   );
   return ok ?? false;
+}
+
+/// What to file from a single session: its TSV, its report, or both, and the
+/// report's format. Null when cancelled.
+Future<({bool tsv, bool report, bool docx})?> askSingleSessionAdd(
+  BuildContext context,
+) {
+  var tsv = true;
+  var report = false;
+  var docx = false;
+  return showDialog<({bool tsv, bool report, bool docx})>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: const Text('Add to a BIDS dataset'),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CheckboxListTile(
+                value: tsv,
+                onChanged: (v) => setState(() => tsv = v ?? false),
+                title: const Text('Session TSV and sidecar'),
+                subtitle: const Text(
+                  'Filed under sub-<participant>/ses-<session>/beh/.',
+                ),
+              ),
+              CheckboxListTile(
+                value: report,
+                onChanged: (v) => setState(() => report = v ?? false),
+                title: const Text('Report'),
+                subtitle: const Text(
+                  'Filed under $reportsDerivativeDir/, beside the same '
+                  'participant and session.',
+                ),
+              ),
+              if (report)
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, top: 4),
+                  child: SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('PDF')),
+                      ButtonSegment(value: true, label: Text('Word')),
+                    ],
+                    selected: {docx},
+                    onSelectionChanged: (s) => setState(() => docx = s.single),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: tsv || report
+                ? () => Navigator.pop(context, (
+                    tsv: tsv,
+                    report: report,
+                    docx: docx,
+                  ))
+                : null,
+            child: const Text('Continue'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// Ask for the dataset folder. Null when cancelled or unavailable.

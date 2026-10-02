@@ -69,7 +69,9 @@ Reports
 
 The report is deliberately plain: a patient header, the session date taken from
 the notes themselves rather than from the export clock, the notes in a
-time-and-text table in the order they happened, and an attestation block. Page
+time-and-text table in the order they happened, and an attestation block with
+**Recorded by**, which the export asks for and which may be left empty to sign
+by hand. Page
 footers carry the patient ID, session date and page number, so a page separated
 from the rest is still attributable.
 

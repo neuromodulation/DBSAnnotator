@@ -42,7 +42,8 @@ BIDS-compliant [@Gorgolewski2016] `_beh.tsv` file, with a JSON sidecar documenti
 every column, that is directly usable for analysis. It captures
 per-configuration stimulation parameters, including current-steered splits across
 segmented contacts; the clinical and session scale ratings taken at each
-configuration; side effects attached to the configuration that produced them; and
+configuration; notes attached to the configuration that was active when they were
+written; and
 timestamps with UTC offsets. It also generates clinician-readable PDF and Word reports
 for the patient record, so a session is documented once rather than twice.
 

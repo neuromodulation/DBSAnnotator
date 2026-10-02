@@ -19,7 +19,7 @@ top bar of every screen.
      - Use it when
    * - :doc:`Complete workflow <complete_workflow>`
      - You are running a programming session: stimulation parameters, electrode
-       contacts, scale ratings, side effects and notes.
+       contacts, scale ratings and notes.
    * - :doc:`Annotations only <annotations>`
      - You only want timestamped notes, with no stimulation data.
    * - :doc:`Reports and datasets <reports>`
