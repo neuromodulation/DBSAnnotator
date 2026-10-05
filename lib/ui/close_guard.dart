@@ -41,7 +41,8 @@ Future<bool?> askReopenUnfinished(
   context: context,
   builder: (context) => AlertDialog(
     title: Text(title),
-    content: Text(message),
+    scrollable: true,
+    content: SizedBox(width: 480, child: Text(message)),
     actions: [
       TextButton(
         onPressed: () => Navigator.pop(context, false),
@@ -60,11 +61,15 @@ Future<bool?> askKeepRecoveryCopy(BuildContext context) => showDialog<bool>(
   context: context,
   builder: (context) => AlertDialog(
     title: const Text('Keep a recovery copy of this session?'),
-    content: const Text(
-      'The app keeps a copy of this session so it can offer it back if the '
-      'app closes unexpectedly. Keep it to be offered the session again '
-      'next time; discard it if you are done. Your saved file is not '
-      'changed either way.',
+    scrollable: true,
+    content: const SizedBox(
+      width: 480,
+      child: Text(
+        'The app keeps a copy of this session so it can offer it back if the '
+        'app closes unexpectedly. Keep it to be offered the session again '
+        'next time; discard it if you are done. Your saved file is not '
+        'changed either way.',
+      ),
     ),
     actions: [
       TextButton(

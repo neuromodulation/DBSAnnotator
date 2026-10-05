@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.5.0",
+  "schema_version": "0.6.0",
   "session_tsv": {
     "columns": [
       {
@@ -23,6 +23,11 @@
         "description": "``1`` for the baseline block recorded before any configuration is tried; ``0`` for a recording block."
       },
       {
+        "name": "is_final",
+        "type": "integer",
+        "description": "``1`` on the rows of the block the patient was left on at the end of the visit, as marked by the clinician; ``0`` elsewhere. Empty in older files; no block is ``1`` when the clinician did not mark one."
+      },
+      {
         "name": "scale_name",
         "type": "string",
         "description": "Clinical or session scale name (or newline-separated names)."
@@ -33,9 +38,14 @@
         "description": "Scale value, or ``n/a`` when the scale was not assessed at this block."
       },
       {
-        "name": "electrode_model",
+        "name": "left_electrode_model",
         "type": "string",
-        "description": "Implanted lead model, as named in ``schema/electrode_models.json``."
+        "description": "Left lead model, as named in ``schema/electrode_models.json``. Older files have one ``electrode_model`` column for both leads, which is read as both."
+      },
+      {
+        "name": "right_electrode_model",
+        "type": "string",
+        "description": "Right lead model, as named in ``schema/electrode_models.json``. The same as the left when both leads are the same model."
       },
       {
         "name": "program_id",
@@ -99,7 +109,7 @@
       {
         "name": "notes",
         "type": "string",
-        "description": "Free-text note and side effects recorded at this block."
+        "description": "Free-text note recorded at this block."
       }
     ]
   },
@@ -137,7 +147,7 @@
       {
         "name": "source_file",
         "type": "string",
-        "description": "The session file this row came from. Not redundant with the entities above: ``run`` defaults to ``01`` and does not auto-increment, so two visits on the same day can share all three, and this is then the only thing that tells their rows apart. A block is unique across the table on ``(participant_id, session_id, run_id, block_id)``."
+        "description": "The session or notes file this row came from. A notes file gives one row per note, with only ``acq_time`` and ``notes`` filled. Not redundant with the entities above: ``run`` defaults to ``01`` and does not auto-increment, so two visits on the same day can share all three, and this is then the only thing that tells their rows apart. A block is unique across the table on ``(participant_id, session_id, run_id, block_id)``."
       }
     ]
   },

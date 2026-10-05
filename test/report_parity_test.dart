@@ -87,7 +87,6 @@ void main() {
       'Session data',
       'Electrode configuration',
       'Programming summary',
-      'Response (first to last rated block)',
       'Attestation',
     ]) {
       expect(docx, contains(heading), reason: 'Word is missing "$heading"');

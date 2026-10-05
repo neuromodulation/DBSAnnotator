@@ -96,6 +96,16 @@ Which rows are which
 ``is_initial = 0``
    A **recording** block: one configuration that was tried and rated.
 
+``is_final = 1`` marks the rows of the recording block the patient was left on
+at the end of the visit, as the clinician marked it; every other row is ``0``.
+At most one block carries it, and none does when the clinician did not say.
+Files written before the column existed leave it empty, and read as unmarked.
+
+Each lead has its own model column, ``left_electrode_model`` and
+``right_electrode_model``, filled with the same name when both leads are the
+same model. Older files have one ``electrode_model`` column, which is read as
+the model of both.
+
 .. warning::
 
    Read ``is_initial`` numerically, not as a truthy string. Some files write
@@ -282,7 +292,9 @@ patient's visits, or several patients for a study, means concatenating a folder
 of files and losing the one thing that told their rows apart, the filename.
 
 **Combined table (TSV)**, on the reports screen, writes the
-imported sessions as one long table with four identity columns prepended:
+imported files as one long table with four identity columns prepended, and
+its ``.json`` sidecar beside it (see :doc:`screens/reports` for where both are
+saved):
 
 .. code-block:: text
 
@@ -290,8 +302,10 @@ imported sessions as one long table with four identity columns prepended:
    sub-01          ses-20260203   01      sub-01_ses-20260203_..._beh.tsv   ...
    sub-07          ses-20260401   01      sub-07_ses-20260401_..._beh.tsv   ...
 
-The nineteen session columns follow unchanged, which makes twenty-three in
-all. So:
+The twenty-one session columns follow unchanged, which makes twenty-five in
+all. A notes file contributes one row per note, with only ``acq_time`` and
+``notes`` filled and every other session column ``n/a``, so its rows are the
+ones with no ``block_id``. So:
 
 .. code-block:: python
 
@@ -331,14 +345,15 @@ filename twice is refused rather than concatenated, because duplicate rows
 double every count derived from the table with nothing on the face of it to show
 why.
 
-Notes files are not combined into this table. Their two columns unioned with the
-session file's nineteen would give a frame in which every note row is mostly
-empty and ``df.groupby("block_id")`` silently drops all of them.
+Notes files join this table one row per note, with only ``acq_time`` and
+``notes`` filled. Grouping by ``block_id`` therefore leaves them out, since their
+``block_id`` is ``n/a``; select them with ``df.block_id.isna()`` when you want
+them.
 
 What is still not standard
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The columns themselves. Of the nineteen in a session file, only ``notes`` and
+The columns themselves. Of the twenty-one in a session file, only ``notes`` and
 ``acq_time`` resemble anything BIDS defines; ``block_id``, ``left_cathode``,
 ``left_amplitude`` and the rest are this application's own. That is permitted,
 since BIDS allows additional columns and asks that they be documented in a

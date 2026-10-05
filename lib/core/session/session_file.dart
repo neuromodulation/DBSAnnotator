@@ -62,7 +62,8 @@ List<SessionRow> buildInsertRows({
   bool isInitial = false,
   List<ScaleEntry> scales = const [],
   String programId = '',
-  String electrodeModel = '',
+  String leftElectrodeModel = '',
+  String rightElectrodeModel = '',
   String notes = '',
   String leftStimFreq = '',
   String leftAnode = '',
@@ -84,9 +85,12 @@ List<SessionRow> buildInsertRows({
     appendId: '$appendId',
     // Via `initialCell` so the "exactly 0 or 1, never 0.0" rule has one owner.
     isInitial: initialCell(isInitial),
+    // Marked afterwards, by the clinician, with [markFinalBlock].
+    isFinal: '0',
     scaleName: scaleName,
     scaleValue: scaleValue,
-    electrodeModel: electrodeModel,
+    leftElectrodeModel: leftElectrodeModel,
+    rightElectrodeModel: rightElectrodeModel,
     programId: programId,
     leftStimFreq: leftStimFreq,
     leftAnode: leftAnode,

@@ -8,6 +8,7 @@
 /// and Word reports) go under `derivatives/`, as BIDS requires.
 library;
 
+import 'dart:collection';
 import 'dart:convert';
 
 import 'bids.dart';
@@ -149,6 +150,23 @@ const String aggregateDerivativeDir = 'derivatives/dbs-annotator-aggregate';
 /// entity, because it spans subjects, and `desc-` is the entity BIDS provides
 /// for a derivative variant. The CI validator job checks that this passes.
 const String aggregateStem = 'desc-aggregate_beh';
+
+final _recordedPath = RegExp(
+  r'(?:^|/)sub-([A-Za-z0-9]+)/(?:ses-[A-Za-z0-9]+/)?beh/[^/]+_(?:beh|events)\.tsv$',
+);
+
+/// The session and notes TSVs in a dataset listing, by participant label and
+/// in path order. A zip may wrap the dataset in one top-level folder, so the
+/// match is not anchored; derivatives and other datatypes are left out.
+Map<String, List<DatasetFile>> recordedFiles(List<DatasetFile> files) {
+  final out = SplayTreeMap<String, List<DatasetFile>>();
+  for (final f in [...files]..sort((a, b) => a.path.compareTo(b.path))) {
+    if (f.path.contains('derivatives/')) continue;
+    final m = _recordedPath.firstMatch(f.path);
+    if (m != null) out.putIfAbsent(m.group(1)!, () => []).add(f);
+  }
+  return out;
+}
 
 String _json(Object? value) =>
     '${const JsonEncoder.withIndent('  ').convert(value)}\n';

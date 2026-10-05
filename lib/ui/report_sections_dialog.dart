@@ -7,6 +7,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../report/attestation.dart';
 import '../report/longitudinal_sections.dart';
 import '../report/report_sections.dart';
 
@@ -140,4 +141,68 @@ class _SectionsDialogState<T> extends State<_SectionsDialog<T>> {
       ],
     );
   }
+}
+
+/// Ask who recorded the session and, when [rated], who rated the scales, for
+/// the report's attestation. Both are optional; an empty one prints as a line
+/// to sign on. Returns null if cancelled.
+Future<ReportAttestation?> askAttestation(
+  BuildContext context, {
+  required bool rated,
+}) async {
+  final recorded = TextEditingController();
+  final ratedBy = TextEditingController();
+  final out = await showDialog<ReportAttestation>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Attestation'),
+      scrollable: true,
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Printed at the end of the report and not saved anywhere else. '
+              'Leave a name empty to sign by hand.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: recorded,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Recorded by (optional)',
+              ),
+            ),
+            if (rated) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: ratedBy,
+                decoration: const InputDecoration(
+                  labelText: 'Rated by (optional)',
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, (
+            recordedBy: recorded.text.trim(),
+            ratedBy: ratedBy.text.trim(),
+          )),
+          child: const Text('Export'),
+        ),
+      ],
+    ),
+  );
+  recorded.dispose();
+  ratedBy.dispose();
+  return out;
 }

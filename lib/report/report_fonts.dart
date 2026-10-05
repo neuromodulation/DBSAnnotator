@@ -30,11 +30,21 @@ Future<ReportFonts> loadReportFonts() async {
     // would yield a theme, switch the sanitiser off, then throw mid-document.
     // Reading `fontName` parses the table directory, failing here instead.
     if (base.fontName.isEmpty || bold.fontName.isEmpty) return noReportFonts;
+    final theme = pw.ThemeData.withFont(
+      base: base,
+      bold: bold,
+      fontFallback: [base],
+    );
     return (
-      theme: pw.ThemeData.withFont(
-        base: base,
-        bold: bold,
-        fontFallback: [base],
+      // One type scale for every report: body 9, section headings 13,
+      // sub-headings 10 bold. Explicit sizes in the builders stay at 8 or more.
+      theme: theme.copyWith(
+        defaultTextStyle: theme.defaultTextStyle.copyWith(fontSize: 9),
+        header1: theme.header1.copyWith(fontSize: 13),
+        header2: theme.header2.copyWith(
+          fontSize: 10,
+          fontWeight: pw.FontWeight.bold,
+        ),
       ),
       // Bold is the same family, so one face's cmap describes both.
       coverage: TtfParser(regular).charToGlyphIndexMap.keys.toSet(),

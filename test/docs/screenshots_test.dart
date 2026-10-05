@@ -123,7 +123,6 @@ const _amplitude = '5.5';
 const _pulseWidth = '90';
 const _initialNotes =
     'Baseline on admission settings. Medication unchanged since last visit.';
-const _sideEffects = 'Transient paraesthesia in the right hand at 5.5 mA.';
 const _recordingNotes =
     'Noticeably less checking behaviour; patient reports a lighter mood.';
 
@@ -833,7 +832,6 @@ void main() {
     await _next(tester);
 
     await _seedRatings(tester);
-    await _type(tester, 'Side effects (if any)', _sideEffects);
     await _type(tester, 'Notes', _recordingNotes);
 
     // The step is ~4800 px tall, so it is documented in two parts.
@@ -1007,7 +1005,11 @@ void main() {
         'sub-01_ses-20260203_task-programming_run-01_beh';
     final shots = <(String, Future<Object?> Function(BuildContext), String)>[
       ('dialog_session_label', (c) => askSessionLabel(c, '20260203'), 'Cancel'),
-      ('dialog_record_into', (c) => confirmRecordInto(c, root, name), 'Cancel'),
+      (
+        'dialog_record_into',
+        (c) => confirmRecordInto(c, root, name, what: 'this visit'),
+        'Cancel',
+      ),
       (
         'dialog_bids_start',
         (c) => checkDatasetFolder(c, 'C:/Studies/new-study', const []),
@@ -1100,6 +1102,28 @@ void main() {
       size: const Size(_narrow, 1000),
     );
     await _shootFitted(tester, 'reports_empty', width: _narrow, height: 620);
+  });
+
+  testWidgets('reports: load from dataset', (tester) async {
+    String beh(String sub, String ses) =>
+        'sub-$sub/ses-$ses/beh/'
+        'sub-${sub}_ses-${ses}_task-programming_run-01_beh.tsv';
+    debugDataset = (
+      root: 'C:/Studies/OCD-DBS',
+      files: [
+        for (final (sub, ses) in const [
+          ('01', '20260203'),
+          ('01', '20260401'),
+          ('02', '20260210'),
+          ('03', '20260215'),
+        ])
+          (path: beh(sub, ses), content: 'x'),
+      ],
+    );
+    addTearDown(() => debugDataset = null);
+    await _pump(tester, ReportsScreen(catalog: (await _contracts()).$1));
+    await _tapText(tester, 'Load from dataset');
+    await _shootDialog(tester, 'dialog_load_participants');
   });
 
   testWidgets('reports: one session', (tester) async {

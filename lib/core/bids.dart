@@ -25,7 +25,7 @@ class BidsName {
 
   final String subject;
   final String session;
-  final String task; // "programming" or "notes"
+  final String task; // "programming" or "notes" unless the user names another
   final String run;
   final String suffix;
   final String extension;

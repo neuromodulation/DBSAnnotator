@@ -83,27 +83,58 @@ void main() {
       // Combining two people into one longitudinal report is a safety problem.
       expect(
         unavailableReason(ReportAction.longitudinalReport, files),
-        'These sessions name different patients.',
+        'These files name different patients.',
       );
     },
   );
 
-  test('a session and its notes still count as one session', () {
+  test('a session and its notes are two files, so longitudinal', () {
     final files = [
       session(a),
       notes('sub-01_ses-20260203_task-notes_run-01_beh.tsv'),
     ];
-    expect(availableActions(files), contains(ReportAction.sessionReport));
+    expect(availableActions(files), contains(ReportAction.longitudinalReport));
+    expect(availableActions(files), contains(ReportAction.aggregateTsv));
     expect(
-      availableActions(files),
-      isNot(contains(ReportAction.longitudinalReport)),
+      unavailableReason(ReportAction.sessionReport, files),
+      'Upload one TSV; several give a longitudinal report.',
     );
+  });
+
+  test('two notes files and no session still give a longitudinal report', () {
+    expect(
+      availableActions([
+        notes('sub-01_ses-20260203_task-notes_run-01_beh.tsv'),
+        notes('sub-01_ses-20260310_task-notes_run-01_beh.tsv'),
+      ]),
+      contains(ReportAction.longitudinalReport),
+    );
+  });
+
+  test('a notes file joins the combined table as one row per note', () {
+    final sources = aggregateSources([
+      session(a),
+      notes('sub-01_ses-20260203_task-notes_run-01_beh.tsv'),
+    ]);
+    expect(sources.first.rows, const [_row]);
+    final note = sources.last.rows.single;
+    expect(note.acqTime, '2026-02-03T09:00:00');
+    expect(note.notes, 'n');
+    expect(note.blockId, isEmpty, reason: 'written as n/a');
+  });
+
+  test('every action explains itself', () {
+    for (final action in ReportAction.values) {
+      expect(action.how, isNotEmpty, reason: action.name);
+      expect(action.needs, isNotEmpty, reason: action.name);
+      expect(action.creates, isNotEmpty, reason: action.name);
+    }
   });
 
   test('several sessions turn the single report off, with a reason', () {
     expect(
       unavailableReason(ReportAction.sessionReport, [session(a), session(b)]),
-      'Upload one session TSV; several give a longitudinal report.',
+      'Upload one TSV; several give a longitudinal report.',
     );
   });
 

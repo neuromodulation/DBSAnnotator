@@ -20,7 +20,7 @@ offers three entries, in two groups: **Record** is for a session happening now;
      - Use it when
    * - :doc:`Complete workflow <screens/complete_workflow>`
      - You are running a programming session: stimulation parameters, electrode
-       contacts, scale ratings, side effects and notes.
+       contacts, scale ratings and notes.
    * - :doc:`Annotations only <screens/annotations>`
      - You only want timestamped notes, with no stimulation data.
    * - :doc:`Reports and datasets <screens/reports>`
@@ -55,7 +55,7 @@ The shortest useful path through
    configuration, with their range. Disease presets fill this in with a tap.
 
 4. **Recording.** For each configuration: set the parameters, select contacts on
-   the lead diagram, rate the scales, add any side effect, and insert. Repeat.
+   the lead diagram, rate the scales, add any note, and insert. Repeat.
 
 Things worth knowing early
 --------------------------
@@ -65,7 +65,7 @@ entry is written to your file and to a working copy inside the app, so a crash
 or a closed window loses nothing: the next time you open the workflow, the app
 offers the unfinished session back.
 
-**Notes and side effects belong to a block.** They are attached to the
+**Notes belong to a block.** They are attached to the
 configuration that was active when you typed them, not to the session as a
 whole, which is what makes it possible afterwards to say *which* setting caused
 the paraesthesia.

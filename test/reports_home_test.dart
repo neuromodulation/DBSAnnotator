@@ -111,7 +111,7 @@ void main() {
         'exportBidsDataset(',
         'unavailableReason(',
         'planBidsMerge(',
-        'readDatasetDirectory(',
+        'pickCheckedDatasetFolder(',
         'confirmMerge(',
       ]) {
         expect(text, contains(shared), reason: shared);

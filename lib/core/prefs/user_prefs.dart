@@ -17,13 +17,13 @@ class UserPrefs {
     this.stimPulseWidths,
     this.programs,
     this.clinical,
+    this.clinicalRanges,
     this.session,
     this.reportPageSize,
     this.entryPanelOrder,
     this.entryVisibleConfigs,
     this.entryTableExpanded,
     this.reportSections,
-    this.longitudinalSections,
   });
 
   /// Stimulation quick-pick lists (override `limits.json` stimulation_presets).
@@ -36,6 +36,9 @@ class UserPrefs {
 
   /// Clinical scale presets: group name -> scale names.
   Map<String, List<String>>? clinical;
+
+  /// Clinical scale name -> [min, max], the declared ranges as edited.
+  Map<String, List<String>>? clinicalRanges;
 
   /// Session scale presets: group name -> [name, min, max] rows.
   Map<String, List<List<String>>>? session;
@@ -58,11 +61,6 @@ class UserPrefs {
   /// section. Persisted so a dropped section stays dropped on the next export.
   List<String>? reportSections;
 
-  /// The longitudinal report's sections, by [LongitudinalSection.name]; null
-  /// means its defaults. Kept apart from [reportSections]: the two reports
-  /// have different sections.
-  List<String>? longitudinalSections;
-
   factory UserPrefs.fromJson(Map<String, dynamic> j) {
     List<num>? nums(String k) => (j[k] as List?)?.map((e) => e as num).toList();
     return UserPrefs(
@@ -71,6 +69,10 @@ class UserPrefs {
       stimPulseWidths: nums('stim_pulse_widths'),
       programs: (j['programs'] as List?)?.map((e) => e as String).toList(),
       clinical: (j['clinical'] as Map?)?.map(
+        (k, v) =>
+            MapEntry(k as String, (v as List).map((e) => e as String).toList()),
+      ),
+      clinicalRanges: (j['clinical_ranges'] as Map?)?.map(
         (k, v) =>
             MapEntry(k as String, (v as List).map((e) => e as String).toList()),
       ),
@@ -91,9 +93,6 @@ class UserPrefs {
       reportSections: (j['report_sections'] as List?)
           ?.map((e) => e as String)
           .toList(),
-      longitudinalSections: (j['longitudinal_sections'] as List?)
-          ?.map((e) => e as String)
-          .toList(),
     );
   }
 
@@ -103,6 +102,7 @@ class UserPrefs {
     if (stimPulseWidths != null) 'stim_pulse_widths': stimPulseWidths,
     if (programs != null) 'programs': programs,
     if (clinical != null) 'clinical': clinical,
+    if (clinicalRanges != null) 'clinical_ranges': clinicalRanges,
     if (session != null) 'session': session,
     if (reportPageSize != null) 'report_page_size': reportPageSize,
     if (entryPanelOrder != null) 'entry_panel_order': entryPanelOrder,
@@ -110,8 +110,6 @@ class UserPrefs {
       'entry_visible_configs': entryVisibleConfigs,
     if (entryTableExpanded != null) 'entry_table_expanded': entryTableExpanded,
     if (reportSections != null) 'report_sections': reportSections,
-    if (longitudinalSections != null)
-      'longitudinal_sections': longitudinalSections,
   };
 }
 
@@ -131,6 +129,14 @@ const List<String> kDefaultPrograms = ['None', 'A', 'B', 'C', 'D'];
 ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
   final clinical = {...base.clinical};
   prefs.clinical?.forEach((k, v) => clinical[k] = v);
+  // Saved ranges replace the bundled ones wholesale: a range the user cleared
+  // must stay cleared rather than reappear from the contract.
+  final clinicalRanges = prefs.clinicalRanges == null
+      ? base.clinicalRanges
+      : {
+          for (final e in prefs.clinicalRanges!.entries)
+            if (e.value.length == 2) e.key: (min: e.value[0], max: e.value[1]),
+        };
   final session = {...base.session};
   prefs.session?.forEach(
     (k, rows) => session[k] = [
@@ -153,7 +159,12 @@ ScalePresets mergeScalePresets(ScalePresets base, UserPrefs prefs) {
     for (final k in {...clinical.keys, ...session.keys})
       if (!base.buttons.contains(k)) k,
   ];
-  return ScalePresets(buttons: buttons, clinical: clinical, session: session);
+  return ScalePresets(
+    buttons: buttons,
+    clinical: clinical,
+    session: session,
+    clinicalRanges: clinicalRanges,
+  );
 }
 
 /// Overrides where preferences live, so tests never touch the user's own.

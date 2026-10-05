@@ -32,7 +32,7 @@ void main() {
       // the L row.
       final first = data.tableData.first;
       expect(first[time], matches(RegExp(r'^\d{2}:\d{2}:\d{2}$')));
-      expect(first[index], contains('0.380'));
+      expect(first[index], contains('0.38'));
       expect(
         first[index],
         contains('rank 5'),
@@ -44,7 +44,7 @@ void main() {
         for (final row in data.tableData)
           if (row[index].isNotEmpty) row.first: row[index],
       };
-      expect(byBlock['3'], contains('0.450'));
+      expect(byBlock['3'], contains('0.45'));
       expect(byBlock['3'], byBlock['4']);
       // The R row leaves them blank rather than repeating them.
       expect(data.tableData[1][time], isEmpty);
@@ -65,7 +65,7 @@ void main() {
         plain.tableRows.every((r) => r.length == plain.tableHeaders.length),
         isTrue,
       );
-      expect(data.tableHeaders, contains('Index'));
+      expect(data.tableHeaders, contains(kSessionIndexHeader));
     });
 
     test('response reports first -> last per scale', () {
@@ -146,7 +146,6 @@ void main() {
 
     test('the index method is stated, not just the modes', () {
       expect(data.indexMethod, contains('unweighted mean'));
-      expect(data.indexMethod, contains('half weight'));
     });
   });
 

@@ -15,12 +15,14 @@ import '../core/electrode/stimulation_rule.dart';
 import '../core/electrode/tokens.dart';
 import '../core/prefs/user_prefs.dart';
 import '../core/safe_file.dart';
+import '../core/schema_columns.dart' show isInitialValue;
 import '../core/session/authoring.dart';
 import '../core/session/scale_presets.dart';
 import '../core/session/tsv_kind.dart';
 import '../core/session/scale_scoring.dart'
     show ScaleMode, ScalePref, scaleModeFromString;
 import '../core/session/session_row.dart';
+import '../core/timestamps.dart' show recordedTime;
 import '../report/entry_charts.dart';
 import '../report/report_data.dart';
 import '../report/report_sections.dart';
@@ -29,8 +31,6 @@ import '../report/session_pdf.dart';
 import '../app_info.dart';
 import 'amplitude_split.dart';
 import 'bids_export.dart';
-import '../core/bids_dataset.dart';
-import '../core/bids_merge.dart';
 import 'bids_merge_ui.dart';
 import 'close_guard.dart';
 import 'electrode_view.dart';
@@ -169,19 +169,19 @@ class _SideInputs {
   }
 }
 
+/// The `task-` label of a programming session unless the user names another.
+const _defaultTask = 'programming';
+
 class _SessionScreenState extends State<SessionScreen> {
   late SessionAuthoring _authoring = widget.authoring ?? SessionAuthoring();
   final _subjectCtrl = TextEditingController();
+  final _taskCtrl = TextEditingController(text: _defaultTask);
   final _runCtrl = TextEditingController(text: '01');
   // Notes are per-context: the initial-config notes persist across inserts (the
   // user keeps refining them); recording notes clear after each block.
   final _notesInitCtrl = TextEditingController();
   final _notesRecCtrl = TextEditingController();
 
-  /// Side effects observed at the configuration being rated. Folded into the
-  /// `notes` cell on insert (see [_recordingNotes]) so no new TSV column is
-  /// needed.
-  final _sideEffectsCtrl = TextEditingController();
   // Electrode/param state is INDEPENDENT per step: editing the recording config
   // must not change what the initial config shows. The recording pair is seeded
   // once from the initial pair on first entry to the Recording step.
@@ -209,6 +209,13 @@ class _SessionScreenState extends State<SessionScreen> {
 
   int _currentStep = 0;
   String? _modelName;
+
+  /// The right lead's model when it differs from the left one; null while
+  /// both leads are [_modelName].
+  String? _rightModelName;
+
+  /// Whether the block about to be inserted is the one the patient leaves on.
+  bool _leavesOn = false;
   // Chosen save path (from New/Open); when set, inserts autosave to it.
   String? _savePath;
   // Working copy in the app's own storage, written on every insert whatever
@@ -280,10 +287,9 @@ class _SessionScreenState extends State<SessionScreen> {
       // No _savePath: guessing it would autosave over a file not chosen here.
       _savePath = null;
       _savePathIsSandboxCopy = false;
-      if (bids != null) {
-        _subjectCtrl.text = bids.subject;
-        _runCtrl.text = bids.run;
-      }
+      _datasetRoot = null;
+      _datasetName = null;
+      if (bids != null) _fillLabels(bids);
       _currentStep = 3;
     });
     _snack('Reopened $name. Export it to save it outside the app.');
@@ -389,10 +395,10 @@ class _SessionScreenState extends State<SessionScreen> {
   void dispose() {
     if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
     _subjectCtrl.dispose();
+    _taskCtrl.dispose();
     _runCtrl.dispose();
     _notesInitCtrl.dispose();
     _notesRecCtrl.dispose();
-    _sideEffectsCtrl.dispose();
     _leftInit.dispose();
     _rightInit.dispose();
     _leftRec.dispose();
@@ -450,11 +456,13 @@ class _SessionScreenState extends State<SessionScreen> {
     _SideInputs left,
     _SideInputs right,
   ) {
-    final model = _modelName == null ? null : catalog.models[_modelName];
+    final leads = _leads(catalog);
     var leftTokens = (anode: '', cathode: '');
     var rightTokens = (anode: '', cathode: '');
-    if (model != null) {
+    if (leads.left case final model?) {
       leftTokens = encodeTokens(left.states, left.caseState, model);
+    }
+    if (leads.right case final model?) {
       rightTokens = encodeTokens(right.states, right.caseState, model);
     }
     return {
@@ -527,7 +535,8 @@ class _SessionScreenState extends State<SessionScreen> {
           (name: s.name.text.trim(), value: s.score.text.trim()),
       ],
       programId: _selectedProgram ?? '',
-      electrodeModel: _modelName ?? '',
+      leftElectrodeModel: _modelName ?? '',
+      rightElectrodeModel: _rightModelName ?? _modelName ?? '',
       notes: _notesInitCtrl.text.trim(),
     );
     // Initial notes are intentionally NOT cleared, so the user can keep
@@ -558,12 +567,14 @@ class _SessionScreenState extends State<SessionScreen> {
           ),
       ],
       programId: _selectedProgram ?? '',
-      electrodeModel: _modelName ?? '',
-      notes: _recordingNotes(),
+      leftElectrodeModel: _modelName ?? '',
+      rightElectrodeModel: _rightModelName ?? _modelName ?? '',
+      notes: _notesRecCtrl.text.trim(),
     );
+    if (_leavesOn) _authoring.markFinalBlock(inserted.first.blockId);
     setState(() {
       _notesRecCtrl.clear();
-      _sideEffectsCtrl.clear();
+      _leavesOn = false;
     });
     _autosave();
     _snack(
@@ -612,34 +623,20 @@ class _SessionScreenState extends State<SessionScreen> {
     }
   }
 
-  /// Place this visit in the chosen dataset: its TSV and sidecar at the BIDS
-  /// path, and the dataset index files brought up to date.
-  ///
-  /// Goes through [planBidsMerge] like every other write into a dataset, so a
-  /// `participants.tsv` carrying the study's own columns keeps them, and a
-  /// visit already filed there is refused rather than overwritten.
+  /// Place this visit in the chosen dataset; see [fileIntoDataset].
   Future<void> _fileIntoDataset() async {
     final root = _datasetRoot;
     final name = _datasetName;
     if (root == null || name == null) return;
     try {
-      final contract = await loadTsvContract();
-      final incoming = buildBidsDataset(
-        [
-          datasetEntry(
-            name: name,
-            tsv: _authoring.serialize(),
-            contract: contract,
-            kind: 'session_tsv',
-            acqTime: _authoring.rows.first.acqTime,
-          ),
-        ],
-        appName: appName,
-        appVersion: appVersion,
-        repoUrl: repoUrl,
+      final path = await fileIntoDataset(
+        root: root,
+        name: name,
+        tsv: _authoring.serialize(),
+        kind: 'session_tsv',
+        acqTime: _authoring.rows.first.acqTime,
       );
-      final plan = planBidsMerge(await readDatasetDirectory(root), incoming);
-      if (plan.refused.isNotEmpty) {
+      if (path == null) {
         if (mounted) {
           _snack(
             'That dataset already holds ${name.filename}. This visit stays in '
@@ -649,9 +646,8 @@ class _SessionScreenState extends State<SessionScreen> {
         setState(() => _datasetRoot = null);
         return;
       }
-      await applyMergeToDirectory(root, plan);
       if (!mounted) return;
-      setState(() => _savePath = '$root/${name.relativeDir}/${name.filename}');
+      setState(() => _savePath = path);
       _snack('Filed as ${name.relativeDir}/${name.filename}.');
     } catch (e) {
       if (mounted) {
@@ -674,9 +670,13 @@ class _SessionScreenState extends State<SessionScreen> {
       final json = tsvPath.replaceFirst(RegExp(r'\.tsv$'), '.json');
       if (json == tsvPath || File(json).existsSync()) return;
       final contract = await loadTsvContract();
-      await File(
-        json,
-      ).writeAsString(sessionSidecarJson(contract, appVersion: appVersion));
+      await File(json).writeAsString(
+        sessionSidecarJson(
+          contract,
+          appVersion: appVersion,
+          task: _labels.task,
+        ),
+      );
     } catch (_) {
       // No sidecar is a documentation loss, not a data loss.
     }
@@ -684,76 +684,22 @@ class _SessionScreenState extends State<SessionScreen> {
 
   // ---- Open / Export (offline pattern from annotations_screen.dart) ----
 
-  /// Ask whether this visit is a loose file or goes into a dataset, and, when
-  /// a dataset, which one and under what session label.
-  ///
-  /// The label is proposed as today's date but stays editable: `ses-YYYYMMDD`
-  /// is this app's convention, and plenty of groups use `ses-preop` or
-  /// `ses-3mo`. Filing into someone's tree under a scheme they do not use turns
-  /// a filename edit into a history problem.
-  Future<({String? root, BidsName name})?> _askNewTarget(
-    BidsName proposed,
-  ) async {
-    if (!canWriteChosenFolder) return (root: null, name: proposed);
-    final choice = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Where should this visit be saved?'),
-        content: const Text(
-          'A loose TSV goes wherever you choose. Into a dataset, the visit is '
-          'filed at its BIDS path and the dataset index files are kept up to '
-          'date as you record.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'loose'),
-            child: const Text('Loose TSV'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, 'dataset'),
-            child: const Text('Into a dataset'),
-          ),
-        ],
-      ),
-    );
-    if (choice == null || !mounted) return null;
-    if (choice == 'loose') return (root: null, name: proposed);
-
-    final root = await pickDatasetFolder();
-    if (root == null || !mounted) return null;
-    final existing = await readDatasetDirectory(root);
-    if (!mounted || !await checkDatasetFolder(context, root, existing)) {
-      return null;
-    }
-    if (!mounted) return null;
-    final label = await askSessionLabel(context, proposed.session);
-    if (label == null || !mounted) return null;
-    final name = BidsName(
-      subject: proposed.subject,
-      session: label,
-      task: proposed.task,
-      run: proposed.run,
-    );
-    if (!await confirmRecordInto(context, root, name)) return null;
-    return (root: root, name: name);
-  }
-
   Future<void> _newSession() async {
     final subject = _subjectCtrl.text.trim().isEmpty
         ? '01'
         : _subjectCtrl.text.trim();
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final bids = _bidsName((subject: subject, run: run));
+    final bids = _bidsName((
+      subject: subject,
+      task: _labels.task,
+      run: run,
+    ), session: BidsName.sessionStamp(DateTime.now()));
     final name = bids.filename;
     final authoring = SessionAuthoring();
 
     // Loose file, or straight into a dataset. Asked here because the answer
     // decides where every autosave of this visit lands.
-    final into = await _askNewTarget(bids);
+    final into = await askNewTarget(context, bids, what: 'this visit');
     if (into == null || !mounted) return;
     if (into.root != null) {
       final work = await workingPath(into.name.filename);
@@ -766,7 +712,7 @@ class _SessionScreenState extends State<SessionScreen> {
         _datasetName = into.name;
         _savePathIsSandboxCopy = false;
         _subjectCtrl.text = subject;
-        _runCtrl.text = run;
+        _runCtrl.text = into.name.run;
         _currentStep = 1;
       });
       _snack(
@@ -850,7 +796,11 @@ class _SessionScreenState extends State<SessionScreen> {
     // lead's geometry, in the diagrams here and in the report.
     final catalog = (await _contracts).$1;
     final named = electrodeModelIn(_authoring.rows);
-    final unknownModel = named.isNotEmpty && !catalog.models.containsKey(named);
+    final namedRight = electrodeModelIn(_authoring.rows, right: true);
+    final unknownModel = [
+      named,
+      namedRight,
+    ].any((n) => n.isNotEmpty && !catalog.models.containsKey(n));
     final work = await workingPath(picked.name);
 
     if (!mounted) return;
@@ -859,11 +809,15 @@ class _SessionScreenState extends State<SessionScreen> {
       _savePath = picked.path;
       _workingPath = work;
       _savePathIsSandboxCopy = !pickedPathAutosavesToOriginal(picked.path);
-      if (bids != null) {
-        _subjectCtrl.text = bids.subject;
-        _runCtrl.text = bids.run;
+      _datasetRoot = null;
+      _datasetName = null;
+      if (bids != null) _fillLabels(bids);
+      if (named.isNotEmpty && !unknownModel) {
+        _modelName = named;
+        _rightModelName = namedRight.isEmpty || namedRight == named
+            ? null
+            : namedRight;
       }
-      if (named.isNotEmpty && !unknownModel) _modelName = named;
     });
     final opened =
         'Opened ${picked.name} (${_authoring.rows.length} rows, '
@@ -871,7 +825,8 @@ class _SessionScreenState extends State<SessionScreen> {
     _snack(_savePathIsSandboxCopy ? '$opened $sandboxCopyNotice' : opened);
     if (unknownModel) {
       _snack(
-        'This file names electrode model "$named", which is not in the '
+        'This file names an electrode model ("$named", "$namedRight") '
+        'that is not in the '
         'catalogue. The diagrams show ${_modelName ?? 'the selected model'} '
         'instead.',
       );
@@ -880,18 +835,38 @@ class _SessionScreenState extends State<SessionScreen> {
 
   /// BIDS labels for a filename: sanitised, because these fields are free text
   /// and become a path component.
-  ({String subject, String run}) get _labels {
+  ({String subject, String task, String run}) get _labels {
     final subject = BidsName.label(_subjectCtrl.text.trim());
+    final task = BidsName.label(_taskCtrl.text.trim());
     final run = BidsName.index(_runCtrl.text.trim());
-    return (subject: subject.isEmpty ? 'unknown' : subject, run: run);
+    return (
+      subject: subject.isEmpty ? 'unknown' : subject,
+      task: task.isEmpty ? _defaultTask : task,
+      run: run,
+    );
+  }
+
+  void _fillLabels(BidsName bids) {
+    _subjectCtrl.text = bids.subject;
+    _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
+    _runCtrl.text = bids.run;
   }
 
   /// The BIDS entities for everything this screen writes: the session TSV, its
   /// sidecar and the report derivative all carry the same ones.
-  BidsName _bidsName(({String subject, String run}) labels) => BidsName(
+  ///
+  /// The session is the label chosen when filing into a dataset, so exports
+  /// carry the same `ses-` as the filed visit, and today's date otherwise.
+  BidsName _bidsName(
+    ({String subject, String task, String run}) labels, {
+    String? session,
+  }) => BidsName(
     subject: labels.subject,
-    session: BidsName.sessionStamp(DateTime.now()),
-    task: 'programming',
+    session:
+        session ??
+        _datasetName?.session ??
+        BidsName.sessionStamp(DateTime.now()),
+    task: labels.task,
     run: labels.run,
   );
 
@@ -927,6 +902,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _snack('Insert at least one block before exporting.');
       return;
     }
+    if (!await _confirmLeftOn() || !mounted) return;
     await exportFile(
       context,
       filename: _bidsName(_labels).filename,
@@ -948,6 +924,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _snack('Insert at least one block before exporting.');
       return;
     }
+    if (!await _confirmLeftOn() || !mounted) return;
     final Map<String, dynamic> contract;
     try {
       contract = await loadTsvContract();
@@ -975,16 +952,16 @@ class _SessionScreenState extends State<SessionScreen> {
   /// Build the session report in [format] and share it (mobile) or save it
   /// (desktop). Both formats are built from ONE [SessionReportData] and one
   /// section selection, so they cannot disagree about content.
-  Future<void> _exportReport(
-    ElectrodeModel? model, {
-    required bool docx,
-  }) async {
+  Future<void> _exportReport(_Leads leads, {required bool docx}) async {
     if (_authoring.rows.isEmpty) {
       _snack('Insert at least one block before exporting a report.');
       return;
     }
+    if (!await _confirmLeftOn() || !mounted) return;
     final sections = await _askSections();
     if (sections == null || !mounted) return;
+    final attestation = await askAttestation(context, rated: true);
+    if (attestation == null || !mounted) return;
 
     final l = _labels;
     // A report is a derivative, not raw data: `_report` is not a BIDS suffix.
@@ -1002,7 +979,12 @@ class _SessionScreenState extends State<SessionScreen> {
       build: () async {
         final data = _reportData();
         // Only rasterise what the chosen sections will actually embed.
-        final gfx = await renderReportGraphics(data, model, sections);
+        final gfx = await renderReportGraphics(
+          data,
+          leads.left,
+          sections,
+          right: leads.right,
+        );
         if (docx) {
           return (
             bytes: buildSessionDocx(
@@ -1012,6 +994,7 @@ class _SessionScreenState extends State<SessionScreen> {
               chartPng: gfx.chart,
               pageSize: _reportLetter ? DocxPageSize.letter : DocxPageSize.a4,
               sections: sections,
+              attestation: attestation,
             ),
             warning: null,
           );
@@ -1023,6 +1006,7 @@ class _SessionScreenState extends State<SessionScreen> {
           chartPng: gfx.chart,
           pageFormat: _reportLetter ? PdfPageFormat.letter : PdfPageFormat.a4,
           sections: sections,
+          attestation: attestation,
         );
         return (
           bytes: report.bytes,
@@ -1042,7 +1026,7 @@ class _SessionScreenState extends State<SessionScreen> {
   /// Replaces three buttons and a paper-size toggle: the choice is always
   /// "export WHAT, as WHICH format, on WHICH paper", which is a menu, not a row
   /// of buttons that grows every time a format is added.
-  Widget _exportMenu(ElectrodeModel? model) => MenuAnchor(
+  Widget _exportMenu(_Leads leads) => MenuAnchor(
     builder: (context, controller, child) => FilledButton.icon(
       key: _exportKey,
       onPressed: () =>
@@ -1053,12 +1037,12 @@ class _SessionScreenState extends State<SessionScreen> {
     menuChildren: [
       MenuItemButton(
         leadingIcon: const Icon(Icons.picture_as_pdf),
-        onPressed: () => _exportReport(model, docx: false),
+        onPressed: () => _exportReport(leads, docx: false),
         child: const Text('Export report (PDF)'),
       ),
       MenuItemButton(
         leadingIcon: const Icon(Icons.description_outlined),
-        onPressed: () => _exportReport(model, docx: true),
+        onPressed: () => _exportReport(leads, docx: true),
         child: const Text('Export report (Word)'),
       ),
       const Divider(height: 8),
@@ -1132,8 +1116,7 @@ class _SessionScreenState extends State<SessionScreen> {
   ///
   /// Row 1 holds the stimulation parameters and the electrode canvases side by
   /// side, because a contact selection and the amplitude that drives it are one
-  /// decision. Row 2 holds the scales, the notes and (recording only) side
-  /// effects.
+  /// decision. Row 2 holds the scales and the notes.
   ///
   /// Rows rather than three columns: params, electrodes and
   /// scales-plus-notes would each take a third of the width, which squeezes
@@ -1146,17 +1129,10 @@ class _SessionScreenState extends State<SessionScreen> {
     Widget params,
     Widget electrodes,
     Widget scalesCard,
-    TextEditingController notesCtrl, {
-    TextEditingController? sideEffectsCtrl,
-  }) {
+    TextEditingController notesCtrl,
+  ) {
     return LayoutBuilder(
       builder: (context, c) {
-        // The free-text half of row 2, built once and placed by either branch.
-        final freeText = <Widget>[
-          if (sideEffectsCtrl != null) _sideEffectsField(sideEffectsCtrl),
-          _notesField(notesCtrl),
-        ];
-
         if (c.maxWidth >= 900) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1171,25 +1147,15 @@ class _SessionScreenState extends State<SessionScreen> {
                 ],
               ),
               const Divider(height: 28, thickness: 1.2),
-              // Row 2: the observations. Scales on the left, the free text on
-              // the right, so a long scale list and a long note grow
-              // independently instead of pushing each other down.
+              // Row 2: the observations. Scales on the left, the notes on the
+              // right, so a long scale list and a long note grow independently
+              // instead of pushing each other down.
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(child: scalesCard),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (final w in freeText) ...[
-                          w,
-                          if (w != freeText.last) const SizedBox(height: 12),
-                        ],
-                      ],
-                    ),
-                  ),
+                  Expanded(child: _notesField(notesCtrl)),
                 ],
               ),
             ],
@@ -1207,10 +1173,8 @@ class _SessionScreenState extends State<SessionScreen> {
             // Portrait: no neighbouring column to line up with, so the notes
             // field starts modest and grows with the text instead of filling a
             // height borrowed from the scales card.
-            for (final w in [
-              if (sideEffectsCtrl != null) _sideEffectsField(sideEffectsCtrl),
-              _notesField(notesCtrl),
-            ]) ...[const SizedBox(height: 12), w],
+            const SizedBox(height: 12),
+            _notesField(notesCtrl),
           ],
         );
       },
@@ -1218,27 +1182,142 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   Widget _modelCard(ElectrodeCatalog catalog) {
+    // ElectrodeView resets on model change; mirror it in every captured pair
+    // of the side whose lead changed (initial and recording).
+    void reset(List<_SideInputs> sides) {
+      for (final s in sides) {
+        s.states = {};
+        s.caseState = ContactState.off;
+      }
+    }
+
+    Widget menu(String? value, String hint, ValueChanged<String?> onChanged) =>
+        DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: value,
+            isExpanded: true,
+            isDense: true,
+            hint: Text(hint),
+            items: _modelItems(catalog),
+            onChanged: onChanged,
+          ),
+        );
+
+    final same = _rightModelName == null;
     return GroupCard(
       title: 'Electrode',
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: _modelName,
-          isExpanded: true,
-          isDense: true,
-          hint: const Text('Select model'),
-          items: _modelItems(catalog),
-          onChanged: (name) => setState(() {
-            _modelName = name;
-            // ElectrodeView resets on model change; mirror in every captured
-            // pair (initial + recording, both sides).
-            for (final s in [_leftInit, _rightInit, _leftRec, _rightRec]) {
-              s.states = {};
-              s.caseState = ContactState.off;
-            }
-          }),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          menu(
+            _modelName,
+            same ? 'Select model' : 'Select left lead model',
+            (name) => setState(() {
+              _modelName = name;
+              reset(
+                same
+                    ? [_leftInit, _rightInit, _leftRec, _rightRec]
+                    : [_leftInit, _leftRec],
+              );
+            }),
+          ),
+          CheckboxListTile(
+            value: same,
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text('Same model on both sides'),
+            onChanged: (v) => setState(() {
+              _rightModelName = v ?? true ? null : _modelName;
+            }),
+          ),
+          if (!same)
+            menu(
+              _rightModelName,
+              'Select right lead model',
+              (name) => setState(() {
+                _rightModelName = name;
+                reset([_rightInit, _rightRec]);
+              }),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Both leads' models, the right falling back to the left when they match.
+  _Leads _leads(ElectrodeCatalog catalog) => (
+    left: _modelName == null ? null : catalog.models[_modelName],
+    right: catalog.models[_rightModelName ?? _modelName],
+  );
+
+  /// Ask which recorded block the patient leaves on, defaulting to the one
+  /// already marked, else the last, and write the choice into the file. False
+  /// when cancelled.
+  Future<bool> _confirmLeftOn() async {
+    final blocks = <String, String>{};
+    for (final r in _authoring.rows) {
+      if (isInitialValue(r.isInitial)) continue;
+      blocks.putIfAbsent(r.blockId, () => recordedTime(r.acqTime));
+    }
+    if (blocks.isEmpty) return true;
+    final marked = finalBlockIn(_authoring.rows);
+    var choice = marked ?? blocks.keys.last;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Which configuration does the patient leave on?'),
+          content: SizedBox(
+            width: 420,
+            child: SingleChildScrollView(
+              child: RadioGroup<String>(
+                groupValue: choice,
+                onChanged: (v) => setState(() => choice = v ?? choice),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final e in blocks.entries)
+                      RadioListTile<String>(
+                        value: e.key,
+                        dense: true,
+                        title: Text('Block ${e.key}'),
+                        subtitle: e.value.isEmpty ? null : Text(e.value),
+                      ),
+                    const RadioListTile<String>(
+                      value: '',
+                      dense: true,
+                      title: Text('Not recorded'),
+                      subtitle: Text(
+                        'The report then shows the last configuration '
+                        'recorded, and says so.',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Confirm'),
+            ),
+          ],
         ),
       ),
     );
+    if (confirmed != true || !mounted) return false;
+    final picked = choice.isEmpty ? null : choice;
+    if (picked != marked) {
+      setState(() => _authoring.markFinalBlock(picked));
+      await _autosave();
+    }
+    return true;
   }
 
   Widget _programCard() {
@@ -1345,7 +1424,7 @@ class _SessionScreenState extends State<SessionScreen> {
   /// Column 1: model (Step 1 only) + program + Left/Right param groups.
   Widget _paramsColumn(
     ElectrodeCatalog catalog,
-    ElectrodeModel? model,
+    _Leads leads,
     StimLimits limits, {
     required bool withModel,
     required _SideInputs left,
@@ -1372,9 +1451,9 @@ class _SessionScreenState extends State<SessionScreen> {
             ),
           ],
         ),
-        _paramsCard('Left', left, model, limits),
+        _paramsCard('Left', left, leads.left, limits),
         const SizedBox(height: 12),
-        _paramsCard('Right', right, model, limits),
+        _paramsCard('Right', right, leads.right, limits),
       ],
     );
   }
@@ -1521,11 +1600,7 @@ class _SessionScreenState extends State<SessionScreen> {
   }
 
   /// Column 2: the two electrode canvases side by side + legend.
-  Widget _electrodesColumn(
-    ElectrodeModel? model,
-    _SideInputs left,
-    _SideInputs right,
-  ) {
+  Widget _electrodesColumn(_Leads leads, _SideInputs left, _SideInputs right) {
     return GroupCard(
       title: 'Electrodes',
       child: Column(
@@ -1533,9 +1608,9 @@ class _SessionScreenState extends State<SessionScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(child: _electrodePane('Left', left, model)),
+              Expanded(child: _electrodePane('Left', left, leads.left)),
               const SizedBox(width: 8),
-              Expanded(child: _electrodePane('Right', right, model)),
+              Expanded(child: _electrodePane('Right', right, leads.right)),
             ],
           ),
           const SizedBox(height: 8),
@@ -1543,44 +1618,6 @@ class _SessionScreenState extends State<SessionScreen> {
         ],
       ),
     );
-  }
-
-  /// Side effects for the configuration being rated (recording step only).
-  ///
-  /// A separate box because a side effect is not a note: it is the
-  /// adverse-event record for that configuration, and a general Notes field
-  /// buries the only tolerability data the session captures. Its own labelled
-  /// field also lets the report lift it out.
-  ///
-  /// It is written into the `notes` COLUMN with a `Side effects:` prefix rather
-  /// than a new TSV column, so the file stays readable by the desktop app
-  /// unchanged. A dedicated column (with side, amplitude at onset, severity and
-  /// whether it resolved) is the proper fix and needs a schema round.
-  Widget _sideEffectsField(TextEditingController ctrl) {
-    return TextField(
-      controller: ctrl,
-      maxLines: 3,
-      minLines: 2,
-      decoration: const InputDecoration(
-        labelText: 'Side effects (if any)',
-        hintText: 'e.g. paraesthesia left hand, resolved at 3.0 mA',
-        border: OutlineInputBorder(),
-        alignLabelWithHint: true,
-        prefixIcon: Icon(Icons.warning_amber_outlined, size: 20),
-      ),
-    );
-  }
-
-  /// The `notes` cell for a recording insert: the side effects first, then the
-  /// free notes, so the tolerability line is never lost at the end of a long
-  /// paragraph. Either half may be empty.
-  String _recordingNotes() {
-    final effects = _sideEffectsCtrl.text.trim();
-    final notes = _notesRecCtrl.text.trim();
-    return [
-      if (effects.isNotEmpty) 'Side effects: $effects',
-      if (notes.isNotEmpty) notes,
-    ].join('\n');
   }
 
   /// The Notes field, given a generous viewport-relative height so it has real
@@ -1617,6 +1654,17 @@ class _SessionScreenState extends State<SessionScreen> {
                 controller: _subjectCtrl,
                 decoration: const InputDecoration(
                   labelText: 'Patient ID (sub-)',
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 160,
+              child: TextField(
+                controller: _taskCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Task (task-)',
                   isDense: true,
                 ),
               ),
@@ -1695,9 +1743,13 @@ class _SessionScreenState extends State<SessionScreen> {
     final edited = await showClinicalPresetsDialog(
       context,
       presets: presets.clinical,
+      ranges: presets.clinicalRanges,
     );
     if (edited == null) return;
-    setState(() => _prefs.clinical = edited);
+    setState(() {
+      _prefs.clinical = edited.groups;
+      _prefs.clinicalRanges = edited.ranges;
+    });
     await saveUserPrefs(_prefs);
     if (mounted) _snack('Clinical scale presets saved.');
   }
@@ -1848,7 +1900,7 @@ class _SessionScreenState extends State<SessionScreen> {
     ElectrodeCatalog catalog,
     StimLimits limits,
     ScalePresets presets,
-    ElectrodeModel? model,
+    _Leads leads,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1856,13 +1908,13 @@ class _SessionScreenState extends State<SessionScreen> {
         _stepBody(
           _paramsColumn(
             catalog,
-            model,
+            leads,
             limits,
             withModel: true,
             left: _leftInit,
             right: _rightInit,
           ),
-          _electrodesColumn(model, _leftInit, _rightInit),
+          _electrodesColumn(leads, _leftInit, _rightInit),
           _clinicalScalesCard(presets, limits),
           _notesInitCtrl,
         ),
@@ -2103,7 +2155,7 @@ class _SessionScreenState extends State<SessionScreen> {
   Widget _recordingStep(
     ElectrodeCatalog catalog,
     StimLimits limits,
-    ElectrodeModel? model,
+    _Leads leads,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -2111,18 +2163,26 @@ class _SessionScreenState extends State<SessionScreen> {
         _stepBody(
           _paramsColumn(
             catalog,
-            model,
+            leads,
             limits,
             withModel: false,
             left: _leftRec,
             right: _rightRec,
           ),
-          _electrodesColumn(model, _leftRec, _rightRec),
+          _electrodesColumn(leads, _leftRec, _rightRec),
           _ratingsCard(limits),
           _notesRecCtrl,
-          sideEffectsCtrl: _sideEffectsCtrl,
         ),
         const SizedBox(height: 12),
+        SwitchListTile(
+          value: _leavesOn,
+          onChanged: (v) => setState(() => _leavesOn = v),
+          title: const Text('Patient leaves on this'),
+          subtitle: const Text(
+            'Marks this block as the configuration the patient goes home with. '
+            'Confirmed when the session ends.',
+          ),
+        ),
         FilledButton.icon(
           onPressed: () => _insertRecording(catalog, limits),
           icon: const Icon(Icons.add),
@@ -2137,7 +2197,7 @@ class _SessionScreenState extends State<SessionScreen> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
-        _exportMenu(model),
+        _exportMenu(leads),
         const Divider(height: 32),
         Row(
           children: [
@@ -2193,7 +2253,13 @@ class _SessionScreenState extends State<SessionScreen> {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             childrenPadding: const EdgeInsets.only(bottom: 8),
-            children: [SessionEntriesTable(rows: _authoring.rows)],
+            children: [
+              SessionEntriesTable(
+                rows: _authoring.rows,
+                bestBlocks: _entryCharts().bestXs,
+                secondBlocks: _entryCharts().secondXs,
+              ),
+            ],
           ),
         ),
       ],
@@ -2244,7 +2310,7 @@ class _SessionScreenState extends State<SessionScreen> {
             pulseWidths: _prefs.stimPulseWidths,
           );
           final presets = mergeScalePresets(rawPresets, _prefs);
-          final model = _modelName == null ? null : catalog.models[_modelName];
+          final leads = _leads(catalog);
           // Only the active step builds its (heavy) content: keeps one
           // ElectrodeView / one Notes field per side in the tree at a time,
           // so state lives in _SessionScreenState, not in step widgets.
@@ -2287,7 +2353,7 @@ class _SessionScreenState extends State<SessionScreen> {
             steps: [
               Step(
                 title: const Text('File'),
-                subtitle: const Text('Patient / run: new or open TSV'),
+                subtitle: const Text('Patient / task / run: new or open TSV'),
                 isActive: _currentStep == 0,
                 content: when(0, _fileStep),
               ),
@@ -2299,7 +2365,7 @@ class _SessionScreenState extends State<SessionScreen> {
                 isActive: _currentStep == 1,
                 content: when(
                   1,
-                  () => _initialStep(catalog, limits, presets, model),
+                  () => _initialStep(catalog, limits, presets, leads),
                 ),
               ),
               Step(
@@ -2316,7 +2382,7 @@ class _SessionScreenState extends State<SessionScreen> {
                   'Stimulation + ratings (is_initial 0), export',
                 ),
                 isActive: _currentStep == 3,
-                content: when(3, () => _recordingStep(catalog, limits, model)),
+                content: when(3, () => _recordingStep(catalog, limits, leads)),
               ),
             ],
           );
@@ -2325,3 +2391,6 @@ class _SessionScreenState extends State<SessionScreen> {
     );
   }
 }
+
+/// The left and right leads' models; either is null when none is selected.
+typedef _Leads = ({ElectrodeModel? left, ElectrodeModel? right});

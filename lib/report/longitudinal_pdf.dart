@@ -12,13 +12,18 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../app_info.dart' show appName, appVersion;
+import '../core/brand_palette.dart' show rankRowTint;
+import 'attestation.dart';
 import 'docx_ooxml.dart';
 import 'longitudinal_data.dart';
 import 'longitudinal_sections.dart';
-import 'report_data.dart' show ReportBytes;
+import 'report_data.dart' show ReportBytes, kNumericTableHeaders;
+import 'session_docx.dart' show datedNotesDocx;
 import 'session_pdf.dart'
     show
         ElectrodeReportImages,
+        datedNotesPdf,
+        numericColumnAlignments,
         electrodeCellWidth,
         reportGrid,
         kElectrodeGroupGapPt,
@@ -28,7 +33,7 @@ import 'report_palette.dart';
 import 'report_text.dart';
 
 /// Relative column widths for [longitudinalTableHeaders].
-const _tableWeights = <double>[9, 15, 33, 9, 34];
+const _tableWeights = <double>[7, 11, 37, 8, 37];
 
 /// Page margins, matching the session report so a clinician filing both does
 /// not get two different geometries for one patient.
@@ -47,6 +52,41 @@ pw.Widget _fitWidth(Uint8List png, double width) {
   return pw.Image(image, width: width, height: w > 0 ? width * h / w : null);
 }
 
+/// Under the Visits table, in both formats.
+const kProgrammeNote =
+    'The programme shown is the one the clinician marked as left on, where '
+    'marked; otherwise the last configuration recorded at that visit, which '
+    'is not necessarily one a clinician confirmed.';
+
+/// Figure 1's caption, the same in both formats.
+const kClinicalFigureCaption =
+    'Figure 1. Clinical scale scores, one assessment per visit. Visits are '
+    'evenly spaced, not drawn to time scale.';
+
+/// Figure 2's caption, the same in both formats.
+const kSessionFigureCaption =
+    'Figure 2. Session scale ratings by block, grouped by visit. Each visit '
+    'contributes one point per configuration tested. Visits are evenly '
+    'spaced, not drawn to time scale.';
+
+/// Heading, figure and caption as one block, so a page break never leaves the
+/// heading alone at the foot of a page.
+pw.Widget _figure(
+  String heading,
+  Uint8List png,
+  String caption,
+  double width,
+) => pw.Inseparable(
+  child: pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Header(level: 1, text: heading),
+      _fitWidth(png, width),
+      pw.Text(caption, style: const pw.TextStyle(fontSize: 8, color: pdfInk)),
+    ],
+  ),
+);
+
 /// Build the longitudinal report PDF.
 Future<ReportBytes> buildLongitudinalPdf({
   required LongitudinalReportData data,
@@ -55,6 +95,7 @@ Future<ReportBytes> buildLongitudinalPdf({
   Map<String, ElectrodeReportImages> electrodeImages = const {},
   PdfPageFormat pageFormat = PdfPageFormat.a4,
   Set<LongitudinalSection> sections = kAllLongitudinalSections,
+  ReportAttestation attestation = kNoAttestation,
 }) async {
   final fonts = await loadReportFonts();
   final theme = fonts.theme;
@@ -96,7 +137,7 @@ Future<ReportBytes> buildLongitudinalPdf({
           child: pw.Text(
             '$appName - Longitudinal report',
             style: const pw.TextStyle(
-              fontSize: 20,
+              fontSize: 17,
               fontWeight: pw.FontWeight.bold,
             ),
           ),
@@ -132,51 +173,50 @@ Future<ReportBytes> buildLongitudinalPdf({
             ),
           ),
         ],
+        if (latestVisitSummary(data) case final summary?) ...[
+          pw.SizedBox(height: 8),
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.all(6),
+            decoration: const pw.BoxDecoration(color: pdfPanelFill),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  t(summary.heading),
+                  style: const pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+                for (final line in summary.lines) pw.Text(t(line)),
+              ],
+            ),
+          ),
+        ],
         pw.SizedBox(height: 12),
 
-        if (data.isEmpty)
-          pw.Text('No visits imported.')
-        else ...[
+        if (data.isEmpty) ...[
+          pw.Text('No session TSV was uploaded.'),
+          ...datedNotesPdf('Notes', data.notesWithoutVisit, t),
+        ] else ...[
           // (a) Clinical scales by visit.
           if (sections.contains(LongitudinalSection.clinicalChart)) ...[
-            pw.Header(level: 1, text: 'Clinical scales by visit'),
-            if (clinicalChartPng != null) ...[
-              _fitWidth(clinicalChartPng, format.availableWidth),
-              pw.Text(
-                'Figure 1. Clinical scale scores, one assessment per visit.',
-                style: const pw.TextStyle(
-                  fontSize: 8,
-                  fontStyle: pw.FontStyle.italic,
-                ),
-              ),
-            ] else if (data.clinicalChart.isEmpty)
-              pw.Text('No baseline clinical scale scores were recorded.')
-            else
-              pw.Text('(figure unavailable)'),
+            if (clinicalChartPng != null)
+              _figure(
+                'Clinical scales by visit',
+                clinicalChartPng,
+                kClinicalFigureCaption,
+                format.availableWidth,
+              )
+            else ...[
+              pw.Header(level: 1, text: 'Clinical scales by visit'),
+              if (data.clinicalChart.isEmpty)
+                pw.Text('No baseline clinical scale scores were recorded.')
+              else
+                pw.Text('(figure unavailable)'),
+            ],
             pw.SizedBox(height: 10),
           ],
 
-          // (b) Session scales by visit and block.
-          if (sections.contains(LongitudinalSection.sessionChart)) ...[
-            pw.Header(level: 1, text: 'Session scales by visit and block'),
-            if (sessionChartPng != null) ...[
-              _fitWidth(sessionChartPng, format.availableWidth),
-              pw.Text(
-                'Figure 2. Session scale ratings against visit and block. Each '
-                'visit contributes one point per configuration tested.',
-                style: const pw.TextStyle(
-                  fontSize: 8,
-                  fontStyle: pw.FontStyle.italic,
-                ),
-              ),
-            ] else if (data.sessionChart.isEmpty)
-              pw.Text('No session scale ratings were recorded.')
-            else
-              pw.Text('(figure unavailable)'),
-            pw.SizedBox(height: 10),
-          ],
-
-          // (c) The per-visit table.
+          // (b) The per-visit table.
           if (sections.contains(LongitudinalSection.visits)) ...[
             pw.Header(level: 1, text: 'Visits'),
             pw.TableHelper.fromTextArray(
@@ -194,11 +234,32 @@ Future<ReportBytes> buildLongitudinalPdf({
                   i: pw.FlexColumnWidth(w),
               },
             ),
-            pw.Text(
-              'The programme shown is the last configuration recorded at that '
-              'visit, which is not necessarily one a clinician confirmed.',
-              style: const pw.TextStyle(fontSize: 8),
-            ),
+            pw.Text(kProgrammeNote, style: const pw.TextStyle(fontSize: 8)),
+            pw.SizedBox(height: 10),
+          ],
+
+          // (c) Session scales by visit and block.
+          if (sections.contains(LongitudinalSection.sessionChart)) ...[
+            if (sessionChartPng != null)
+              _figure(
+                'Session scales by visit and block',
+                sessionChartPng,
+                kSessionFigureCaption,
+                format.availableWidth,
+              )
+            else ...[
+              pw.Header(level: 1, text: 'Session scales by visit and block'),
+              if (data.sessionChart.isEmpty)
+                pw.Text('No session scale ratings were recorded.')
+              else
+                pw.Text('(figure unavailable)'),
+            ],
+            if (data.rankingTargets.isNotEmpty)
+              pw.Text(
+                t(data.rankingTargets),
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+            pw.SizedBox(height: 10),
           ],
 
           // (d) Every configuration of every visit, grouped by visit rather
@@ -221,14 +282,15 @@ Future<ReportBytes> buildLongitudinalPdf({
           if (sections.contains(LongitudinalSection.sources)) ...[
             pw.SizedBox(height: 12),
             pw.Header(level: 1, text: 'Source files'),
-            for (final v in data.visits)
+            for (final line in _sourceLines(data))
               pw.Bullet(
-                text: t('${v.filename}  (${v.blocks.length} blocks)'),
+                text: t(line),
                 style: const pw.TextStyle(fontSize: 8),
                 bulletSize: 1.5,
               ),
           ],
         ],
+        ...attestationPdf(attestationFields(attestation, rated: true), t),
       ],
     ),
   );
@@ -243,6 +305,7 @@ Uint8List buildLongitudinalDocx({
   Map<String, ElectrodeReportImages> electrodeImages = const {},
   DocxPageSize pageSize = DocxPageSize.a4,
   Set<LongitudinalSection> sections = kAllLongitudinalSections,
+  ReportAttestation attestation = kNoAttestation,
 }) {
   final media = DocxMediaBag();
   final span = data.visits.isEmpty
@@ -250,7 +313,7 @@ Uint8List buildLongitudinalDocx({
       : '${data.visits.first.date} to ${data.visits.last.date}';
 
   final body = StringBuffer()
-    ..write(docxPara('$appName - Longitudinal report', bold: true, size: 40))
+    ..write(docxPara('$appName - Longitudinal report', bold: true, size: 34))
     ..write(
       docxPara(
         'Patient: sub-${data.patientId}    '
@@ -274,9 +337,23 @@ Uint8List buildLongitudinalDocx({
       ),
     );
   }
+  if (latestVisitSummary(data) case final summary?) {
+    body.write(docxPara(summary.heading, bold: true));
+    for (final line in summary.lines) {
+      body.write(docxPara(line));
+    }
+  }
 
   if (data.isEmpty) {
-    body.write(docxPara('No visits imported.'));
+    body
+      ..write(docxPara('No session TSV was uploaded.'))
+      ..write(
+        datedNotesDocx(
+          'Notes',
+          data.notesWithoutVisit,
+          contentTwips: pageSize.contentWidthTwips,
+        ),
+      );
   } else {
     if (sections.contains(LongitudinalSection.clinicalChart)) {
       body.write(docxHeading('Clinical scales by visit'));
@@ -286,36 +363,11 @@ Uint8List buildLongitudinalDocx({
             '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
             '${media.drawing(clinicalChartPng, widthPx: pageSize.contentWidthPx, description: 'Clinical scale scores by visit')}</w:p>',
           )
-          ..write(
-            docxPara(
-              'Figure 1. Clinical scale scores, one assessment per visit.',
-              size: 16,
-            ),
-          );
+          ..write(docxPara(kClinicalFigureCaption, size: 16));
       } else if (data.clinicalChart.isEmpty) {
         body.write(
           docxPara('No baseline clinical scale scores were recorded.'),
         );
-      }
-    }
-
-    if (sections.contains(LongitudinalSection.sessionChart)) {
-      body.write(docxHeading('Session scales by visit and block'));
-      if (sessionChartPng != null) {
-        body
-          ..write(
-            '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
-            '${media.drawing(sessionChartPng, widthPx: pageSize.contentWidthPx, description: 'Session scale ratings by visit and block')}</w:p>',
-          )
-          ..write(
-            docxPara(
-              'Figure 2. Session scale ratings against visit and block. Each '
-              'visit contributes one point per configuration tested.',
-              size: 16,
-            ),
-          );
-      } else if (data.sessionChart.isEmpty) {
-        body.write(docxPara('No session scale ratings were recorded.'));
       }
     }
 
@@ -330,37 +382,68 @@ Uint8List buildLongitudinalDocx({
             contentTwips: pageSize.contentWidthTwips,
           ),
         )
-        ..write(
-          docxPara(
-            'The programme shown is the last configuration recorded at that '
-            'visit, which is not necessarily one a clinician confirmed.',
-            size: 16,
-          ),
-        );
+        ..write(docxPara(kProgrammeNote, size: 16));
+    }
+
+    if (sections.contains(LongitudinalSection.sessionChart)) {
+      body.write(docxHeading('Session scales by visit and block'));
+      if (sessionChartPng != null) {
+        body
+          ..write(
+            '<w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
+            '${media.drawing(sessionChartPng, widthPx: pageSize.contentWidthPx, description: 'Session scale ratings by visit and block')}</w:p>',
+          )
+          ..write(docxPara(kSessionFigureCaption, size: 16));
+      } else if (data.sessionChart.isEmpty) {
+        body.write(docxPara('No session scale ratings were recorded.'));
+      }
+      if (data.rankingTargets.isNotEmpty) {
+        body.write(docxPara(data.rankingTargets, size: 16));
+      }
     }
 
     if (sections.contains(LongitudinalSection.sessionTable)) {
       body.write(docxHeading('Session data'));
-      for (final v in data.visits) {
+      final ref = data.visits.first;
+      for (final entry in data.timeline) {
+        if (entry.noteDay case final day?) {
+          body
+            ..write(docxHeading2(day.date))
+            ..write(
+              docxTable(
+                data.tableHeadersFor(ref),
+                day.rows,
+                weights: ref.session.tableWeights,
+                contentTwips: pageSize.contentWidthTwips,
+              ),
+            );
+          continue;
+        }
+        final v = entry.visit!;
         if (v.session.tableData.isEmpty) continue;
         body
           ..write(docxHeading2(_visitLabel(v)))
           ..write(
             docxTable(
-              v.session.tableHeaders,
+              data.tableHeadersFor(v),
               data.tableRowsFor(v),
               weights: v.session.tableWeights,
               lightInsideH: true,
               rowRules: _blockStarts(v.session.tableRows),
-              rowFills: {
-                for (final e in data.rowFillsFor(v).entries)
-                  e.key: docxHex(e.value),
+              rowFills: data.rowFillsFor(v),
+              rightColumns: {
+                for (final (i, h) in data.tableHeadersFor(v).indexed)
+                  if (kNumericTableHeaders.contains(h)) i,
               },
               contentTwips: pageSize.contentWidthTwips,
             ),
           );
       }
-      if (_anyShaded(data)) body.write(docxPara(kVisitRankingLegend, size: 16));
+      if (_anyShaded(data)) {
+        body
+          ..write(docxPara(kVisitRankingLegend, size: 16))
+          ..write(docxPara(data.rankingTargets, size: 16));
+      }
     }
 
     if (sections.contains(LongitudinalSection.electrodes) &&
@@ -412,13 +495,12 @@ Uint8List buildLongitudinalDocx({
 
     if (sections.contains(LongitudinalSection.sources)) {
       body.write(docxHeading('Source files'));
-      for (final v in data.visits) {
-        body.write(
-          docxPara('  • ${v.filename}  (${v.blocks.length} blocks)', size: 16),
-        );
+      for (final line in _sourceLines(data)) {
+        body.write(docxPara('  • $line', size: 16));
       }
     }
   }
+  body.write(attestationDocx(attestationFields(attestation, rated: true)));
 
   return packDocx(
     body: body.toString(),
@@ -438,6 +520,12 @@ Uint8List buildLongitudinalDocx({
 String _visitLabel(LongitudinalVisit v) =>
     '${v.date}${v.run.isEmpty ? '' : ' run ${v.run}'}';
 
+/// Every uploaded file, sessions then notes, for the Source files list.
+List<String> _sourceLines(LongitudinalReportData data) => [
+  for (final v in data.visits) '${v.filename}  (${v.blocks.length} blocks)',
+  for (final f in data.noteFiles) '$f  (notes)',
+];
+
 /// (d) Every configuration of every visit, under a per-visit subheading rather
 /// than with a visit column: the twelve column widths are sized to their own
 /// headers, and a thirteenth broke them mid-word.
@@ -447,23 +535,46 @@ List<pw.Widget> _sessionTable(
 ) => [
   pw.SizedBox(height: 12),
   pw.Header(level: 1, text: 'Session data'),
-  for (final v in data.visits)
-    if (v.session.tableData.isNotEmpty) ...[
+  for (final entry in data.timeline)
+    if (entry.noteDay case final day?) ...[
+      pw.SizedBox(height: 6),
+      pw.Text(
+        t(day.date),
+        style: const pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+      ),
+      pw.TableHelper.fromTextArray(
+        headers: data.tableHeadersFor(data.visits.first),
+        data: t.rows(day.rows),
+        cellStyle: const pw.TextStyle(fontSize: 8),
+        headerStyle: const pw.TextStyle(
+          fontSize: 8,
+          fontWeight: pw.FontWeight.bold,
+        ),
+        headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
+        cellAlignment: pw.Alignment.centerLeft,
+        columnWidths: {
+          for (final (i, w) in data.visits.first.session.tableWeights.indexed)
+            i: pw.FlexColumnWidth(w),
+        },
+      ),
+    ] else if (entry.visit case final v?
+        when v.session.tableData.isNotEmpty) ...[
       pw.SizedBox(height: 6),
       pw.Text(
         t('${v.date}${v.run.isEmpty ? '' : ' run ${v.run}'}'),
         style: const pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
       ),
       pw.TableHelper.fromTextArray(
-        headers: v.session.tableHeaders,
+        headers: data.tableHeadersFor(v),
         data: t.rows(data.tableRowsFor(v)),
-        cellStyle: const pw.TextStyle(fontSize: 7),
+        cellStyle: const pw.TextStyle(fontSize: 8),
         headerStyle: const pw.TextStyle(
-          fontSize: 7,
+          fontSize: 8,
           fontWeight: pw.FontWeight.bold,
         ),
         headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
         cellAlignment: pw.Alignment.centerLeft,
+        cellAlignments: numericColumnAlignments(data.tableHeadersFor(v)),
         columnWidths: {
           for (final (i, w) in v.session.tableWeights.indexed)
             i: pw.FlexColumnWidth(w),
@@ -480,10 +591,15 @@ List<pw.Widget> _sessionTable(
         cellDecoration: (col, dynamic cell, row) {
           final fill = data.rowFillsFor(v)[row - 1];
           return pw.BoxDecoration(
-            color: fill == null ? null : PdfColor.fromInt(fill),
-            border: _blockStarts(v.session.tableRows).contains(row - 1)
-                ? const pw.Border(top: pw.BorderSide(width: 1.2))
-                : null,
+            color: fill == null ? null : PdfColor.fromInt(rankRowTint(fill)),
+            border: pw.Border(
+              top: _blockStarts(v.session.tableRows).contains(row - 1)
+                  ? const pw.BorderSide(width: 1.2)
+                  : pw.BorderSide.none,
+              left: fill != null && col == 0
+                  ? pw.BorderSide(width: 2, color: PdfColor.fromInt(fill))
+                  : pw.BorderSide.none,
+            ),
           );
         },
       ),
@@ -491,6 +607,7 @@ List<pw.Widget> _sessionTable(
   if (_anyShaded(data)) ...[
     pw.SizedBox(height: 4),
     pw.Text(kVisitRankingLegend, style: const pw.TextStyle(fontSize: 8)),
+    pw.Text(t(data.rankingTargets), style: const pw.TextStyle(fontSize: 8)),
   ],
 ];
 
@@ -547,14 +664,14 @@ List<pw.Widget> _electrodes(
                     ),
                     child: pw.Column(
                       children: [
-                        pw.Text(label, style: const pw.TextStyle(fontSize: 7)),
+                        pw.Text(label, style: const pw.TextStyle(fontSize: 8)),
                         if (png != null)
                           _fitWidth(png, leadWidth)
                         else
                           pw.Text(
                             '(not recorded)',
                             style: const pw.TextStyle(
-                              fontSize: 7,
+                              fontSize: 8,
                               color: pdfInk,
                             ),
                           ),

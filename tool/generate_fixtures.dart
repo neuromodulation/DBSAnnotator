@@ -34,6 +34,7 @@
 import 'dart:io';
 
 import 'package:dbs_annotator/core/schema_columns.dart';
+import 'package:dbs_annotator/core/session/authoring.dart';
 import 'package:dbs_annotator/core/session/session_file.dart';
 import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/core/timestamps.dart';
@@ -153,7 +154,8 @@ List<SessionRow> _rows() => [
     isInitial: true,
     scales: _clinicalScales,
     programId: _program,
-    electrodeModel: _model,
+    leftElectrodeModel: _model,
+    rightElectrodeModel: _model,
     notes: 'baseline assessment before any change this visit',
     leftStimFreq: _freq,
     leftAnode: 'case',
@@ -176,7 +178,8 @@ List<SessionRow> _rows() => [
           (name: _sessionScales[s], value: _fmt(_blocks[i].ratings[s])),
       ],
       programId: _program,
-      electrodeModel: _model,
+      leftElectrodeModel: _model,
+      rightElectrodeModel: _model,
       notes: _blocks[i].notes,
       leftStimFreq: _freq,
       leftAnode: 'case',
@@ -223,6 +226,8 @@ String _legacyDocument(List<SessionRow> rows) {
     'block_id': 'block_ID',
     'append_id': 'session_ID',
     'program_id': 'program_ID',
+    // Older files have one model column for both leads.
+    'left_electrode_model': 'electrode_model',
   };
   // A 0.4.x file has no `acq_time`: it stored the instant as `date` + `time`
   // plus a free-text `timezone`, so those three cells are rebuilt here. This
@@ -247,7 +252,11 @@ String _legacyDocument(List<SessionRow> rows) {
 }
 
 void main() {
-  final rows = _rows();
+  // The clinician marks the last block as the one the patient leaves on, as
+  // the visit's notes say, so the reports show a marked final configuration.
+  final authoring = SessionAuthoring()..rows.addAll(_rows());
+  authoring.markFinalBlock('${_blocks.length}');
+  final rows = authoring.rows;
   const dir = 'test/fixtures';
   const stem = 'sub-01_ses-20260203_task-programming_run-01';
 

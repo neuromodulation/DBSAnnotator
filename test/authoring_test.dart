@@ -47,7 +47,8 @@ void main() {
       stim: stim,
       scales: const [(name: 'UPDRS-III', value: '32')],
       programId: 'A',
-      electrodeModel: 'SenSight B33005',
+      leftElectrodeModel: 'SenSight B33005',
+      rightElectrodeModel: 'SenSight B33005',
       notes: 'pre-programming baseline',
       at: stamp,
     );
@@ -103,7 +104,8 @@ void main() {
       isInitial: true,
       stim: stim,
       scales: const [(name: 'UPDRS-III', value: '32')],
-      electrodeModel: 'Cartesia X',
+      leftElectrodeModel: 'Cartesia X',
+      rightElectrodeModel: 'Cartesia X',
       notes: 'multi\nline\twith tab',
       at: stamp,
     );

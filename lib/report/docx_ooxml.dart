@@ -46,7 +46,7 @@ String docxEsc(String s) {
 
 /// A run of text (size in half-points), with embedded newlines turned into
 /// `<w:br/>` so multi-line table cells / notes wrap inside one paragraph.
-String docxRun(String text, {bool bold = false, int size = 20}) {
+String docxRun(String text, {bool bold = false, int size = 18}) {
   final rPr =
       '<w:rPr>${bold ? '<w:b/>' : ''}'
       '<w:sz w:val="$size"/><w:szCs w:val="$size"/></w:rPr>';
@@ -62,7 +62,7 @@ String docxRun(String text, {bool bold = false, int size = 20}) {
   return '<w:r>$rPr${parts.join()}</w:r>';
 }
 
-String docxPara(String text, {bool bold = false, int size = 20}) =>
+String docxPara(String text, {bool bold = false, int size = 18}) =>
     '<w:p>${docxRun(text, bold: bold, size: size)}</w:p>';
 
 /// A section heading, as a real `Heading1` paragraph. The `w:pStyle` is what
@@ -72,12 +72,12 @@ String docxPara(String text, {bool bold = false, int size = 20}) =>
 String docxHeading(String text) =>
     '<w:p><w:pPr><w:pStyle w:val="Heading1"/>'
     '<w:spacing w:before="240" w:after="60"/></w:pPr>'
-    '${docxRun(text, bold: true, size: 28)}</w:p>';
+    '${docxRun(text, bold: true, size: 26)}</w:p>';
 
 String docxHeading2(String text) =>
     '<w:p><w:pPr><w:pStyle w:val="Heading2"/>'
     '<w:spacing w:before="120" w:after="40"/></w:pPr>'
-    '${docxRun(text, bold: true, size: 22)}</w:p>';
+    '${docxRun(text, bold: true, size: 20)}</w:p>';
 
 /// Vertical-merge state, for cells spanning a block's two lateral rows.
 enum DocxVMerge { none, start, rest }
@@ -91,17 +91,25 @@ String docxCell(
   bool bold = false,
   String? fill,
   bool topRule = false,
+  String? leftRule,
+  bool right = false,
   int? widthTwips,
   DocxVMerge vMerge = DocxVMerge.none,
 }) {
   final shd = fill == null
       ? ''
       : '<w:shd w:val="clear" w:color="auto" w:fill="$fill"/>';
-  // 3 pt (sz=24) top border, the desktop's block separator.
-  final borders = topRule
-      ? '<w:tcBorders><w:top w:val="single" w:sz="24" w:space="0" '
-            'w:color="auto"/></w:tcBorders>'
+  // 3 pt (sz=24) top border, the desktop's block separator; [leftRule] is a
+  // 2 pt edge in that colour, marking a ranked row.
+  final top = topRule
+      ? '<w:top w:val="single" w:sz="24" w:space="0" w:color="auto"/>'
       : '';
+  final left = leftRule == null
+      ? ''
+      : '<w:left w:val="single" w:sz="16" w:space="0" w:color="$leftRule"/>';
+  final borders = top.isEmpty && left.isEmpty
+      ? ''
+      : '<w:tcBorders>$top$left</w:tcBorders>';
   final w = widthTwips == null ? '' : '<w:tcW w:w="$widthTwips" w:type="dxa"/>';
   final merge = switch (vMerge) {
     DocxVMerge.none => '',
@@ -109,7 +117,8 @@ String docxCell(
     DocxVMerge.rest => '<w:vMerge/>',
   };
   return '<w:tc><w:tcPr>$w$merge$shd$borders</w:tcPr>'
-      '<w:p>${docxRun(text, bold: bold, size: 16)}</w:p></w:tc>';
+      '<w:p>${right ? '<w:pPr><w:jc w:val="right"/></w:pPr>' : ''}'
+      '${docxRun(text, bold: bold, size: 16)}</w:p></w:tc>';
 }
 
 /// Split [contentTwips] across columns by [weights], the last column absorbing
@@ -137,28 +146,37 @@ String docxTblGrid(List<int> widths) =>
     '<w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>'
     '${widths.map((w) => '<w:gridCol w:w="$w"/>').join()}</w:tblGrid>';
 
-/// One table row. [fill] shades every cell (the best/second-best highlight);
-/// [topRule] draws the 3 pt rule the desktop uses to separate blocks.
+/// One table row. [rank] is a rank colour: every cell gets its light tint and
+/// the first cell its full-colour left edge. [topRule] draws the 3 pt rule
+/// the desktop uses to separate blocks.
 String docxRow(
   List<String> cells, {
   bool header = false,
-  String? fill,
+  int? rank,
   bool topRule = false,
   List<int> widths = const [],
   Map<int, DocxVMerge> vMerges = const {},
-}) =>
-    '<w:tr>${cells.indexed.map((e) => docxCell(e.$2, bold: header, fill: header ? docxHex(kHeaderFill) : fill, topRule: topRule, widthTwips: e.$1 < widths.length ? widths[e.$1] : null, vMerge: vMerges[e.$1] ?? DocxVMerge.none)).join()}</w:tr>';
+  Set<int> rightColumns = const {},
+}) {
+  final fill = header
+      ? docxHex(kHeaderFill)
+      : rank == null
+      ? null
+      : docxHex(rankRowTint(rank));
+  return '<w:tr>${cells.indexed.map((e) => docxCell(e.$2, bold: header, fill: fill, topRule: topRule, leftRule: rank != null && e.$1 == 0 ? docxHex(rank) : null, right: rightColumns.contains(e.$1), widthTwips: e.$1 < widths.length ? widths[e.$1] : null, vMerge: vMerges[e.$1] ?? DocxVMerge.none)).join()}</w:tr>';
+}
 
 /// A bordered table with a shaded header row, or none when [headers] is null.
-/// [rowFills] and [rowRules] are keyed by data-row index. [lightInsideH] draws
+/// [rowFills] (rank colours) and [rowRules] are keyed by data-row index. [lightInsideH] draws
 /// the lines between rows thin and grey, leaving [rowRules] as the only heavy
 /// horizontal rules.
 String docxTable(
   List<String>? headers,
   List<List<String>> rows, {
-  Map<int, String> rowFills = const {},
+  Map<int, int> rowFills = const {},
   Set<int> rowRules = const {},
   Set<int> mergeDownColumns = const {},
+  Set<int> rightColumns = const {},
   bool lightInsideH = false,
   required List<double> weights,
   required int contentTwips,
@@ -177,7 +195,16 @@ String docxTable(
   }
   b.write('</w:tblBorders>');
   b.write(docxTblGrid(widths));
-  if (headers != null) b.write(docxRow(headers, header: true, widths: widths));
+  if (headers != null) {
+    b.write(
+      docxRow(
+        headers,
+        header: true,
+        widths: widths,
+        rightColumns: rightColumns,
+      ),
+    );
+  }
   for (var i = 0; i < rows.length; i++) {
     // Merge a column downwards while column 0 (the block id) is unchanged: a
     // block's scales and notes are written on its first lateral row only, and
@@ -186,9 +213,10 @@ String docxTable(
     b.write(
       docxRow(
         rows[i],
-        fill: rowFills[i],
+        rank: rowFills[i],
         topRule: rowRules.contains(i),
         widths: widths,
+        rightColumns: rightColumns,
         vMerges: {
           for (final c in mergeDownColumns)
             c: continues ? DocxVMerge.rest : DocxVMerge.start,
@@ -236,12 +264,12 @@ const kDocxStyles =
     '<w:style w:type="paragraph" w:styleId="Heading1">'
     '<w:name w:val="heading 1"/><w:basedOn w:val="Normal"/>'
     '<w:pPr><w:outlineLvl w:val="0"/></w:pPr>'
-    '<w:rPr><w:b/><w:sz w:val="28"/></w:rPr>'
+    '<w:rPr><w:b/><w:sz w:val="26"/></w:rPr>'
     '</w:style>'
     '<w:style w:type="paragraph" w:styleId="Heading2">'
     '<w:name w:val="heading 2"/><w:basedOn w:val="Normal"/>'
     '<w:pPr><w:outlineLvl w:val="1"/></w:pPr>'
-    '<w:rPr><w:b/><w:sz w:val="22"/></w:rPr>'
+    '<w:rPr><w:b/><w:sz w:val="20"/></w:rPr>'
     '</w:style>'
     '<w:style w:type="paragraph" w:default="1" w:styleId="Normal">'
     '<w:name w:val="Normal"/>'

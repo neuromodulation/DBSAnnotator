@@ -46,6 +46,50 @@ Color seriesColor(int i) => kDark2[i % kDark2.length];
 /// Dash pattern for series [i], cycling.
 List<double>? seriesDash(int i) => kDashes[i % kDashes.length];
 
+/// Marker shapes, cycling per series in the report chart, so lines that share a
+/// grey in print stay apart. The diamond is the aggregate index's alone.
+enum MarkerShape { circle, square, triangle, cross, ring }
+
+/// Marker for series [i], cycling.
+MarkerShape seriesMarker(int i) =>
+    MarkerShape.values[i % MarkerShape.values.length];
+
+/// One marker of [shape] centred on [c], about [r] in radius.
+void drawMarker(
+  Canvas canvas,
+  Offset c,
+  double r,
+  Color color, [
+  MarkerShape shape = MarkerShape.circle,
+]) {
+  final fill = Paint()..color = color;
+  final line = Paint()
+    ..color = color
+    ..strokeWidth = math.max(1.2, r * 0.5)
+    ..style = PaintingStyle.stroke;
+  switch (shape) {
+    case MarkerShape.circle:
+      canvas.drawCircle(c, r, fill);
+    case MarkerShape.square:
+      canvas.drawRect(Rect.fromCircle(center: c, radius: r * 0.9), fill);
+    case MarkerShape.triangle:
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.dx, c.dy - r * 1.15)
+          ..lineTo(c.dx + r, c.dy + r * 0.75)
+          ..lineTo(c.dx - r, c.dy + r * 0.75)
+          ..close(),
+        fill,
+      );
+    case MarkerShape.cross:
+      canvas
+        ..drawLine(c - Offset(r, r), c + Offset(r, r), line)
+        ..drawLine(c - Offset(r, -r), c + Offset(r, -r), line);
+    case MarkerShape.ring:
+      canvas.drawCircle(c, r * 0.85, line);
+  }
+}
+
 /// Flutter has no dashed stroke, so walk the path and emit the "on" segments.
 Path dashPath(Path source, List<double> pattern) {
   final out = Path();
@@ -98,7 +142,7 @@ List<List<Offset>> seriesRuns(
   return runs;
 }
 
-/// Stroke [runs] with [color]/[dash] and put a round marker on every point.
+/// Stroke [runs] with [color]/[dash] and put a [marker] on every point.
 /// A single-point run gets its marker but no line.
 void drawSeriesRuns(
   Canvas canvas,
@@ -107,6 +151,7 @@ void drawSeriesRuns(
   List<double>? dash,
   double strokeWidth = 2,
   double markerRadius = 3,
+  MarkerShape marker = MarkerShape.circle,
 }) {
   final stroke = Paint()
     ..color = color
@@ -122,10 +167,9 @@ void drawSeriesRuns(
     canvas.drawPath(dash == null ? path : dashPath(path, dash), stroke);
   }
   if (markerRadius <= 0) return;
-  final fill = Paint()..color = color;
   for (final r in runs) {
     for (final p in r) {
-      canvas.drawCircle(p, markerRadius, fill);
+      drawMarker(canvas, p, markerRadius, color, marker);
     }
   }
 }

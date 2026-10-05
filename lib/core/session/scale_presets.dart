@@ -17,11 +17,16 @@ const String defaultScaleOptimizationMode = 'min';
 /// The modes the contract may carry; anything else decodes to the default.
 const List<String> scaleOptimizationModes = ['min', 'max', 'custom', 'ignore'];
 
+/// A clinical scale's declared score range, as the contract's strings; either
+/// may be empty when the range is not known.
+typedef ScaleRange = ({String min, String max});
+
 class ScalePresets {
   const ScalePresets({
     required this.buttons,
     required this.clinical,
     required this.session,
+    this.clinicalRanges = const {},
   });
 
   factory ScalePresets.fromJson(Map<String, dynamic> json) {
@@ -59,7 +64,22 @@ class ScalePresets {
             .toList(growable: false),
     };
 
-    return ScalePresets(buttons: buttons, clinical: clinical, session: session);
+    // Absent from older contracts.
+    final rangesJson = json['clinical_ranges'] as Map<String, dynamic>? ?? {};
+    final clinicalRanges = <String, ScaleRange>{
+      for (final e in rangesJson.entries)
+        e.key: (
+          min: '${(e.value as List).first}',
+          max: '${(e.value as List).last}',
+        ),
+    };
+
+    return ScalePresets(
+      buttons: buttons,
+      clinical: clinical,
+      session: session,
+      clinicalRanges: clinicalRanges,
+    );
   }
 
   /// Ordered preset names for the button bar (OCD, MDD, PD, ET, ...).
@@ -69,7 +89,22 @@ class ScalePresets {
   final Map<String, List<String>> clinical;
 
   final Map<String, List<SessionScaleRow>> session;
+
+  /// Clinical scale name -> declared range. Keyed by scale rather than preset,
+  /// since a scale such as Y-BOCS has one range in every group it appears in.
+  /// Used only to set the clinical figure's y axis.
+  final Map<String, ScaleRange> clinicalRanges;
 }
+
+/// [ranges] as numbers, leaving out any that do not parse or are empty.
+Map<String, (double, double)> numericRanges(Map<String, ScaleRange> ranges) => {
+  for (final e in ranges.entries)
+    if ((double.tryParse(e.value.min), double.tryParse(e.value.max)) case (
+      final lo?,
+      final hi?,
+    ) when lo < hi)
+      e.key: (lo, hi),
+};
 
 /// Clinical scale names for [preset]; empty for unknown presets.
 List<String> clinicalRows(ScalePresets p, String preset) =>

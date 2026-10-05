@@ -14,6 +14,8 @@ import '../core/session/tsv_kind.dart';
 import '../report/annotations_report.dart';
 import '../report/session_docx.dart' show DocxPageSize;
 import 'bids_export.dart';
+import 'bids_merge_ui.dart';
+import 'report_sections_dialog.dart' show askAttestation;
 import 'save_target.dart';
 import 'share_util.dart';
 import 'theme.dart';
@@ -30,11 +32,15 @@ class AnnotationsScreen extends StatefulWidget {
   State<AnnotationsScreen> createState() => _AnnotationsScreenState();
 }
 
+/// The `task-` label of a notes file unless the user names another.
+const _defaultTask = 'notes';
+
 class _AnnotationsScreenState extends State<AnnotationsScreen> {
   // Serialised, atomic autosave to the user's file. See [SafeFileWriter].
   final _writer = SafeFileWriter();
 
   final _subjectCtrl = TextEditingController();
+  final _taskCtrl = TextEditingController(text: _defaultTask);
   final _runCtrl = TextEditingController(text: '01');
   final _noteCtrl = TextEditingController();
   final _entries = <Annotation>[];
@@ -45,6 +51,10 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   // Working copy in the app's own storage, written on every note whatever the
   // picker returned, and dropped once the notes have been exported.
   String? _workingPath;
+  // Set when the notes are recorded into a BIDS dataset rather than a loose
+  // file. Filed at the first note, for the reason the session screen gives.
+  String? _datasetRoot;
+  BidsName? _datasetName;
 
   /// Anchors the iPadOS share popover to the export button. See
   /// [shareOriginFrom].
@@ -61,6 +71,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   void dispose() {
     if (activeSessionGuard == _mayLeave) activeSessionGuard = null;
     _subjectCtrl.dispose();
+    _taskCtrl.dispose();
     _runCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
@@ -103,10 +114,9 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _workingPath = file.path;
       // No _savePath: guessing it would autosave over a file not chosen here.
       _savePath = null;
-      if (bids != null) {
-        _subjectCtrl.text = bids.subject;
-        _runCtrl.text = bids.run;
-      }
+      _datasetRoot = null;
+      _datasetName = null;
+      if (bids != null) _fillLabels(bids);
       _currentStep = 1;
     });
     _snack('Reopened $name. Export it to save it outside the app.');
@@ -120,14 +130,27 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
   ///
   /// [subject] and [run] are free text that ends up in a path, so they go
   /// through the sanitisers; run is an index in BIDS, not a label.
-  BidsName _bidsName({String? subject, String? run}) {
+  ///
+  /// The session is the label chosen when filing into a dataset, so exports
+  /// carry the same `ses-` as the filed notes, and today's date otherwise.
+  BidsName _bidsName({String? subject, String? run, String? session}) {
     final s = BidsName.label(subject ?? _subjectCtrl.text.trim());
+    final task = BidsName.label(_taskCtrl.text.trim());
     return BidsName(
       subject: s.isEmpty ? 'unknown' : s,
-      session: BidsName.sessionStamp(DateTime.now()),
-      task: 'notes',
+      session:
+          session ??
+          _datasetName?.session ??
+          BidsName.sessionStamp(DateTime.now()),
+      task: task.isEmpty ? _defaultTask : task,
       run: BidsName.index(run ?? _runCtrl.text.trim()),
     );
+  }
+
+  void _fillLabels(BidsName bids) {
+    _subjectCtrl.text = bids.subject;
+    _taskCtrl.text = bids.task.isEmpty ? _defaultTask : bids.task;
+    _runCtrl.text = bids.run;
   }
 
   /// Write the `_beh.json` sidecar beside [tsvPath]; see the session screen's
@@ -137,9 +160,13 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       final json = tsvPath.replaceFirst(RegExp(r'\.tsv$'), '.json');
       if (json == tsvPath || File(json).existsSync()) return;
       final contract = await loadTsvContract();
-      await File(
-        json,
-      ).writeAsString(annotationSidecarJson(contract, appVersion: appVersion));
+      await File(json).writeAsString(
+        annotationSidecarJson(
+          contract,
+          appVersion: appVersion,
+          task: _bidsName().task,
+        ),
+      );
     } catch (_) {
       // No sidecar is a documentation loss, not a data loss.
     }
@@ -150,7 +177,37 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         ? '01'
         : _subjectCtrl.text.trim();
     final run = _runCtrl.text.trim().isEmpty ? '01' : _runCtrl.text.trim();
-    final name = _bidsName(subject: subject, run: run).filename;
+    final bids = _bidsName(
+      subject: subject,
+      run: run,
+      session: BidsName.sessionStamp(DateTime.now()),
+    );
+    final name = bids.filename;
+
+    // Loose file, or straight into a dataset: the answer decides where every
+    // autosave of these notes lands.
+    final into = await askNewTarget(context, bids, what: 'these notes');
+    if (into == null || !mounted) return;
+    if (into.root != null) {
+      final work = await workingPath(into.name.filename);
+      if (!mounted) return;
+      setState(() {
+        _entries.clear();
+        _savePath = null;
+        _workingPath = work;
+        _datasetRoot = into.root;
+        _datasetName = into.name;
+        _subjectCtrl.text = subject;
+        _runCtrl.text = into.name.run;
+        _currentStep = 1;
+      });
+      _snack(
+        'Recording into ${into.root}. '
+        'The notes are filed there as soon as the first note is added.',
+      );
+      return;
+    }
+
     final NewTsvTarget? target;
     try {
       target = await createNewTsv(
@@ -174,6 +231,8 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _entries.clear();
       _savePath = p;
       _workingPath = work;
+      _datasetRoot = null;
+      _datasetName = null;
       _subjectCtrl.text = subject;
       _runCtrl.text = run;
       _currentStep = 1;
@@ -226,10 +285,9 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         ..addAll(loaded.reversed);
       _savePath = picked.path;
       _workingPath = work;
-      if (bids != null) {
-        _subjectCtrl.text = bids.subject;
-        _runCtrl.text = bids.run;
-      }
+      _datasetRoot = null;
+      _datasetName = null;
+      if (bids != null) _fillLabels(bids);
       _currentStep = 1;
     });
     _snack('Opened ${picked.name} (${loaded.length} notes).');
@@ -246,6 +304,17 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
                 controller: _subjectCtrl,
                 decoration: const InputDecoration(
                   labelText: 'Patient ID (sub-)',
+                  isDense: true,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 160,
+              child: TextField(
+                controller: _taskCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Task (task-)',
                   isDense: true,
                 ),
               ),
@@ -301,9 +370,6 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
     _autosave();
   }
 
-  /// Rewrite the TSV after each insert, as the desktop does. A no-op when no
-  /// save path was chosen.
-  ///
   /// Write every note to disk as it is added.
   ///
   /// The working copy is unconditional; [_savePath] is written too when the
@@ -322,6 +388,9 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         return;
       }
     }
+    if (_datasetRoot != null && _savePath == null && _entries.isNotEmpty) {
+      await _fileIntoDataset(text);
+    }
     final path = _savePath;
     if (path == null) return;
     try {
@@ -332,6 +401,43 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
           'Autosave to your file failed: $e. The note is saved in the app.',
         );
       }
+    }
+  }
+
+  /// Place these notes in the chosen dataset; see [fileIntoDataset].
+  Future<void> _fileIntoDataset(String text) async {
+    final root = _datasetRoot;
+    final name = _datasetName;
+    if (root == null || name == null) return;
+    try {
+      final path = await fileIntoDataset(
+        root: root,
+        name: name,
+        tsv: text,
+        kind: 'annotation_tsv',
+        acqTime: _entries.last.acqTime,
+      );
+      if (path == null) {
+        if (mounted) {
+          _snack(
+            'That dataset already holds ${name.filename}. These notes stay in '
+            'the app; export them under a different run.',
+          );
+        }
+        setState(() => _datasetRoot = null);
+        return;
+      }
+      if (!mounted) return;
+      setState(() => _savePath = path);
+      _snack('Filed as ${name.relativeDir}/${name.filename}.');
+    } catch (e) {
+      if (mounted) {
+        _snack(
+          'Could not file into the dataset: $e. The notes are saved in the '
+          'app.',
+        );
+      }
+      setState(() => _datasetRoot = null);
     }
   }
 
@@ -387,6 +493,8 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
       _snack('Add at least one note before exporting a report.');
       return;
     }
+    final attestation = await askAttestation(context, rated: false);
+    if (attestation == null || !mounted) return;
     final name = _bidsName();
     final subject = name.subject;
     // `_report` is not a BIDS suffix; a report is a derivative, not raw data.
@@ -408,11 +516,18 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         );
         if (docx) {
           return (
-            bytes: buildAnnotationsDocx(data, pageSize: DocxPageSize.a4),
+            bytes: buildAnnotationsDocx(
+              data,
+              pageSize: DocxPageSize.a4,
+              attestation: attestation,
+            ),
             warning: null,
           );
         }
-        final report = await buildAnnotationsPdf(data);
+        final report = await buildAnnotationsPdf(
+          data,
+          attestation: attestation,
+        );
         return (
           bytes: report.bytes,
           warning: report.lostCharacters
@@ -576,7 +691,7 @@ class _AnnotationsScreenState extends State<AnnotationsScreen> {
         steps: [
           Step(
             title: const Text('File'),
-            subtitle: const Text('Patient / run: new or open TSV'),
+            subtitle: const Text('Patient / task / run: new or open TSV'),
             isActive: _currentStep == 0,
             content: _fileStep(),
           ),

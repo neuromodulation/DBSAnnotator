@@ -1,9 +1,14 @@
 Reports and datasets
 ====================
 
-Upload the TSVs you have, then take whatever they support. This screen writes
-nothing to the files you give it: it reads them, shows what is in them, and
-produces documents and datasets from them.
+Upload the TSVs you have, or load them from a BIDS dataset, then take whatever
+they support. This screen never changes the files you give it: it reads them,
+shows what is in them, and produces documents and datasets from them. Into a
+dataset you choose it writes only what you ask it to add, and only after you
+have confirmed the list of files.
+
+The whole screen scrolls as one page, from the upload buttons down through the
+actions to the preview, so a long session table never squeezes the rest.
 
 .. raw:: html
 
@@ -35,6 +40,32 @@ A file already in the list is refused by name. Two files with the same basename
 would collide in a BIDS dataset and would be double-counted in a combined table,
 so the duplicate is dropped rather than silently merged.
 
+.. _load-from-dataset:
+
+Loading from a dataset
+----------------------
+
+When your visits are already filed in a BIDS dataset, **Load from dataset** reads
+them from there instead of one upload at a time. On Windows, macOS and Linux you
+choose the dataset folder; on iPadOS and Android you choose the dataset as a
+``.zip``, because those systems do not let an app read a folder you pick.
+
+Every session and notes TSV under ``sub-<participant>/ses-<session>/beh/`` is
+found, including older ``_events.tsv`` files. Sidecars, imaging, other datatypes
+and everything under ``derivatives/`` are left alone. A checklist then shows each
+participant with the number of files found, all ticked: untick the ones you do
+not want, for example to keep a longitudinal report to one patient.
+
+.. figure:: ../_static/screenshots/dialog_load_participants.png
+   :alt: The checklist of participants found in the dataset, all ticked, with
+         the number of files for each
+   :width: 42%
+   :align: center
+
+The chosen
+files join the list exactly as if you had uploaded them, so every action below
+works the same way, and a single file can still be removed.
+
 What each upload enables
 ------------------------
 
@@ -45,12 +76,13 @@ What each upload enables
    * - Action
      - Available when
    * - Single session report
-     - Exactly one session TSV, or notes on their own
+     - Exactly **one** uploaded TSV: a session, or a notes file on its own
    * - Longitudinal report
-     - Two or more sessions **naming the same patient**
+     - Two or more TSVs **naming the same patient**. A notes file counts, so a
+       session and its notes file give a longitudinal report
    * - Combined table (TSV)
-     - Two or more session TSVs
-   * - BIDS dataset (zip)
+     - Two or more TSVs, of any patients. Notes files count
+   * - Create a BIDS dataset (zip)
      - At least one file whose name carries a ``sub-`` entity
    * - Add to an existing dataset
      - As above
@@ -58,22 +90,52 @@ What each upload enables
 An action that is unavailable is greyed out **and says why**, in place of its
 description.
 
+Every action has an info button beside its name. It opens a short explanation
+in three parts: how the export is made, which data it needs, and which files it
+creates. The button works on a greyed-out action too, so you can see what that
+action would need before uploading anything.
+
 .. figure:: ../_static/screenshots/reports_one_session.png
    :alt: One session uploaded: the single session report and BIDS dataset are
          available, the longitudinal report and combined table are not
    :width: 100%
 
    One session. The report and a dataset are available; the longitudinal report
-   and the combined table need more than one visit.
+   and the combined table need more than one file.
+
+Filing a single session into a dataset
+--------------------------------------
+
+The single session report row also offers **Add to dataset**, when the file
+name carries BIDS entities (``sub-`` and ``ses-``). A dialog asks what to file:
+
+* **Session TSV and sidecar**, ticked by default, goes to
+  ``sub-<participant>/ses-<session>/beh/`` exactly as
+  :ref:`Add to an existing dataset <dataset-merge-rules>` would place it.
+* **Report**, unticked by default, as PDF or Word. It goes under
+  ``derivatives/dbs-annotator-reports/``, at the same
+  ``sub-<participant>/ses-<session>/beh/`` path as its session, named like the
+  exported report. The derivative's ``dataset_description.json`` is written the
+  first time a report is filed there.
+
+You then choose the dataset folder (on iPadOS and Android, the dataset as a
+``.zip``, which comes back merged), and the same confirmation as every other
+add lists each file before anything is written. A report already filed at that
+path is never overwritten: the confirmation lists its derivatives folder under
+**Left unchanged**, as for any derivative already in the dataset. If the
+session was moved to the next free run because its name was taken, the report
+follows it to that run.
 
 Several visits of one patient
 -----------------------------
 
 With two or more sessions naming the same patient, every action is available and
-the preview becomes the scales timeline across all of them.
+the preview shows the longitudinal report's session-scales figure: every block
+of every visit, grouped under the visit's date, with the two best configurations
+across all visits banded, exactly as the report will draw it.
 
 .. figure:: ../_static/screenshots/reports_visits.png
-   :alt: Several visits uploaded, with the scales timeline across all of them
+   :alt: Several visits uploaded, with the session-scales figure across all of them
    :width: 100%
 
 Different patients
@@ -82,7 +144,9 @@ Different patients
 If the uploaded files name more than one patient, the screen says so and the
 longitudinal report stays off. Combining two people into one longitudinal report
 is a safety problem, not a formatting one. A combined table and a BIDS dataset
-across several patients are ordinary things to want, so those stay available.
+across several patients are ordinary things to want, so those stay available. No
+preview chart is drawn: one line across two patients would read as one
+patient's trend.
 
 .. figure:: ../_static/screenshots/reports_mismatch.png
    :alt: Two patients uploaded: a warning banner, and the longitudinal report
@@ -92,9 +156,25 @@ across several patients are ordinary things to want, so those stay available.
 Notes alongside a session
 -------------------------
 
-Upload a ``task-notes`` file together with the session it belongs to and each
-note appears in the session data table, placed by its own clock time, with only
-the Time and Notes cells filled.
+A ``task-notes`` file uploaded together with a session makes two files, so it
+gives a **longitudinal report**, with the data aggregated as for any set of
+visits. Each note joins the session table of the visit on its own day (when two
+sessions share a day, the one under way at the note's time), placed by its own
+clock time with only the Time and Notes cells filled. A note from **any other
+day**, a follow-up call a week later for example, is not slipped into a visit's
+table: placed by clock time alone it would read as part of a visit it did not
+happen in. Such a day gets its own numbered row in the Visits table, with only
+its date filled, and its own table in the session data, under its date and in
+the same columns as a visit's, with only Time and Notes filled. The session
+tables are the **Combined session data table** section, which is off by
+default and ticked for you when a notes file is uploaded.
+
+Two or more notes files with no session also give a longitudinal report. It has
+no visits, so it says that no session TSV was uploaded and lists every note by
+date.
+
+The notes must name the same patient as the sessions. If they do not, the
+longitudinal report is greyed out with the reason.
 
 It gets its own row rather than being written into a block's Notes cell,
 because a note carries no configuration: attaching it to one would assert it was
@@ -148,8 +228,8 @@ the dataset is changed.
 
 **Nothing is written until you have seen what will happen.** Every Add opens a
 dialog that restates how the visit is added and lists every file that will be
-added, every index file that will gain rows, everything left unchanged, and
-anything refused. This is the only operation in the app that writes to data it
+added, every index file that will gain rows, any file moved to the next free
+run, and everything left unchanged. This is the only operation in the app that writes to data it
 did not create, and it has no undo.
 
 .. figure:: ../_static/screenshots/dialog_add_to_dataset.png
@@ -175,8 +255,11 @@ The rules it follows, and why each one exists:
        ``sex`` or ``diagnosis`` survive, and a new subject is appended with
        those cells empty.
    * - ``sub-*/ses-*/beh/*``
-     - Added only. A path that already exists is **refused and named**, because
-       overwriting it would replace recorded clinical data.
+     - Added only, never overwritten. A file whose name the dataset already
+       uses for a different recording is filed under the next free run
+       (``run-02``, ``run-03``) and listed as such, so any number of recordings
+       per session can be added. A file identical to one already there is
+       left as it is.
    * - Everything else
      - Untouched. Other datatypes, derivatives and anything you keep alongside
        are never even read.
@@ -200,8 +283,8 @@ notes file every section applies, so the dialog is skipped.
    :width: 44%
    :align: center
 
-The longitudinal chooser offers seven sections. Three of them start unticked,
-because they add pages:
+The longitudinal chooser offers seven sections and opens with the same defaults
+every time. Three of them start unticked, because they add pages:
 
 * **Combined session data table** prints every configuration of every visit,
   one table per visit under its own heading.
@@ -217,7 +300,21 @@ drop between visits is a drop rather than a rescale. The ranking is meaningful
 across visits because every visit's index is computed against the same targets
 and declared ranges. The clinical figure carries no bands.
 
-A TSV does not store scale targets, so the longitudinal export asks for them.
+A TSV does not store scale targets, so the longitudinal export offers them
+through **Scale targets…** in the chooser. If none are confirmed there, the
+report ranks against the targets that dialog proposes, every scale minimised
+over 0 to 10, and the preview on this screen uses the same. The report prints
+the targets it ranked by under the session-scales figure and the session
+tables; check them before filing it, and set any scale that should rise, such
+as mood or energy, before exporting.
+When a notes file is uploaded, **Combined session data table** starts ticked,
+since that is where notes from a visit day are printed. The clinical figure's
+axis takes each scale's range from your :ref:`clinical scales settings
+<dialog-clinical-scales>`, because a TSV records scores but not ranges.
+
+Every report export ends by asking, optionally, who recorded the session and,
+for the session and longitudinal reports, who rated the scales, for the
+attestation block. The names are not saved anywhere else.
 
 A report is named from its source file's own BIDS entities with the data suffix
 replaced by ``_report``, so the two sort together in a directory listing:
@@ -232,11 +329,46 @@ having one invented for it: a wrong subject label on a clinical document is
 worse than an unhelpful filename.
 
 The longitudinal report spans visits, so it carries no ``ses-`` and no
-``task-``; ``desc-`` is the BIDS entity for naming what a computed file is:
+``task-``; ``desc-`` is the BIDS entity for naming what a computed file is. The
+label carries the date the report was made, so a report made at a later visit
+does not overwrite an earlier one:
 
 .. code-block:: text
 
-   sub-01_desc-longitudinal_report.pdf
+   sub-01_desc-longitudinal20261005_report.pdf
 
 See :doc:`../reports` for what each document contains, and
 :ref:`the combined table <combined-table>` for what the aggregated TSV holds.
+
+The combined table
+------------------
+
+Every uploaded file goes into the combined table. A notes file adds one row
+per note, with its time and text; the stimulation and scale columns of those
+rows are ``n/a``.
+
+The combined table always comes with its ``.json`` sidecar, which documents the
+four key columns and every session column, so the table can be read without this
+documentation at hand.
+
+When every session in the list was :ref:`loaded from a dataset folder
+<load-from-dataset>`, **Export** saves the table into that dataset first, where
+BIDS puts a table that spans sessions:
+
+.. code-block:: text
+
+   derivatives/dbs-annotator-aggregate/
+       dataset_description.json
+       desc-aggregate_beh.tsv
+       desc-aggregate_beh.json
+
+The folder's ``dataset_description.json`` marks it as a derivative and names the
+app that produced it; it is written once and never replaced. The table itself is
+regenerated from the raw files, so exporting again replaces it, and the previous
+version is kept beside it with a ``.bak-`` suffix. Nothing in the raw
+``sub-*`` tree is written. The app then asks whether to save a copy somewhere
+else too, as a ``.zip`` holding the table and its sidecar.
+
+If the list mixes files from the dataset with files uploaded from elsewhere, or
+the dataset was loaded as a ``.zip``, nothing is written into the dataset and the
+table and sidecar are exported as a ``.zip`` as usual.

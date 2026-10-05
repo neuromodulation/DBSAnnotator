@@ -13,6 +13,7 @@ library;
 import 'dart:typed_data';
 
 import '../app_info.dart' show appName, appVersion;
+import 'attestation.dart';
 import 'docx_ooxml.dart';
 import '../core/brand_palette.dart';
 import 'report_data.dart';
@@ -23,6 +24,23 @@ import 'session_pdf.dart'
 // Callers ask this library for the page size and the PNG reader, so keep them
 // reachable here rather than making every call site learn where they moved.
 export 'docx_ooxml.dart' show DocxPageSize, pngSize;
+
+/// [notes] under [heading] as a Date / Time / Note table; '' when empty.
+String datedNotesDocx(
+  String heading,
+  List<DatedNote> notes, {
+  required int contentTwips,
+}) => notes.isEmpty
+    ? ''
+    : docxHeading2(heading) +
+          docxTable(
+            const ['Date', 'Time', 'Note'],
+            [
+              for (final n in notes) [n.date, n.time, n.text],
+            ],
+            weights: const [2, 1.5, 8],
+            contentTwips: contentTwips,
+          );
 
 /// A borderless table for the electrode-image grid, so the images sit in a
 /// clean 4-column layout with no visible cell edges.
@@ -86,10 +104,7 @@ String _responseTable(SessionReportData data, DocxPageSize pageSize) {
 /// Twin of the PDF's rated-per-block note, so both documents say it.
 String? _ratedNote(SessionReportData data) {
   final counts = data.scalesRated.values.toSet();
-  if (counts.isEmpty) return null;
-  if (counts.length == 1) {
-    return 'Scales rated per block: ${counts.first} throughout.';
-  }
+  if (counts.length < 2) return null;
   final lo = counts.reduce((a, b) => a < b ? a : b);
   final hi = counts.reduce((a, b) => a > b ? a : b);
   return 'Scales rated per block: $lo-$hi. The index averages only the scales '
@@ -111,9 +126,14 @@ String _legendBlock(SessionReportData data) {
     ..write('<w:p>')
     ..write(docxRun('Legend: ', bold: true, size: 18))
     ..write(swatch(kBestFill))
-    ..write(docxRun(' Highest aggregate index (rank 1)    ', size: 18))
+    ..write(
+      docxRun(
+        ' Highest aggregate index in this session (rank 1)    ',
+        size: 18,
+      ),
+    )
     ..write(swatch(kSecondFill))
-    ..write(docxRun(' Second highest (rank 2)', size: 18))
+    ..write(docxRun(' Second highest in this session (rank 2)', size: 18))
     ..write('</w:p>');
   if (data.targetsText.isNotEmpty) {
     b.write(docxPara('Scale targets: ${data.targetsText}', size: 18));
@@ -144,12 +164,13 @@ Uint8List buildSessionDocx({
   Uint8List? chartPng,
   DocxPageSize pageSize = DocxPageSize.a4,
   Set<ReportSection> sections = kAllReportSections,
+  ReportAttestation attestation = kNoAttestation,
 }) {
   final media = DocxMediaBag();
   final body = StringBuffer();
 
   // (a) Title + patient + generated-on.
-  body.write(docxPara('$appName - Session report', bold: true, size: 40));
+  body.write(docxPara('$appName - Session report', bold: true, size: 34));
   body.write(
     docxPara('Patient: sub-$subjectId    Session: ${data.sessionStamp}'),
   );
@@ -165,7 +186,7 @@ Uint8List buildSessionDocx({
     // Same page-1 summary as the PDF, in the same words.
     body.write(
       docxTable(
-        const ['At start of session', 'Last recorded configuration'],
+        ['At start of session', data.finalConfigTitle],
         [
           [
             data.firstConfig.entries
@@ -236,7 +257,7 @@ Uint8List buildSessionDocx({
     } else if (wantsTable) {
       // Green shading for the best / second-best blocks, and a 3 pt rule on
       // the first row of each block (tableData holds L then R per block).
-      final fills = <int, String>{};
+      final fills = <int, int>{};
       final rules = <int>{};
       var previousBlock = '';
       for (var i = 0; i < data.tableData.length; i++) {
@@ -245,15 +266,17 @@ Uint8List buildSessionDocx({
           if (i > 0) rules.add(i);
           previousBlock = label;
         }
-        if (data.rowFills[i] case final fill?) {
-          fills[i] = docxHex(fill);
-        }
+        if (data.rowFills[i] case final fill?) fills[i] = fill;
       }
       body.write(
         docxTable(
           data.tableHeaders,
           data.tableRows,
           rowFills: fills,
+          rightColumns: {
+            for (final (i, h) in data.tableHeaders.indexed)
+              if (kNumericTableHeaders.contains(h)) i,
+          },
           rowRules: rules,
           // Scales and Notes: one tall cell per block, not one per side.
           mergeDownColumns: {
@@ -317,8 +340,8 @@ Uint8List buildSessionDocx({
             widths: cols,
             contentTwips: pageSize.contentWidthTwips,
             [
-              '<w:tr>${cap('Initial settings', bold: true, span: 2)}$spacer'
-                  '${cap('Last recorded settings', bold: true, span: 2)}</w:tr>',
+              '<w:tr>${cap('At start of session', bold: true, span: 2)}$spacer'
+                  '${cap(data.finalConfigTitle, bold: true, span: 2)}</w:tr>',
               '<w:tr>${cap('Left')}${cap('Right')}$spacer'
                   '${cap('Left')}${cap('Right')}</w:tr>',
               '<w:tr>'
@@ -338,7 +361,7 @@ Uint8List buildSessionDocx({
           docxPara(
             'Orange = anode (+)   Blue = cathode (-)   Grey = inactive.   '
             "A percentage is that contact's share of the total current.",
-            size: 14,
+            size: 16,
           ),
         );
         body.write(docxPara(''));
@@ -346,8 +369,8 @@ Uint8List buildSessionDocx({
         // Vendor nomenclature here too, through the SAME helper the PDF's
         // fallback uses; report_parity_test catches a divergence.
         for (final pair in [
-          ('Initial settings', it),
-          ('Last recorded settings', ft),
+          ('At start of session', it),
+          (data.finalConfigTitle, ft),
         ]) {
           final tokens = pair.$2;
           if (tokens == null) continue;
@@ -382,24 +405,11 @@ Uint8List buildSessionDocx({
           contentTwips: pageSize.contentWidthTwips,
         ),
       );
-
-      // Same two subsections as the PDF, in the same order and the same words.
-      if (data.response.isNotEmpty) {
-        body.write(docxHeading2('Response (first to last rated block)'));
-        body.write(_responseTable(data, pageSize));
-      }
     }
   }
 
   // Attestation, so the document does not stand on a machine's word alone.
-  // Underscores rather than a border, to survive a copy-paste elsewhere.
-  body.write(docxHeading2('Attestation'));
-  body.write(
-    docxPara(
-      'Recorded by: ${'_' * 26}    '
-      'Reviewed by: ${'_' * 26}    Date: ${'_' * 14}',
-    ),
-  );
+  body.write(attestationDocx(attestationFields(attestation, rated: true)));
 
   // Packaging is shared with the annotations report: one implementation of the
   // content-types and relationships Word would otherwise offer to repair.

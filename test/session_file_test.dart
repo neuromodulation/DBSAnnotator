@@ -20,7 +20,8 @@ void main() {
           (name: 'Tremor', value: '2.5'),
         ],
         programId: 'B',
-        electrodeModel: 'SenSight B33005',
+        leftElectrodeModel: 'SenSight B33005',
+        rightElectrodeModel: 'SenSight B33005',
         notes: 'felt better',
         leftStimFreq: '130',
         leftAnode: 'C',
@@ -44,7 +45,7 @@ void main() {
         expect(row.acqTime, startsWith('2026-07-27T10:30:05'));
         expect(row.acqTime, matches(RegExp(r'[+-][0-9][0-9]:[0-9][0-9]$')));
         expect(row.programId, 'B');
-        expect(row.electrodeModel, 'SenSight B33005');
+        expect(row.leftElectrodeModel, 'SenSight B33005');
         expect(row.notes, 'felt better');
         expect(row.leftStimFreq, '130');
         expect(row.leftAmplitude, '1.5_1');
@@ -95,7 +96,8 @@ void main() {
         appendId: 2,
         scales: const [(name: 'Mood', value: '4')],
         programId: 'A',
-        electrodeModel: 'Cartesia X',
+        leftElectrodeModel: 'Cartesia X',
+        rightElectrodeModel: 'Cartesia X',
         notes: 'multi\nline note with a\ttab',
         leftStimFreq: '125.5',
         leftAnode: 'C',
@@ -125,8 +127,9 @@ void main() {
       // and not first in someone's analysis script.
       expect(
         serializeSessionTsv(const []).trimRight(),
-        'acq_time\tblock_id\tappend_id\tis_initial\t'
-        'scale_name\tscale_value\telectrode_model\tprogram_id\t'
+        'acq_time\tblock_id\tappend_id\tis_initial\tis_final\t'
+        'scale_name\tscale_value\tleft_electrode_model\t'
+        'right_electrode_model\tprogram_id\t'
         'left_stim_freq\tleft_anode\tleft_cathode\tleft_amplitude\t'
         'left_pulse_width\tright_stim_freq\tright_anode\tright_cathode\t'
         'right_amplitude\tright_pulse_width\tnotes',
@@ -158,7 +161,7 @@ void main() {
       expect(rows.first.blockId, '0');
       expect(rows.first.appendId, '1');
       expect(rows.first.programId, 'B');
-      expect(rows.first.electrodeModel, 'Medtronic SenSight B33005');
+      expect(rows.first.leftElectrodeModel, 'Medtronic SenSight B33005');
       // The fixture has no `acq_time` column at all, only `date`, `time` and
       // a free-text `timezone`, yet reading it produces a complete instant,
       // offset included, so every consumer downstream sees one populated

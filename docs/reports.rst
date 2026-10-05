@@ -76,8 +76,12 @@ block's two sides is light while the rule between blocks is heavy, so each block
 reads as one configuration. With no targets set, nothing is ranked and the Index
 column is left out rather than printed empty.
 
+A notes file uploaded with the session makes a longitudinal report rather than
+this one; see :ref:`notes in the longitudinal report <longitudinal-visits>`.
+
 Under the table, the legend: what the green means, the targets, how many scales
-were rated per block, how far repeat ratings of one setting differ, how the index
+were rated per block when that differs between blocks, how far repeat ratings of
+one setting differ, how the index
 is computed, and the disclaimer. It is kept on one page, so the disclaimer is
 never separated from the shading it qualifies.
 
@@ -115,12 +119,16 @@ page-one box.
 Attestation
 ~~~~~~~~~~~
 
-Recorded by / Reviewed by / Date, over rules to sign on.
+**Recorded by** and **Rated by**, over rules to sign on. Both names are asked,
+optionally, when the report is exported, printed on the report and saved
+nowhere else; a name left empty leaves the rule blank for a signature. The
+notes-only report has **Recorded by** alone, since nothing in it was rated.
 
 Longitudinal report
 -------------------
 
-Several sessions of one patient, compared across visits. See
+Two or more uploaded files of one patient, compared across visits; a notes
+file counts as one of them. See
 :doc:`screens/reports` for the screen that produces it. However the files were
 picked, visits are ordered by patient and then from the earliest to the most
 recent, here, in the combined table and in the BIDS export.
@@ -129,24 +137,55 @@ If the imported files name more than one patient, the report says so in a box on
 page one. Combining two people into one longitudinal report is a safety problem,
 not a formatting one.
 
+Page one also carries a summary of the latest visit: its date and the programme
+the patient was left on, when the clinician marked it, or else the last
+programme recorded, one line per side with its contacts. Both figures fit on
+page one under it, on A4 and on US Letter.
+
 Clinical scales by visit
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 One assessment per visit, so the x axis is the visit itself, labelled by its
 date (with the run added only when two visits share a day). This is the "is the
 patient better than last time" figure. Its axis starts at zero, since a clinical
-total is a magnitude.
+total is a magnitude, and reaches at least the top of each plotted scale's range
+when the :ref:`clinical scales settings <dialog-clinical-scales>` give one, so a
+score reads against its scale. The ranges set the axis only and are never
+printed. Visits are evenly spaced, not drawn to time scale.
 
 .. figure:: _static/reports/longitudinal_report_clinical.png
    :alt: Clinical scale scores, one point per visit
+   :width: 100%
+
+.. _longitudinal-visits:
+
+Visits
+~~~~~~
+
+The date, the program in force at the end of that visit with Left and Right on
+separate lines and their contacts, headed "Left on" when the clinician marked
+it, the number of blocks, and every clinical scale recorded at that
+visit, one per line. How each scale moved between visits is what the figure
+above shows. A day with uploaded notes but no session gets its own numbered row,
+in date order among the visits, with only its date filled; its notes appear
+under that date in the session data below. Notes from a visit day appear in that
+visit's session table. Uploaded with no session at all, the notes
+are the whole report: it says that no session TSV was uploaded and lists every
+note by date.
+
+.. figure:: _static/reports/longitudinal_report_visits.png
+   :alt: The per-visit table
    :width: 100%
 
 Session scales by visit and block
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Several configurations per visit, so each visit contributes a run of points.
-With scale targets set, green bands mark the two best configurations across all
-visits together, and the axis is fixed to the declared range. Every visit's
+The ticks are the block numbers, with each visit's date centred under its own
+blocks and a rule between visits. With scale targets set, green bands mark the
+two best configurations across all visits together, the targets they were
+ranked by are printed under the figure, and the axis is fixed to the declared
+range. Every visit's
 index is computed against the same targets and declared ranges, which is what
 makes one ranking across visits meaningful.
 
@@ -154,24 +193,15 @@ makes one ranking across visits meaningful.
    :alt: Session scale ratings for every block of every visit, with the two best configurations across all visits banded
    :width: 100%
 
-Visits
-~~~~~~
-
-The date, the program in force at the end of that visit with Left and Right on
-separate lines, the number of blocks, and every clinical scale recorded at that
-visit, one per line. How each scale moved between visits is what the figure
-above shows.
-
-.. figure:: _static/reports/longitudinal_report_visits.png
-   :alt: The per-visit table
-   :width: 100%
-
 Session data per visit
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Each visit's table, under its own heading, laid out as in the session report. With
 targets set, the same two configurations as in the figure are shaded green:
-the highest and second-highest aggregate index across all visits.
+the highest and second-highest aggregate index across all visits. The Index
+column says so in its header, **Index (rank across all visits)**, because the
+same block carries its rank within the visit in that visit's own session
+report, headed **Index (rank in this session)**.
 
 .. figure:: _static/reports/longitudinal_report_page3.png
    :alt: The per-visit session tables, with the two best configurations across all visits shaded
@@ -183,7 +213,7 @@ Programming summary and source files
 For each visit, the same tables as the session report's programming summary:
 how many configurations were tested, and the amplitude, frequency and pulse
 width used on each side. *Source files* lists the uploaded files the report was
-built from, with their block counts.
+built from: the session files with their block counts, then the notes files.
 
 Annotations report
 ------------------
@@ -237,19 +267,45 @@ ranked highly. The notes column is not an input.
 
 **It is not a recommendation.** It does not say which settings to program.
 
-**It will not run without targets.** With no scale targets set, no configuration
-is ranked, nothing is shaded green, and the report says so. Defaulting every
-scale to "lower is better" would silently score *falling mood* and *falling
-energy* as improvements, and inventing a clinical intention is worse than
-declining to rank.
+**The session report will not rank without targets.** With no scale targets
+set, no configuration is ranked, nothing is shaded green, and the report says
+so. Defaulting every scale to "lower is better" would silently score *falling
+mood* and *falling energy* as improvements, and inventing a clinical intention
+is worse than declining to rank.
+
+**The longitudinal report ranks against defaults when none are set.** Made from
+the Reports screen with no targets confirmed, it ranks against the targets the
+targets dialog proposes, every scale minimised over 0 to 10, and prints them
+under the session-scales figure and the session tables. Those printed targets
+are the only record of what the ranking assumed; where a scale should rise, set
+its target before exporting.
 
 **"Last recorded configuration" is not "chosen".** It is the final block in the
-file. A setting that was tried and rejected would appear there identically.
+file, and a setting that was tried and rejected would appear there identically.
+Only a block the clinician marked as the one the patient was left on is called
+so, headed **Left on (marked by the clinician)**.
 
 **The numbers carry no instrument metadata.** The record stores no scale anchors,
-administration method or rater, so those cannot be reproduced from a report.
+administration method or rater, so those cannot be reproduced from a report. A
+rater named at export is printed on that report only.
 
 Where the session's own data allows it, the report also prints the spread between
 repeat ratings of an unchanged setting, which measures how far the index moves
 when nothing changes, so that two settings closer together than that can be seen
 for what they are.
+
+Fonts
+-----
+
+The PDF reports are set in IBM Plex Sans, regular and bold, bundled with the
+app under the SIL Open Font License (``assets/fonts/LICENSE-IBMPlexSans.txt``).
+The reports use no italic, so every character is drawn from those two faces.
+Without them the exporter falls back to Helvetica, which covers Latin-1 only:
+a curly quote or an accented character in a clinical note would print as
+``?``, and the app warns when that happens. The same files make the
+documentation screenshots reproducible, since the test environment that draws
+them ships no fonts of its own.
+
+To replace them, use the static TTFs from
+`Google Fonts <https://fonts.google.com/specimen/IBM+Plex+Sans>`_ or the
+`IBM Plex releases <https://github.com/IBM/plex/releases>`_.
