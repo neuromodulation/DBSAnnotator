@@ -38,9 +38,15 @@ jobs:
           set -euo pipefail
           types='added|changed|deprecated|removed|fixed|security'
 
-          bad=$(ls newsfragments | grep -vE "^(README\.md|template\.md\.jinja|[1-9][0-9]*\.($types)(\.[0-9]+)?\.md)$" || true)
+          bad=""
+          for path in newsfragments/*; do
+            name=${path#newsfragments/}
+            if ! [[ $name =~ ^(README\.md|template\.md\.jinja|[1-9][0-9]*\.($types)(\.[0-9]+)?\.md)$ ]]; then
+              bad="$bad $name"
+            fi
+          done
           if [ -n "$bad" ]; then
-            echo "::error::Not a valid fragment name: $bad. Expected <PR>.<type>.md, type one of: ${types//|/, }."
+            echo "::error::Not a valid fragment name:${bad}. Expected <PR>.<type>.md, type one of: ${types//|/, }."
             exit 1
           fi
 
