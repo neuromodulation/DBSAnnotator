@@ -902,6 +902,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _snack('Insert at least one block before exporting.');
       return;
     }
+    if (!await _confirmLeftOn() || !mounted) return;
     await exportFile(
       context,
       filename: _bidsName(_labels).filename,
@@ -923,6 +924,7 @@ class _SessionScreenState extends State<SessionScreen> {
       _snack('Insert at least one block before exporting.');
       return;
     }
+    if (!await _confirmLeftOn() || !mounted) return;
     final Map<String, dynamic> contract;
     try {
       contract = await loadTsvContract();
@@ -2251,7 +2253,13 @@ class _SessionScreenState extends State<SessionScreen> {
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             childrenPadding: const EdgeInsets.only(bottom: 8),
-            children: [SessionEntriesTable(rows: _authoring.rows)],
+            children: [
+              SessionEntriesTable(
+                rows: _authoring.rows,
+                bestBlocks: _entryCharts().bestXs,
+                secondBlocks: _entryCharts().secondXs,
+              ),
+            ],
           ),
         ),
       ],
@@ -2261,10 +2269,7 @@ class _SessionScreenState extends State<SessionScreen> {
   // ---- Wizard scaffold ----
 
   /// Leaving asks whether to keep the recovery copy; see `close_guard.dart`.
-  Future<bool> _mayLeave() async {
-    if (!await _confirmLeftOn() || !mounted) return false;
-    return confirmLeaveSession(context, _workingPath);
-  }
+  Future<bool> _mayLeave() => confirmLeaveSession(context, _workingPath);
 
   @override
   Widget build(BuildContext context) => PopScope(

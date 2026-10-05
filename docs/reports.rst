@@ -80,7 +80,8 @@ A notes file uploaded with the session makes a longitudinal report rather than
 this one; see :ref:`notes in the longitudinal report <longitudinal-visits>`.
 
 Under the table, the legend: what the green means, the targets, how many scales
-were rated per block, how far repeat ratings of one setting differ, how the index
+were rated per block when that differs between blocks, how far repeat ratings of
+one setting differ, how the index
 is computed, and the disclaimer. It is kept on one page, so the disclaimer is
 never separated from the shading it qualifies.
 
@@ -156,21 +157,6 @@ printed. Visits are evenly spaced, not drawn to time scale.
    :alt: Clinical scale scores, one point per visit
    :width: 100%
 
-Session scales by visit and block
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Several configurations per visit, so each visit contributes a run of points.
-The ticks are the block numbers, with each visit's date centred under its own
-blocks and a rule between visits. With scale targets set, green bands mark the
-two best configurations across all visits together, and the axis is fixed to
-the declared range. Every visit's
-index is computed against the same targets and declared ranges, which is what
-makes one ranking across visits meaningful.
-
-.. figure:: _static/reports/longitudinal_report_session_scales.png
-   :alt: Session scale ratings for every block of every visit, with the two best configurations across all visits banded
-   :width: 100%
-
 .. _longitudinal-visits:
 
 Visits
@@ -180,14 +166,31 @@ The date, the program in force at the end of that visit with Left and Right on
 separate lines and their contacts, headed "Left on" when the clinician marked
 it, the number of blocks, and every clinical scale recorded at that
 visit, one per line. How each scale moved between visits is what the figure
-above shows. Notes uploaded for days on which no session was recorded follow the
-table under **Notes on days without a session**; notes from a visit day appear in
-that visit's session table below. Uploaded with no session at all, the notes
+above shows. A day with uploaded notes but no session gets its own numbered row,
+in date order among the visits, with only its date filled; its notes appear
+under that date in the session data below. Notes from a visit day appear in that
+visit's session table. Uploaded with no session at all, the notes
 are the whole report: it says that no session TSV was uploaded and lists every
 note by date.
 
 .. figure:: _static/reports/longitudinal_report_visits.png
    :alt: The per-visit table
+   :width: 100%
+
+Session scales by visit and block
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Several configurations per visit, so each visit contributes a run of points.
+The ticks are the block numbers, with each visit's date centred under its own
+blocks and a rule between visits. With scale targets set, green bands mark the
+two best configurations across all visits together, the targets they were
+ranked by are printed under the figure, and the axis is fixed to the declared
+range. Every visit's
+index is computed against the same targets and declared ranges, which is what
+makes one ranking across visits meaningful.
+
+.. figure:: _static/reports/longitudinal_report_session_scales.png
+   :alt: Session scale ratings for every block of every visit, with the two best configurations across all visits banded
    :width: 100%
 
 Session data per visit
@@ -210,7 +213,7 @@ Programming summary and source files
 For each visit, the same tables as the session report's programming summary:
 how many configurations were tested, and the amplitude, frequency and pulse
 width used on each side. *Source files* lists the uploaded files the report was
-built from, with their block counts.
+built from: the session files with their block counts, then the notes files.
 
 Annotations report
 ------------------
@@ -264,11 +267,18 @@ ranked highly. The notes column is not an input.
 
 **It is not a recommendation.** It does not say which settings to program.
 
-**It will not run without targets.** With no scale targets set, no configuration
-is ranked, nothing is shaded green, and the report says so. Defaulting every
-scale to "lower is better" would silently score *falling mood* and *falling
-energy* as improvements, and inventing a clinical intention is worse than
-declining to rank.
+**The session report will not rank without targets.** With no scale targets
+set, no configuration is ranked, nothing is shaded green, and the report says
+so. Defaulting every scale to "lower is better" would silently score *falling
+mood* and *falling energy* as improvements, and inventing a clinical intention
+is worse than declining to rank.
+
+**The longitudinal report ranks against defaults when none are set.** Made from
+the Reports screen with no targets confirmed, it ranks against the targets the
+targets dialog proposes, every scale minimised over 0 to 10, and prints them
+under the session-scales figure and the session tables. Those printed targets
+are the only record of what the ranking assumed; where a scale should rise, set
+its target before exporting.
 
 **"Last recorded configuration" is not "chosen".** It is the final block in the
 file, and a setting that was tried and rejected would appear there identically.

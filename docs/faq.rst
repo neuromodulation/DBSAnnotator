@@ -58,12 +58,14 @@ Reports
 
 **Why is nothing highlighted green in my report?**
    Because no scale targets have been set, so nothing has been ranked. Set them
-   at export, or from the Recording step. See :ref:`scale-targets`.
+   at export, or from the Recording step. This is the session report; the
+   longitudinal report ranks against default targets when none are set and
+   prints the targets it used. See :ref:`scale-targets`.
 
 **Why does the report say "last recorded configuration" rather than "left on"?**
    Because no block was marked as the one the patient was left on. Mark it with
-   **Patient leaves on this** on the recording step, or in the question asked
-   when the session ends; an unmarked file records only which block came last,
+   **Patient leaves on this** on the recording step, or in the question asked at
+   each export; an unmarked file records only which block came last,
    not that a clinician confirmed a choice. See
    :ref:`what-the-reports-do-not-say`.
 

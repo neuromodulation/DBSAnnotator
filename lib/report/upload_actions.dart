@@ -108,12 +108,14 @@ enum ReportAction {
     'Change across visits.',
     how:
         'Every uploaded file is aggregated into one report, one visit per '
-        'session TSV in date order. A note goes to the visit of its day; notes '
-        'on days without a session are listed on their own.',
+        'session TSV in date order. A note goes to the visit of its day; a day '
+        'with notes and no session gets its own Visits row and table.',
     needs:
         'Two or more TSVs of one patient. A notes file counts as one of them.',
     creates:
-        'One PDF or Word file, sub-<participant>_desc-longitudinal_report.',
+        'One PDF or Word file, '
+        'sub-<participant>_desc-longitudinal<yyyymmdd>_report, dated the day '
+        'it was made.',
   ),
   aggregateTsv(
     'Combined table (TSV)',

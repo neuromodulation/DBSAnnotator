@@ -121,17 +121,21 @@ name carries BIDS entities (``sub-`` and ``ses-``). A dialog asks what to file:
 You then choose the dataset folder (on iPadOS and Android, the dataset as a
 ``.zip``, which comes back merged), and the same confirmation as every other
 add lists each file before anything is written. A report already filed at that
-path is refused, never overwritten. If the session was moved to the next free
-run because its name was taken, the report follows it to that run.
+path is never overwritten: the confirmation lists its derivatives folder under
+**Left unchanged**, as for any derivative already in the dataset. If the
+session was moved to the next free run because its name was taken, the report
+follows it to that run.
 
 Several visits of one patient
 -----------------------------
 
 With two or more sessions naming the same patient, every action is available and
-the preview becomes the scales timeline across all of them.
+the preview shows the longitudinal report's session-scales figure: every block
+of every visit, grouped under the visit's date, with the two best configurations
+across all visits banded, exactly as the report will draw it.
 
 .. figure:: ../_static/screenshots/reports_visits.png
-   :alt: Several visits uploaded, with the scales timeline across all of them
+   :alt: Several visits uploaded, with the session-scales figure across all of them
    :width: 100%
 
 Different patients
@@ -140,7 +144,9 @@ Different patients
 If the uploaded files name more than one patient, the screen says so and the
 longitudinal report stays off. Combining two people into one longitudinal report
 is a safety problem, not a formatting one. A combined table and a BIDS dataset
-across several patients are ordinary things to want, so those stay available.
+across several patients are ordinary things to want, so those stay available. No
+preview chart is drawn: one line across two patients would read as one
+patient's trend.
 
 .. figure:: ../_static/screenshots/reports_mismatch.png
    :alt: Two patients uploaded: a warning banner, and the longitudinal report
@@ -157,11 +163,11 @@ sessions share a day, the one under way at the note's time), placed by its own
 clock time with only the Time and Notes cells filled. A note from **any other
 day**, a follow-up call a week later for example, is not slipped into a visit's
 table: placed by clock time alone it would read as part of a visit it did not
-happen in. Those notes are listed after the Visits table under **Notes on days
-without a session**, each with its full date and time. The per-visit session
+happen in. Such a day gets its own numbered row in the Visits table, with only
+its date filled, and its own table in the session data, under its date and in
+the same columns as a visit's, with only Time and Notes filled. The session
 tables are the **Combined session data table** section, which is off by
-default; tick it in the section chooser to see the notes recorded during each
-visit.
+default and ticked for you when a notes file is uploaded.
 
 Two or more notes files with no session also give a longitudinal report. It has
 no visits, so it says that no session TSV was uploaded and lists every note by
@@ -277,8 +283,8 @@ notes file every section applies, so the dialog is skipped.
    :width: 44%
    :align: center
 
-The longitudinal chooser offers seven sections. Three of them start unticked,
-because they add pages:
+The longitudinal chooser offers seven sections and opens with the same defaults
+every time. Three of them start unticked, because they add pages:
 
 * **Combined session data table** prints every configuration of every visit,
   one table per visit under its own heading.
@@ -294,7 +300,13 @@ drop between visits is a drop rather than a rescale. The ranking is meaningful
 across visits because every visit's index is computed against the same targets
 and declared ranges. The clinical figure carries no bands.
 
-A TSV does not store scale targets, so the longitudinal export asks for them.
+A TSV does not store scale targets, so the longitudinal export offers them
+through **Scale targets…** in the chooser. If none are confirmed there, the
+report ranks against the targets that dialog proposes, every scale minimised
+over 0 to 10, and the preview on this screen uses the same. The report prints
+the targets it ranked by under the session-scales figure and the session
+tables; check them before filing it, and set any scale that should rise, such
+as mood or energy, before exporting.
 When a notes file is uploaded, **Combined session data table** starts ticked,
 since that is where notes from a visit day are printed. The clinical figure's
 axis takes each scale's range from your :ref:`clinical scales settings
@@ -317,11 +329,13 @@ having one invented for it: a wrong subject label on a clinical document is
 worse than an unhelpful filename.
 
 The longitudinal report spans visits, so it carries no ``ses-`` and no
-``task-``; ``desc-`` is the BIDS entity for naming what a computed file is:
+``task-``; ``desc-`` is the BIDS entity for naming what a computed file is. The
+label carries the date the report was made, so a report made at a later visit
+does not overwrite an earlier one:
 
 .. code-block:: text
 
-   sub-01_desc-longitudinal_report.pdf
+   sub-01_desc-longitudinal20261005_report.pdf
 
 See :doc:`../reports` for what each document contains, and
 :ref:`the combined table <combined-table>` for what the aggregated TSV holds.

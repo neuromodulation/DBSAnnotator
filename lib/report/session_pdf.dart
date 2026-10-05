@@ -106,14 +106,11 @@ List<pw.Widget> datedNotesPdf(
         ),
       ];
 
-/// "Scales rated per block: 5 throughout." / "..: 3-5, so blocks are not
-/// directly comparable." Null when nothing was rated.
+/// "Scales rated per block: 3-5, so blocks are not directly comparable."
+/// Null when every block rated the same number of scales.
 String? _ratedNote(SessionReportData data) {
   final counts = data.scalesRated.values.toSet();
-  if (counts.isEmpty) return null;
-  if (counts.length == 1) {
-    return 'Scales rated per block: ${counts.first} throughout.';
-  }
+  if (counts.length < 2) return null;
   final lo = counts.reduce((a, b) => a < b ? a : b);
   final hi = counts.reduce((a, b) => a > b ? a : b);
   return 'Scales rated per block: $lo-$hi. The index averages only the scales '

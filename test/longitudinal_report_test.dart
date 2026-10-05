@@ -146,6 +146,9 @@ void main() {
     expect(cells.any((c) => c.contains('(rank 1)')), isFalse);
     // Without targets nothing is ranked.
     expect(data.rankedBlocks, isEmpty);
+    // The report names the targets it ranked by, and none when it did not.
+    expect(ranked.rankingTargets, contains('Tremor: min of 0-10'));
+    expect(data.rankingTargets, isEmpty);
   });
 
   test('neither figure carries an index or bands', () {

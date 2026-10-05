@@ -27,6 +27,7 @@ import 'report_data.dart'
         datedNotes,
         coerceInt,
         kLeftOnTitle,
+        sessionTableHeaders,
         trimZeros;
 
 /// One imported file: a visit.
@@ -60,6 +61,10 @@ typedef LongitudinalVisit = ({
   SessionReportData session,
 });
 
+/// A day with notes and no session: its date and its notes as session-data
+/// rows, filled only in Time and Notes.
+typedef NoteDay = ({String date, List<List<String>> rows});
+
 /// Everything the longitudinal builders render.
 class LongitudinalReportData {
   const LongitudinalReportData({
@@ -73,11 +78,20 @@ class LongitudinalReportData {
     this.rankedBlocks = const {},
     this.overallRanks = const {},
     this.notesWithoutVisit = const [],
+    this.timeline = const [],
+    this.noteFiles = const [],
   });
 
   /// Notes recorded on a day with no session, oldest first. Notes on a visit
   /// day are interleaved in that visit's session table instead.
   final List<DatedNote> notesWithoutVisit;
+
+  /// Visits and notes-only days in date order, exactly one of the two set in
+  /// each entry: the order of the Visits table and of the session data.
+  final List<({LongitudinalVisit? visit, NoteDay? noteDay})> timeline;
+
+  /// The uploaded notes files, for the source list.
+  final List<String> noteFiles;
 
   final String patientId;
   final String generatedOn;
@@ -140,6 +154,13 @@ class LongitudinalReportData {
   }
 
   bool get isEmpty => visits.isEmpty;
+
+  /// "Scale targets: ..." the bands and shading were ranked against, or ''
+  /// when nothing is ranked. Printed because the Reports screen ranks with
+  /// default targets when none were set, and a reader must see which.
+  String get rankingTargets => rankedBlocks.isEmpty
+      ? ''
+      : 'Scale targets: ${visits.first.session.targetsText}';
 }
 
 /// The latest visit's programme cell, which the page-1 summary states.
@@ -463,11 +484,52 @@ LongitudinalReportData buildLongitudinalReportData({
     );
   }
 
+  // A day with notes and no session, in the session-data columns so its table
+  // reads like the visits' tables around it.
+  final unplaced = datedNotes(notes.where((n) => !placed.contains(n)));
+  final headers = visits.isEmpty
+      ? sessionTableHeaders
+      : visits.first.session.tableHeaders;
+  final noteDays = <NoteDay>[];
+  for (final n in unplaced) {
+    if (noteDays.isEmpty || noteDays.last.date != n.date) {
+      noteDays.add((date: n.date, rows: []));
+    }
+    noteDays.last.rows.add(
+      List<String>.filled(headers.length, '')
+        ..[headers.indexOf('Time')] = n.time
+        ..[headers.length - 1] = n.text,
+    );
+  }
+
+  // Visits and notes-only days merged by date. Both lists are already sorted;
+  // on a tie the visit comes first.
+  final timeline = <({LongitudinalVisit? visit, NoteDay? noteDay})>[];
+  var vi = 0;
+  var ni = 0;
+  while (vi < visits.length || ni < noteDays.length) {
+    final takeVisit =
+        ni == noteDays.length ||
+        (vi < visits.length &&
+            visits[vi].date.compareTo(noteDays[ni].date) <= 0);
+    timeline.add(
+      takeVisit
+          ? (visit: visits[vi++], noteDay: null)
+          : (visit: null, noteDay: noteDays[ni++]),
+    );
+  }
+
   // The per-visit table: every clinical scale recorded at the visit, one per
-  // line. The latest visit's programme is in the summary panel above it.
+  // line. The latest visit's programme is in the summary panel above it. A
+  // notes-only day is numbered with the visits and fills only its date.
   final table = <List<String>>[];
-  for (final (i, visit) in visits.indexed) {
-    final latest = i == visits.length - 1 && visits.length > 1;
+  for (final (i, entry) in timeline.indexed) {
+    final visit = entry.visit;
+    if (visit == null) {
+      table.add(['${i + 1}', entry.noteDay!.date, '', '', '']);
+      continue;
+    }
+    final latest = visit.filename == visits.last.filename && visits.length > 1;
     final scores = visit.clinicalScales;
     table.add([
       '${i + 1}',
@@ -507,7 +569,9 @@ LongitudinalReportData buildLongitudinalReportData({
       rankScope: 'across all visits',
     ),
     visitTable: table,
-    notesWithoutVisit: datedNotes(notes.where((n) => !placed.contains(n))),
+    notesWithoutVisit: unplaced,
+    timeline: timeline,
+    noteFiles: noteFilenames,
     mismatchedPatients: ids.length <= 1 ? const [] : ids.skip(1).toList(),
     rankedBlocks: rankedBlocks,
     overallRanks: overallRanks,

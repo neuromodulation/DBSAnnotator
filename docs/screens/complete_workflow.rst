@@ -329,9 +329,10 @@ re-entry.
 
 **Patient leaves on this**, above the Insert button, marks the block being
 inserted as the configuration the patient goes home with (``is_final`` in the
-file). When the session ends, by leaving the workflow, closing the window or
-exporting a report, the app asks which block that is, defaulting to the one
-marked, else the last, with **Not recorded** as a choice. Reports call a
+file). Each export, as a report, the TSV or a BIDS dataset, asks which block
+that is, defaulting to the one marked, else the last, with **Not recorded** as
+a choice. Leaving the workflow or closing the window does not ask, so a session
+that is closed without being exported records no choice. Reports call a
 configuration "left on" only when it was marked this way, and "last recorded"
 otherwise.
 
@@ -368,7 +369,9 @@ panels.
 
 **A table** of every entry sits below them, grouped by block. Values that belong
 to the block (time, program, parameters) are printed once rather than
-repeated on every scale row, and a heavy rule marks each block boundary.
+repeated on every scale row, and a heavy rule marks each block boundary. Once
+scale targets are set, the rows of the best and second-best blocks are shaded in
+the same greens as the charts, and the shading moves as each block is inserted.
 
 **Scale targets** sets what "better" means per scale (minimise, maximise, or
 closest to a value). Once set, the best- and second-best-scoring configurations
@@ -443,5 +446,6 @@ document anyone wants. **Scale targets…** opens the dialog above without losin
 the selection, since the ranking those targets drive is what several of these
 sections show.
 
-The selection is remembered for the next export, separately for each report
-kind.
+The session report remembers its selection for the next export. The
+longitudinal report opens with its defaults every time, so a section that adds
+pages, ticked once, is not carried into every later report.

@@ -156,8 +156,9 @@ Future<ReportAttestation?> askAttestation(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Attestation'),
+      scrollable: true,
       content: SizedBox(
-        width: 420,
+        width: 480,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

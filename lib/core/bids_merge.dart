@@ -211,15 +211,45 @@ BidsName nextFreeRun(BidsName name, Set<String> taken) {
   return (entries: out, renumbered: renumbered);
 }
 
+/// [plan]'s unwritten paths as the user is shown them. A derivative already in
+/// the dataset is never written into, so its folder is listed once as left
+/// unchanged: "refused" reads as an error for a file nobody recorded.
+({List<String> unchanged, List<String> refused}) shownUnwritten(
+  MergePlan plan,
+) {
+  String? folder(String path) {
+    final parts = path.split('/');
+    return parts.length > 2 && parts.first == 'derivatives'
+        ? '${parts[0]}/${parts[1]}/'
+        : null;
+  }
+
+  final unchanged = <String>[];
+  final refused = <String>[];
+  for (final (path, wasRefused) in [
+    for (final p in plan.keptAsIs) (p, false),
+    for (final p in plan.refused) (p, true),
+  ]) {
+    final dir = folder(path);
+    if (dir != null) {
+      if (!unchanged.contains(dir)) unchanged.add(dir);
+    } else {
+      (wasRefused ? refused : unchanged).add(path);
+    }
+  }
+  return (unchanged: unchanged, refused: refused);
+}
+
 /// One line describing [plan], for the confirmation shown before it runs.
 String describeMergePlan(MergePlan plan) {
+  final shown = shownUnwritten(plan);
   final parts = <String>[
     '${plan.added.length} file${plan.added.length == 1 ? '' : 's'} added',
     if (plan.rowMerged.isNotEmpty)
       '${plan.rowMerged.length} index file'
           '${plan.rowMerged.length == 1 ? '' : 's'} gaining rows',
-    if (plan.keptAsIs.isNotEmpty) '${plan.keptAsIs.length} left as is',
-    if (plan.refused.isNotEmpty) '${plan.refused.length} refused',
+    if (shown.unchanged.isNotEmpty) '${shown.unchanged.length} left as is',
+    if (shown.refused.isNotEmpty) '${shown.refused.length} refused',
   ];
   return parts.join(' - ');
 }

@@ -770,8 +770,7 @@ class SessionReportData {
   String get indexMethod =>
       'Aggregate index: unweighted mean over the scales rated at that block of '
       'each value normalised into its declared range and oriented by its '
-      'target, clipped to 0-1; 1 = best. A scale with no target contributes a '
-      'neutral 0.5 at half weight.';
+      'target, clipped to 0-1; 1 = best.';
 
   /// "Scale targets: name: min; other: max" for the table legend block, or ''
   /// when no scale has an active optimisation mode.

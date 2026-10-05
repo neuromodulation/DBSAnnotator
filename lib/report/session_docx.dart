@@ -104,10 +104,7 @@ String _responseTable(SessionReportData data, DocxPageSize pageSize) {
 /// Twin of the PDF's rated-per-block note, so both documents say it.
 String? _ratedNote(SessionReportData data) {
   final counts = data.scalesRated.values.toSet();
-  if (counts.isEmpty) return null;
-  if (counts.length == 1) {
-    return 'Scales rated per block: ${counts.first} throughout.';
-  }
+  if (counts.length < 2) return null;
   final lo = counts.reduce((a, b) => a < b ? a : b);
   final hi = counts.reduce((a, b) => a > b ? a : b);
   return 'Scales rated per block: $lo-$hi. The index averages only the scales '

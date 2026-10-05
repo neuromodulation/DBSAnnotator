@@ -25,15 +25,11 @@ void main() {
     expect(back.stimAmplitudes, isNull);
   });
 
-  test('the two reports remember their sections separately', () {
+  test('the session report remembers its sections', () {
     final back = UserPrefs.fromJson(
-      UserPrefs(
-        reportSections: ['baseline'],
-        longitudinalSections: ['electrodes', 'summary'],
-      ).toJson(),
+      UserPrefs(reportSections: ['baseline']).toJson(),
     );
     expect(back.reportSections, ['baseline']);
-    expect(back.longitudinalSections, ['electrodes', 'summary']);
   });
 
   test('empty prefs serialize to an empty object and read back empty', () {

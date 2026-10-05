@@ -234,13 +234,17 @@ Future<FolderCheck> checkDatasetFolder(
       title: Text(
         empty ? 'Start a new BIDS dataset here?' : 'Not a BIDS dataset',
       ),
-      content: Text(
-        '$label\n\n$kBidsFolderRule\n\n'
-        '${empty ? 'This folder is empty, so it can become one: its '
-                  'dataset_description.json, README and participants.tsv '
-                  'are written along with the first visit.' : 'This folder has other content and no '
-                  'dataset_description.json. Choose the top-level folder of a '
-                  'BIDS dataset, or an empty folder to start one.'}',
+      scrollable: true,
+      content: SizedBox(
+        width: 480,
+        child: Text(
+          '$label\n\n$kBidsFolderRule\n\n'
+          '${empty ? 'This folder is empty, so it can become one: its '
+                    'dataset_description.json, README and participants.tsv '
+                    'are written along with the first visit.' : 'This folder has other content and no '
+                    'dataset_description.json. Choose the top-level folder of a '
+                    'BIDS dataset, or an empty folder to start one.'}',
+        ),
       ),
       actions: [
         TextButton(
@@ -299,20 +303,24 @@ Future<({String? root, BidsName name})?> askNewTarget(
     context: context,
     builder: (context) => AlertDialog(
       title: Text('Where should $what be saved?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'A loose TSV goes wherever you choose. Into a dataset, it is filed '
-            'at its BIDS path and the dataset index files are kept up to date '
-            'as you record.',
-          ),
-          if (!canWriteChosenFolder) ...[
-            const SizedBox(height: 8),
-            Text(kDatasetDesktopOnly, style: theme.textTheme.bodySmall),
+      scrollable: true,
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'A loose TSV goes wherever you choose. Into a dataset, it is '
+              'filed at its BIDS path and the dataset index files are kept up '
+              'to date as you record.',
+            ),
+            if (!canWriteChosenFolder) ...[
+              const SizedBox(height: 8),
+              Text(kDatasetDesktopOnly, style: theme.textTheme.bodySmall),
+            ],
           ],
-        ],
+        ),
       ),
       actions: [
         TextButton(
@@ -407,22 +415,33 @@ class _SessionLabelDialogState extends State<_SessionLabelDialog> {
     final note = label.isEmpty ? null : widget.note?.call(label);
     return AlertDialog(
       title: const Text('Session label'),
-      content: TextField(
-        controller: _ctrl,
-        autofocus: true,
-        decoration: InputDecoration(
-          labelText: 'ses-',
-          helperText: [
-            if (label.isNotEmpty && label != typed)
-              'Filed as ses-$label: BIDS labels are letters and digits.'
-            else if (label.isNotEmpty)
-              'Often the date, but use whatever this study uses.',
-            ?note,
-          ].join('\n'),
-          helperMaxLines: 4,
-          errorText: typed.isNotEmpty && label.isEmpty
-              ? 'Letters and digits only.'
-              : null,
+      scrollable: true,
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'ses-',
+                helperText: label.isEmpty
+                    ? null
+                    : label != typed
+                    ? 'Filed as ses-$label: BIDS labels are letters and digits.'
+                    : 'Often the date, but use whatever this study uses.',
+                helperMaxLines: 3,
+                errorText: typed.isNotEmpty && label.isEmpty
+                    ? 'Letters and digits only.'
+                    : null,
+              ),
+            ),
+            // Below the field, not in its helper: a BIDS filename is long, and
+            // a helper is cut at its line limit.
+            if (note != null) ...[const SizedBox(height: 12), Text(note)],
+          ],
         ),
       ),
       actions: [
@@ -451,25 +470,29 @@ Future<bool> confirmRecordInto(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Record into this dataset?'),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(root, style: theme.textTheme.bodySmall),
-          const SizedBox(height: 12),
-          Text(
-            '${what[0].toUpperCase()}${what.substring(1)} will be filed as:',
-          ),
-          Text(
-            '  ${name.relativeDir}/${name.filename}',
-            style: theme.textTheme.bodySmall,
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'when the first entry is recorded, and updated at every entry '
-            'after that. $kBidsAddRule',
-          ),
-        ],
+      scrollable: true,
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(root, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 12),
+            Text(
+              '${what[0].toUpperCase()}${what.substring(1)} will be filed as:',
+            ),
+            Text(
+              '  ${name.relativeDir}/${name.filename}',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'when the first entry is recorded, and updated at every entry '
+              'after that. $kBidsAddRule',
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -555,8 +578,8 @@ Future<bool> confirmMerge(
                 ('Added', plan.added),
                 ('Filed under the next free run', renumbered),
                 ('Gaining rows', plan.rowMerged),
-                ('Left unchanged', plan.keptAsIs),
-                ('Refused: already recorded', plan.refused),
+                ('Left unchanged', shownUnwritten(plan).unchanged),
+                ('Refused: already recorded', shownUnwritten(plan).refused),
               ])
                 if (paths.isNotEmpty) ...[
                   Text(
@@ -612,6 +635,7 @@ Future<({bool tsv, bool report, bool docx})?> askSingleSessionAdd(
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
         title: const Text('Add to a BIDS dataset'),
+        scrollable: true,
         content: SizedBox(
           width: 460,
           child: Column(
@@ -882,9 +906,13 @@ Future<bool> saveAggregateInto(
     context: context,
     builder: (context) => AlertDialog(
       title: const Text('Saved into the dataset'),
-      content: Text(
-        '$summary, saved with its sidecar as\n$path\n\n'
-        'Save a copy somewhere else too?',
+      scrollable: true,
+      content: SizedBox(
+        width: 480,
+        child: Text(
+          '$summary, saved with its sidecar as\n$path\n\n'
+          'Save a copy somewhere else too?',
+        ),
       ),
       actions: [
         TextButton(

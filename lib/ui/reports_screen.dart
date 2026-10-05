@@ -53,52 +53,6 @@ import 'session/entry_charts_view.dart';
 import 'share_util.dart';
 import 'theme.dart';
 
-/// Merge per-file [scaleTimeline]s onto one x-axis. Each file's block indices
-/// are offset by the running block count of the files before it, so sessions
-/// render sequentially instead of colliding at block 0.
-Map<String, Map<int, double>> combinedScaleTimeline(
-  Iterable<List<SessionRow>> perFileRows,
-) {
-  final combined = <String, Map<int, double>>{};
-  var offset = 0;
-  for (final rows in perFileRows) {
-    final timeline = scaleTimeline(rows);
-    var maxBlock = -1;
-    timeline.forEach((scale, byBlock) {
-      final dest = combined.putIfAbsent(scale, () => <int, double>{});
-      byBlock.forEach((block, value) {
-        dest[block + offset] = value;
-        if (block > maxBlock) maxBlock = block;
-      });
-    });
-    offset += maxBlock + 1;
-  }
-  return combined;
-}
-
-/// The on-screen scales timeline, drawn by the painter the report embeds so
-/// the screen and the PDF cannot disagree. The x axis is the concatenated
-/// block index, so it is only comparable within a visit.
-Widget _timelineChart(
-  BuildContext context,
-  Map<String, Map<int, double>> timeline,
-) {
-  final theme = Theme.of(context);
-  return CustomPaint(
-    painter: ScalesChartPainter(
-      spec: buildScalesChartSpec(
-        timeline: timeline,
-        prefs: const [],
-        xLabel: 'Block',
-        yLabel: 'Scale value',
-      ),
-      background: theme.colorScheme.surface,
-      ink: theme.colorScheme.onSurface,
-    ),
-    child: const SizedBox.expand(),
-  );
-}
-
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key, this.catalog, this.initialFiles});
 
@@ -127,6 +81,15 @@ class _ReportsScreenState extends State<ReportsScreen> {
   void initState() {
     super.initState();
     _catalog = widget.catalog;
+    // Without the catalog no lead model resolves, so no report draws a lead.
+    if (_catalog == null) {
+      loadElectrodeCatalog().then(
+        (c) {
+          if (mounted) setState(() => _catalog = c);
+        },
+        onError: (Object e) => debugPrint('Electrode catalog unavailable: $e'),
+      );
+    }
     loadUserPrefs().then((p) {
       if (mounted) setState(() => _prefs = p);
     });
@@ -209,13 +172,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
     return [for (final f in added) f.name];
   }
 
+  /// The targets set, else the defaults the targets dialog offers, so a
+  /// longitudinal report is ranked even when the dialog was not confirmed.
+  List<ScalePref> get _targetsOrDefault =>
+      _targets ??
+      defaultScalePrefsFor([
+        for (final f in _sessions)
+          ...f.rows.where((r) => coerceInt(r.isInitial) != 1),
+      ]);
+
   Future<void> _editTargets() async {
-    final seed =
-        _targets ??
-        defaultScalePrefsFor([
-          for (final f in _sessions)
-            ...f.rows.where((r) => coerceInt(r.isInitial) != 1),
-        ]);
+    final seed = _targetsOrDefault;
     if (seed.isEmpty) {
       _snack('The uploaded files have no session scale ratings to rank.');
       return;
@@ -391,24 +358,17 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Future<void> _longitudinalReport({required bool docx}) async {
     // The desktop asks for both before exporting, and it has to: a TSV carries
     // no record of the targets used when its own report was made.
-    final saved = _prefs.longitudinalSections;
-    final last = {
-      for (final s in LongitudinalSection.values)
-        if (saved?.contains(s.name) ?? false) s,
-    };
-    // Same-day notes print only in the per-visit tables, so with a notes file
-    // uploaded that section starts ticked.
+    // The defaults every time, not the last export's choice, so a heavy
+    // section ticked once is not carried into every later report. Notes
+    // print only in the session tables, so with a notes file that section
+    // starts ticked.
     final sections = await showLongitudinalSectionsDialog(context, {
-      ...last.isEmpty ? kDefaultLongitudinalSections : last,
+      ...kDefaultLongitudinalSections,
       if (_notes.isNotEmpty) LongitudinalSection.sessionTable,
     }, onEditTargets: _editTargets);
     if (sections == null || !mounted) return;
-    setState(
-      () => _prefs.longitudinalSections = [for (final s in sections) s.name],
-    );
     final attestation = await askAttestation(context, rated: true);
     if (attestation == null || !mounted) return;
-    saveUserPrefs(_prefs);
 
     // A TSV records scale names and scores only, so the clinical figure's
     // ranges come from the user's clinical presets.
@@ -428,15 +388,18 @@ class _ReportsScreenState extends State<ReportsScreen> {
         for (final f in _files)
           if (f.kind == TsvKind.notes) f.name,
       ],
-      scalePrefs: _targets ?? const [],
+      scalePrefs: _targetsOrDefault,
     );
     if (data.isEmpty && data.notesWithoutVisit.isEmpty) {
       _snack('The uploaded files contain no visits or notes to report.');
       return;
     }
+    // The creation date goes inside the desc- label: BIDS wants the suffix
+    // last, and two reports of one patient must not share a name.
     final name =
         'sub-${BidsName.label(data.patientId)}'
-        '_desc-longitudinal_report.${docx ? 'docx' : 'pdf'}';
+        '_desc-longitudinal${data.generatedOn.replaceAll('-', '')}'
+        '_report.${docx ? 'docx' : 'pdf'}';
 
     await exportFile(
       context,
@@ -450,12 +413,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
         final leads = <String, ElectrodeReportImages>{};
         if (sections.contains(LongitudinalSection.electrodes)) {
           for (final visit in data.visits) {
+            final rows = _sessions
+                .firstWhere((f) => f.name == visit.filename)
+                .rows;
             final gfx = await renderReportGraphics(
               visit.session,
-              _catalog?.models[electrodeModelIn(
-                _sessions.firstWhere((f) => f.name == visit.filename).rows,
-              )],
+              _catalog?.models[electrodeModelIn(rows)],
               const {ReportSection.electrodes},
+              right: _catalog?.models[electrodeModelIn(rows, right: true)],
             );
             if (gfx.electrodes != null) leads[visit.filename] = gfx.electrodes!;
           }
@@ -747,7 +712,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         label: const Text('Upload TSVs'),
       ),
       const SizedBox(width: 8),
-      OutlinedButton.icon(
+      FilledButton.icon(
         onPressed: _loadDataset,
         icon: const Icon(Icons.folder_open),
         label: const Text('Load from dataset'),
@@ -941,15 +906,37 @@ class _ReportsScreenState extends State<ReportsScreen> {
       );
     }
     if (_sessions.length > 1) {
-      final timeline = combinedScaleTimeline(_sessions.map((f) => f.rows));
-      if (timeline.isEmpty) {
+      // One line across two patients would read as one patient's trend.
+      if (!patientIdsMatch(_sessions.map((f) => f.name).toList())) {
+        return Text(
+          'No chart is drawn across different patients.',
+          style: theme.textTheme.bodyLarge,
+          textAlign: TextAlign.center,
+        );
+      }
+      // The longitudinal report's own figure, so the screen and the PDF agree.
+      final chart = buildLongitudinalReportData(
+        files: {for (final f in _sessions) f.name: f.rows},
+        scalePrefs: _targetsOrDefault,
+      ).sessionChart;
+      if (chart.series.isEmpty) {
         return Text(
           'No session scale values in the uploaded files.',
           style: theme.textTheme.bodyLarge,
           textAlign: TextAlign.center,
         );
       }
-      return SizedBox(height: 360, child: _timelineChart(context, timeline));
+      return SizedBox(
+        height: 360,
+        child: CustomPaint(
+          painter: ScalesChartPainter(
+            spec: chart,
+            background: theme.colorScheme.surface,
+            ink: theme.colorScheme.onSurface,
+          ),
+          child: const SizedBox.expand(),
+        ),
+      );
     }
     return Column(
       children: [

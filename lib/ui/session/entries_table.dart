@@ -8,6 +8,7 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../core/brand_palette.dart' show kBestFill, kSecondFill;
 import '../../core/timestamps.dart';
 import '../../core/session/session_row.dart';
 import '../../report/report_data.dart'
@@ -22,9 +23,18 @@ int blockCount(List<SessionRow> rows) =>
     rows.map((r) => coerceInt(r.blockId)).toSet().length;
 
 class SessionEntriesTable extends StatelessWidget {
-  const SessionEntriesTable({super.key, required this.rows});
+  const SessionEntriesTable({
+    super.key,
+    required this.rows,
+    this.bestBlocks = const [],
+    this.secondBlocks = const [],
+  });
 
   final List<SessionRow> rows;
+
+  /// Rank 1 and rank 2 blocks, shaded as the chart bands them.
+  final List<int> bestBlocks;
+  final List<int> secondBlocks;
 
   static const _headers = [
     'Blk',
@@ -109,10 +119,20 @@ class SessionEntriesTable extends StatelessWidget {
       // leaving only the cells that differ. Blanking rather than merging keeps
       // every column aligned.
       final isInitial = coerceInt(r.isInitial) == 1;
+      // Same fill and opacity as the chart bands above the table.
+      final rankFill = bestBlocks.contains(block)
+          ? kBestFill
+          : secondBlocks.contains(block)
+          ? kSecondFill
+          : null;
       tableRows.add(
         TableRow(
           decoration: BoxDecoration(
-            color: blockIndex.isOdd ? tint : null,
+            color: rankFill != null
+                ? Color(rankFill).withValues(alpha: 0.45)
+                : blockIndex.isOdd
+                ? tint
+                : null,
             border: isNewBlock && tableRows.length > 1
                 ? Border(
                     top: BorderSide(color: rule, width: _blockRule),

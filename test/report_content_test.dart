@@ -146,7 +146,6 @@ void main() {
 
     test('the index method is stated, not just the modes', () {
       expect(data.indexMethod, contains('unweighted mean'));
-      expect(data.indexMethod, contains('half weight'));
     });
   });
 

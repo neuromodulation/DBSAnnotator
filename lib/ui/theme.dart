@@ -210,6 +210,11 @@ ThemeData dbsTheme(Brightness brightness) {
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(foregroundColor: scheme.onSurface),
     ),
+    // A dialog sizes to its widest line, and a long title is one line: capped,
+    // the title wraps instead of stretching the dialog across a wide window.
+    dialogTheme: const DialogThemeData(
+      constraints: BoxConstraints(minWidth: 280, maxWidth: 600),
+    ),
   );
 }
 

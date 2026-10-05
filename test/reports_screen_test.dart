@@ -1,40 +1,13 @@
 import 'dart:io';
 
-import 'package:dbs_annotator/core/session/session_row.dart';
 import 'package:dbs_annotator/report/upload_actions.dart';
 import 'package:dbs_annotator/ui/reports_screen.dart';
+import 'package:dbs_annotator/ui/scales_chart_painter.dart';
 import 'package:dbs_annotator/ui/session/entries_table.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('combinedScaleTimeline', () {
-    test('offsets each file onto a sequential block axis', () {
-      const fileA = [
-        SessionRow(blockId: '0', scaleName: 'Mood', scaleValue: '3'),
-        SessionRow(blockId: '1', scaleName: 'Mood', scaleValue: '4'),
-      ];
-      const fileB = [
-        SessionRow(blockId: '0', scaleName: 'Mood', scaleValue: '2'),
-        SessionRow(blockId: '0', scaleName: 'Anxiety', scaleValue: '5'),
-      ];
-      expect(combinedScaleTimeline(const [fileA, fileB]), {
-        'Mood': {0: 3.0, 1: 4.0, 2: 2.0},
-        'Anxiety': {2: 5.0},
-      });
-    });
-
-    test('single file is identical to its own timeline; empty input is {}', () {
-      const rows = [
-        SessionRow(blockId: '0', scaleName: 'Mood', scaleValue: '3'),
-      ];
-      expect(combinedScaleTimeline(const [rows]), {
-        'Mood': {0: 3.0},
-      });
-      expect(combinedScaleTimeline(const []), isEmpty);
-    });
-  });
-
   testWidgets('with nothing uploaded, every action is offered but disabled', (
     tester,
   ) async {
@@ -57,14 +30,13 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Upload a TSV first.'), findsNWidgets(5));
-    final load = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Load from dataset'),
+    final load = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Load from dataset'),
     );
     expect(load.onPressed, isNotNull);
     for (final button in tester.widgetList<OutlinedButton>(
       find.byType(OutlinedButton),
     )) {
-      if (button == load) continue;
       expect(button.onPressed, isNull, reason: 'no action is tappable yet');
     }
 
@@ -127,4 +99,54 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
   });
+
+  testWidgets(
+    'several sessions: one patient is charted, two patients are not',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final tsv = File(
+        'test/fixtures/sub-01_ses-20260203_task-programming_run-01_beh.tsv',
+      ).readAsStringSync();
+      Uploaded upload(String sub, String ses) => classifyUpload(
+        'sub-${sub}_ses-${ses}_task-programming_run-01_beh.tsv',
+        tsv,
+      ).file!;
+      bool charted() => tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .any((p) => p.painter is ScalesChartPainter);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ReportsScreen(
+            initialFiles: [upload('01', '20260203'), upload('01', '20260310')],
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(charted(), isTrue);
+      // No targets confirmed, so the dialog's defaults rank, as at export.
+      final painter = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((p) => p.painter)
+          .whereType<ScalesChartPainter>()
+          .single;
+      expect(painter.spec.bestXs, isNotEmpty);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          key: UniqueKey(),
+          home: ReportsScreen(
+            initialFiles: [upload('01', '20260203'), upload('02', '20260310')],
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(charted(), isFalse);
+      expect(
+        find.text('No chart is drawn across different patients.'),
+        findsOneWidget,
+      );
+    },
+  );
 }

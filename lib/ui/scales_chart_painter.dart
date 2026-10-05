@@ -497,7 +497,7 @@ class ScalesChartPainter extends CustomPainter {
     // them would read as two settings rather than one rated twice.
     void bands(List<int> xs, int argb) {
       if (xs.isEmpty) return;
-      final paint = Paint()..color = Color(argb).withValues(alpha: 0.62);
+      final paint = Paint()..color = Color(argb);
       final hatch = Paint()
         ..color = ink.withValues(alpha: 0.16)
         ..strokeWidth = 0.9;

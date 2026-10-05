@@ -138,9 +138,51 @@ void main() {
       expect(_inTable(visit(second), 'second visit'), isTrue);
     });
 
-    test('a note on a day with no session is listed on its own', () {
-      expect(data.notesWithoutVisit.map((n) => n.text), ['phone call']);
-      expect(data.notesWithoutVisit.single.date, '2026-02-20');
+    test('a day with notes and no session is a Visits row of its own', () {
+      expect(
+        [for (final r in data.visitTable) r[1]],
+        ['2026-02-03', '2026-02-20', '2026-03-10'],
+      );
+      expect([for (final r in data.visitTable) r[0]], ['1', '2', '3']);
+      expect(data.visitTable[1].skip(2), everyElement(isEmpty));
+    });
+
+    test('that day gets its own session-data table, in date order', () {
+      final day = data.timeline[1].noteDay!;
+      expect(data.timeline[0].visit?.filename, first);
+      expect(data.timeline[2].visit?.filename, second);
+      expect(day.date, '2026-02-20');
+      final headers = data.tableHeadersFor(data.visits.first);
+      final row = day.rows.single;
+      expect(row, hasLength(headers.length));
+      expect(row[headers.indexOf('Time')], isNotEmpty);
+      expect(row.last, 'phone call');
+      for (final v in data.visits) {
+        expect(_inTable(v.session, 'phone call'), isFalse);
+      }
+    });
+
+    test('Source files names every upload, notes included', () async {
+      const notesFile = 'sub-01_ses-20260220_task-notes_run-01_beh.tsv';
+      final withFile = buildLongitudinalReportData(
+        files: {first: _rows, second: _on('2026-03-10')},
+        notes: [_note('2026-02-20T11:00:00+00:00', 'phone call')],
+        noteFilenames: const [notesFile],
+      );
+      final doc = utf8.decode(
+        ZipDecoder()
+            .decodeBytes(buildLongitudinalDocx(data: withFile))
+            .findFile('word/document.xml')!
+            .readBytes()!,
+      );
+      expect(doc, contains(first));
+      expect(doc, contains('$notesFile  (notes)'));
+      expect(doc, isNot(contains('Notes on days without a session')));
+      // Visits sits between the two figures' headings.
+      final clinical = doc.indexOf('Clinical scales by visit');
+      final visits = doc.indexOf('Visits</w:t>');
+      final session = doc.indexOf('Session scales by visit and block');
+      expect(clinical < visits && visits < session, isTrue);
     });
 
     test('two sessions on one day: a note goes to the one under way', () {

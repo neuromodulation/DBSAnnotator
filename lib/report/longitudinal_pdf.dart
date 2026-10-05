@@ -216,26 +216,7 @@ Future<ReportBytes> buildLongitudinalPdf({
             pw.SizedBox(height: 10),
           ],
 
-          // (b) Session scales by visit and block.
-          if (sections.contains(LongitudinalSection.sessionChart)) ...[
-            if (sessionChartPng != null)
-              _figure(
-                'Session scales by visit and block',
-                sessionChartPng,
-                kSessionFigureCaption,
-                format.availableWidth,
-              )
-            else ...[
-              pw.Header(level: 1, text: 'Session scales by visit and block'),
-              if (data.sessionChart.isEmpty)
-                pw.Text('No session scale ratings were recorded.')
-              else
-                pw.Text('(figure unavailable)'),
-            ],
-            pw.SizedBox(height: 10),
-          ],
-
-          // (c) The per-visit table.
+          // (b) The per-visit table.
           if (sections.contains(LongitudinalSection.visits)) ...[
             pw.Header(level: 1, text: 'Visits'),
             pw.TableHelper.fromTextArray(
@@ -254,11 +235,31 @@ Future<ReportBytes> buildLongitudinalPdf({
               },
             ),
             pw.Text(kProgrammeNote, style: const pw.TextStyle(fontSize: 8)),
-            ...datedNotesPdf(
-              'Notes on days without a session',
-              data.notesWithoutVisit,
-              t,
-            ),
+            pw.SizedBox(height: 10),
+          ],
+
+          // (c) Session scales by visit and block.
+          if (sections.contains(LongitudinalSection.sessionChart)) ...[
+            if (sessionChartPng != null)
+              _figure(
+                'Session scales by visit and block',
+                sessionChartPng,
+                kSessionFigureCaption,
+                format.availableWidth,
+              )
+            else ...[
+              pw.Header(level: 1, text: 'Session scales by visit and block'),
+              if (data.sessionChart.isEmpty)
+                pw.Text('No session scale ratings were recorded.')
+              else
+                pw.Text('(figure unavailable)'),
+            ],
+            if (data.rankingTargets.isNotEmpty)
+              pw.Text(
+                t(data.rankingTargets),
+                style: const pw.TextStyle(fontSize: 8),
+              ),
+            pw.SizedBox(height: 10),
           ],
 
           // (d) Every configuration of every visit, grouped by visit rather
@@ -281,9 +282,9 @@ Future<ReportBytes> buildLongitudinalPdf({
           if (sections.contains(LongitudinalSection.sources)) ...[
             pw.SizedBox(height: 12),
             pw.Header(level: 1, text: 'Source files'),
-            for (final v in data.visits)
+            for (final line in _sourceLines(data))
               pw.Bullet(
-                text: t('${v.filename}  (${v.blocks.length} blocks)'),
+                text: t(line),
                 style: const pw.TextStyle(fontSize: 8),
                 bulletSize: 1.5,
               ),
@@ -370,6 +371,20 @@ Uint8List buildLongitudinalDocx({
       }
     }
 
+    if (sections.contains(LongitudinalSection.visits)) {
+      body
+        ..write(docxHeading('Visits'))
+        ..write(
+          docxTable(
+            longitudinalTableHeaders,
+            data.visitTable,
+            weights: _tableWeights,
+            contentTwips: pageSize.contentWidthTwips,
+          ),
+        )
+        ..write(docxPara(kProgrammeNote, size: 16));
+    }
+
     if (sections.contains(LongitudinalSection.sessionChart)) {
       body.write(docxHeading('Session scales by visit and block'));
       if (sessionChartPng != null) {
@@ -382,32 +397,29 @@ Uint8List buildLongitudinalDocx({
       } else if (data.sessionChart.isEmpty) {
         body.write(docxPara('No session scale ratings were recorded.'));
       }
-    }
-
-    if (sections.contains(LongitudinalSection.visits)) {
-      body
-        ..write(docxHeading('Visits'))
-        ..write(
-          docxTable(
-            longitudinalTableHeaders,
-            data.visitTable,
-            weights: _tableWeights,
-            contentTwips: pageSize.contentWidthTwips,
-          ),
-        )
-        ..write(docxPara(kProgrammeNote, size: 16))
-        ..write(
-          datedNotesDocx(
-            'Notes on days without a session',
-            data.notesWithoutVisit,
-            contentTwips: pageSize.contentWidthTwips,
-          ),
-        );
+      if (data.rankingTargets.isNotEmpty) {
+        body.write(docxPara(data.rankingTargets, size: 16));
+      }
     }
 
     if (sections.contains(LongitudinalSection.sessionTable)) {
       body.write(docxHeading('Session data'));
-      for (final v in data.visits) {
+      final ref = data.visits.first;
+      for (final entry in data.timeline) {
+        if (entry.noteDay case final day?) {
+          body
+            ..write(docxHeading2(day.date))
+            ..write(
+              docxTable(
+                data.tableHeadersFor(ref),
+                day.rows,
+                weights: ref.session.tableWeights,
+                contentTwips: pageSize.contentWidthTwips,
+              ),
+            );
+          continue;
+        }
+        final v = entry.visit!;
         if (v.session.tableData.isEmpty) continue;
         body
           ..write(docxHeading2(_visitLabel(v)))
@@ -427,7 +439,11 @@ Uint8List buildLongitudinalDocx({
             ),
           );
       }
-      if (_anyShaded(data)) body.write(docxPara(kVisitRankingLegend, size: 16));
+      if (_anyShaded(data)) {
+        body
+          ..write(docxPara(kVisitRankingLegend, size: 16))
+          ..write(docxPara(data.rankingTargets, size: 16));
+      }
     }
 
     if (sections.contains(LongitudinalSection.electrodes) &&
@@ -479,10 +495,8 @@ Uint8List buildLongitudinalDocx({
 
     if (sections.contains(LongitudinalSection.sources)) {
       body.write(docxHeading('Source files'));
-      for (final v in data.visits) {
-        body.write(
-          docxPara('  • ${v.filename}  (${v.blocks.length} blocks)', size: 16),
-        );
+      for (final line in _sourceLines(data)) {
+        body.write(docxPara('  • $line', size: 16));
       }
     }
   }
@@ -506,6 +520,12 @@ Uint8List buildLongitudinalDocx({
 String _visitLabel(LongitudinalVisit v) =>
     '${v.date}${v.run.isEmpty ? '' : ' run ${v.run}'}';
 
+/// Every uploaded file, sessions then notes, for the Source files list.
+List<String> _sourceLines(LongitudinalReportData data) => [
+  for (final v in data.visits) '${v.filename}  (${v.blocks.length} blocks)',
+  for (final f in data.noteFiles) '$f  (notes)',
+];
+
 /// (d) Every configuration of every visit, under a per-visit subheading rather
 /// than with a visit column: the twelve column widths are sized to their own
 /// headers, and a thirteenth broke them mid-word.
@@ -515,8 +535,30 @@ List<pw.Widget> _sessionTable(
 ) => [
   pw.SizedBox(height: 12),
   pw.Header(level: 1, text: 'Session data'),
-  for (final v in data.visits)
-    if (v.session.tableData.isNotEmpty) ...[
+  for (final entry in data.timeline)
+    if (entry.noteDay case final day?) ...[
+      pw.SizedBox(height: 6),
+      pw.Text(
+        t(day.date),
+        style: const pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+      ),
+      pw.TableHelper.fromTextArray(
+        headers: data.tableHeadersFor(data.visits.first),
+        data: t.rows(day.rows),
+        cellStyle: const pw.TextStyle(fontSize: 8),
+        headerStyle: const pw.TextStyle(
+          fontSize: 8,
+          fontWeight: pw.FontWeight.bold,
+        ),
+        headerDecoration: const pw.BoxDecoration(color: pdfHeaderFill),
+        cellAlignment: pw.Alignment.centerLeft,
+        columnWidths: {
+          for (final (i, w) in data.visits.first.session.tableWeights.indexed)
+            i: pw.FlexColumnWidth(w),
+        },
+      ),
+    ] else if (entry.visit case final v?
+        when v.session.tableData.isNotEmpty) ...[
       pw.SizedBox(height: 6),
       pw.Text(
         t('${v.date}${v.run.isEmpty ? '' : ' run ${v.run}'}'),
@@ -565,6 +607,7 @@ List<pw.Widget> _sessionTable(
   if (_anyShaded(data)) ...[
     pw.SizedBox(height: 4),
     pw.Text(kVisitRankingLegend, style: const pw.TextStyle(fontSize: 8)),
+    pw.Text(t(data.rankingTargets), style: const pw.TextStyle(fontSize: 8)),
   ],
 ];
 

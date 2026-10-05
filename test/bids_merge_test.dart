@@ -206,6 +206,30 @@ void main() {
     expect(text, contains('gaining rows'));
   });
 
+  test('a derivative already there is shown as one unchanged folder', () {
+    const dir = 'derivatives/dbs-annotator-aggregate';
+    const visit = 'sub-01/ses-a/beh/sub-01_ses-a_task-x_run-01_beh.tsv';
+    final plan = planBidsMerge(
+      const [
+        (path: '$dir/desc-aggregate_beh.tsv', content: 'old'),
+        (path: '$dir/desc-aggregate_beh.json', content: 'old'),
+        (path: visit, content: 'archived'),
+      ],
+      const [
+        (path: '$dir/desc-aggregate_beh.tsv', content: 'new'),
+        (path: '$dir/desc-aggregate_beh.json', content: 'new'),
+        (path: visit, content: 'different'),
+      ],
+    );
+    // Internally nothing changes: neither the derivative nor the visit is written.
+    expect(plan.write, isEmpty);
+    expect(plan.refused, hasLength(3));
+    final shown = shownUnwritten(plan);
+    expect(shown.unchanged, ['$dir/']);
+    expect(shown.refused, [visit]);
+    expect(describeMergePlan(plan), contains('1 left as is - 1 refused'));
+  });
+
   group('a name already taken', () {
     const preop = BidsName(
       subject: '01',

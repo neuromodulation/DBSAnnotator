@@ -170,12 +170,7 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          row.pref.name,
-          style: theme.textTheme.labelLarge,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
+        Text(row.pref.name, style: theme.textTheme.labelLarge),
         const SizedBox(height: 4),
         Wrap(
           spacing: 8,
@@ -185,7 +180,7 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
             _numField(row.min, 'Min'),
             _numField(row.max, 'Max'),
             SizedBox(
-              width: 150,
+              width: _scaled(160),
               child: DropdownButtonFormField<ScaleMode>(
                 initialValue: row.mode,
                 isDense: true,
@@ -213,8 +208,11 @@ class _ScaleTargetsDialogState extends State<_ScaleTargetsDialog> {
     ),
   );
 
+  /// [width] grown with the text size, so a label never outgrows its field.
+  double _scaled(double width) => MediaQuery.textScalerOf(context).scale(width);
+
   Widget _numField(TextEditingController c, String label) => SizedBox(
-    width: 88,
+    width: _scaled(88),
     child: TextField(
       controller: c,
       keyboardType: const TextInputType.numberWithOptions(
