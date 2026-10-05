@@ -71,6 +71,10 @@ sphinx-build -W docs docs/_build/html
 - Commit subjects use conventional prefixes with an optional scope: `feat(reports):`,
   `fix(bids):`, `docs:`, `chore:`.
 - Pull request descriptions follow `.github/PULL_REQUEST_TEMPLATE.md`.
+- A PR that changes the app adds `newsfragments/<PR>.<type>.md` (Towncrier, see
+  `newsfragments/README.md`); CI fails without it. The number comes from the PR, so ask
+  the maintainer for it. Never edit `CHANGELOG.md` by hand: `towncrier build` writes it
+  at release.
 
 ## Code style
 

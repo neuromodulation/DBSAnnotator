@@ -1,0 +1,13 @@
+{# The version heading comes from title_format in towncrier.toml. Types follow the
+   order defined there, Keep a Changelog's, as ### so MyST never jumps a level. #}
+{% for section, _ in sections.items() %}
+{% for category, val in definitions.items() if category in sections[section] %}
+### {{ definitions[category]['name'] }}
+
+{% for text, values in sections[section][category].items() %}
+- {{ text }}{% if values %} ({{ values|join(", ") }}){% endif %}
+
+{% endfor %}
+
+{% endfor %}
+{% endfor %}
