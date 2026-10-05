@@ -89,6 +89,7 @@ At a glance
 
    faq
    privacy
+   changelog
 
-Release notes are published with each tagged release on
-`GitHub <https://github.com/neuromodulation/DBSAnnotator/releases>`_.
+What changed in each version is in the :doc:`changelog`; the downloads for each
+release are on `GitHub <https://github.com/neuromodulation/DBSAnnotator/releases>`_.

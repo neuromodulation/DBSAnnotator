@@ -33,7 +33,10 @@ Then:
 1. Fork the repository and branch: `git switch -c feature/your-feature-name`
 2. Make your change, with tests
 3. `flutter analyze && flutter test` must both be clean
-4. Open a pull request
+4. Open a pull request, then add `newsfragments/<PR number>.<type>.md`, one or
+   two sentences on what changed for the person using the app. CI asks for it
+   whenever the app changes; [newsfragments/README.md](newsfragments/README.md)
+   has the types and the exemptions.
 
 [AGENTS.md](AGENTS.md) holds the same conventions in compact form for coding agents.
 

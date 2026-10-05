@@ -1,0 +1,44 @@
+# Builds CHANGELOG.md from one fragment per PR in newsfragments/, as the Qt app
+# did. At release: uvx towncrier build --version X.Y.Z --yes (see
+# .github/RELEASING.md). The version is passed in, because there is no Python
+# package here to read it from.
+[tool.towncrier]
+name = "Wyss DBS Annotator"
+directory = "newsfragments"
+filename = "CHANGELOG.md"
+template = "newsfragments/template.md.jinja"
+start_string = "## [Unreleased]\n"
+title_format = "## [{version}] - {project_date}"
+issue_format = "[#{issue}](https://github.com/neuromodulation/DBSAnnotator/pull/{issue})"
+underlines = ["", "", ""]
+
+# The order of Keep a Changelog 1.1.0, Types of changes.
+[[tool.towncrier.type]]
+directory = "added"
+name = "Added"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "changed"
+name = "Changed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "deprecated"
+name = "Deprecated"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "removed"
+name = "Removed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fixed"
+name = "Fixed"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "security"
+name = "Security"
+showcontent = true

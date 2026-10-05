@@ -1,0 +1,62 @@
+name: Changelog fragment
+
+# A pull request that changes the app adds newsfragments/<PR>.<type>.md, which
+# Towncrier turns into CHANGELOG.md at release (newsfragments/README.md).
+# Reports are filed in patient records, so which version changed what has to be
+# written down when the change is made, not reconstructed at release time.
+#
+# Its own workflow, not a job in ci.yml, so adding or removing the
+# skip-changelog label re-runs this check without re-running the whole build.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  fragment:
+    name: Changelog fragment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Dependabot updates and changes nobody using the app would notice are
+    # exempt. A skipped job counts as passed for a required check.
+    if: >-
+      github.actor != 'dependabot[bot]' &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-changelog')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fragment names are valid, and an app change brings its own
+        shell: bash
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          types='added|changed|deprecated|removed|fixed|security'
+
+          bad=""
+          for path in newsfragments/*; do
+            name=${path#newsfragments/}
+            if ! [[ $name =~ ^(README\.md|template\.md\.jinja|[1-9][0-9]*\.($types)(\.[0-9]+)?\.md)$ ]]; then
+              bad="$bad $name"
+            fi
+          done
+          if [ -n "$bad" ]; then
+            echo "::error::Not a valid fragment name:${bad}. Expected <PR>.<type>.md, type one of: ${types//|/, }."
+            exit 1
+          fi
+
+          changed=$(git diff --name-only "$BASE"...HEAD)
+          if ! grep -qE '^(lib|schema|assets|android|ios|macos|linux|windows)/|^pubspec\.yaml$' <<<"$changed"; then
+            echo "No change to the app itself, so no fragment is needed."
+            exit 0
+          fi
+          if ! grep -qE "^newsfragments/$PR\.($types)(\.[0-9]+)?\.md$" <<<"$changed"; then
+            echo "::error::This PR changes the app but adds no newsfragments/$PR.<type>.md. Add one (see newsfragments/README.md), or the skip-changelog label if nobody using the app would notice the change."
+            exit 1
+          fi
+          echo "Fragment found."

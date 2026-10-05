@@ -244,11 +244,18 @@ Package validation runs before review, so finding out costs nothing.
 
 ```bash
 # bump pubspec.yaml version (e.g. 0.5.0+1 becomes 0.5.1+2), then the three
-# literals that restate it (lib/app_info.dart, CITATION.cff, msix_config), and
-# commit.
+# literals that restate it (lib/app_info.dart, CITATION.cff, msix_config).
 # `flutter test` fails if you miss one (test/version_parity_test.dart).
+# Then assemble the changelog: every newsfragments/*.md moves into
+# CHANGELOG.md under the new version, and the fragment files are deleted.
+uvx towncrier build --version 0.5.1 --yes
+# Commit both, through a PR, then tag the merged commit.
 git tag app-v0.5.1 && git push origin app-v0.5.1
 ```
+
+The new `CHANGELOG.md` section is also the text for the GitHub Release notes
+and for the Microsoft Store's *What's new*. Check it reads well for a clinician
+before tagging: it is what they will see.
 
 **CI publishes a draft, never a live release.** The tag runs static checks (which
 assert the tag matches `pubspec.yaml` before anything is built), the tests, and
