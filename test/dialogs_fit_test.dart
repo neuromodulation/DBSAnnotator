@@ -4,7 +4,6 @@
 /// dialog stays on screen and no wider than it needs.
 library;
 
-import 'dart:async';
 import 'dart:io';
 
 import 'package:dbs_annotator/core/bids.dart';
@@ -279,21 +278,29 @@ void main() {
         () => Directory.systemTemp.createTemp('dialogs_fit'),
       );
       addTearDown(() => dir!.deleteSync(recursive: true));
-      // The table is written before the dialog opens, which is real file I/O.
-      await tester.runAsync(() async {
-        unawaited(
-          saveAggregateInto(
-            host,
-            dir!.path,
-            tsv: 'a\tb\n',
-            sidecar: '{}',
-            summary: 'The combined table of 12 sessions from 3 participants',
-          ),
+      // The table is written before the dialog opens, which is real file I/O,
+      // so wait for the dialog rather than for a fixed time: a slow CI runner
+      // takes longer than any guess.
+      final saved = saveAggregateInto(
+        host,
+        dir!.path,
+        tsv: 'a\tb\n',
+        sidecar: '{}',
+        summary: 'The combined table of 12 sessions from 3 participants',
+      );
+      for (var i = 0; i < 200 && find.byType(Dialog).evaluate().isEmpty; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 25)),
         );
-        await Future<void>.delayed(const Duration(milliseconds: 200));
-      });
+        await tester.pump();
+      }
       await tester.pumpAndSettle();
       _expectFits(tester, size, 'saved into the dataset');
+      // Close it and let the save finish inside the test, so nothing is still
+      // running when tearDown deletes the folder.
+      await tester.tap(find.text('No'));
+      await tester.pumpAndSettle();
+      await tester.runAsync(() => saved);
     });
 
     // Opened from the reports page, which is laid out for a tablet or wider.
