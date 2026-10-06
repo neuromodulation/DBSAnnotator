@@ -52,7 +52,7 @@ dependencies:
   # Desktop window sizing + title (Linux/Windows/macOS). No-op on mobile.
   window_manager: ^0.5.2
   # Word (.docx) export = zipping OOXML parts (already transitive via pdf).
-  archive: ^4.0.0
+  archive: ^4.3.0
   # Primary-display work area, to clamp the window to the screen (transitive via
   # window_manager; pinned direct so main.dart can import it).
   screen_retriever: ^0.2.0
