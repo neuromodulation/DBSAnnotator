@@ -1,12 +1,5 @@
 name: Changelog fragment
 
-# A pull request that changes the app adds newsfragments/<PR>.<type>.md, which
-# Towncrier turns into CHANGELOG.md at release (newsfragments/README.md).
-# Reports are filed in patient records, so which version changed what has to be
-# written down when the change is made, not reconstructed at release time.
-#
-# Its own workflow, not a job in ci.yml, so adding or removing the
-# skip-changelog label re-runs this check without re-running the whole build.
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
@@ -19,8 +12,6 @@ jobs:
     name: Changelog fragment
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # Dependabot updates and changes nobody using the app would notice are
-    # exempt. A skipped job counts as passed for a required check.
     if: >-
       github.actor != 'dependabot[bot]' &&
       !contains(github.event.pull_request.labels.*.name, 'skip-changelog')
