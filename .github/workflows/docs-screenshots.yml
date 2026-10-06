@@ -1,26 +1,9 @@
 name: Docs screenshots
 
-# Regenerates the documentation screenshots and uploads them as an artifact.
-#
-# The PNGs under docs/_static/screenshots/ are committed, because Read the Docs
-# cannot run a ~1 GB Flutter SDK inside its build limits (see .readthedocs.yaml).
-# Committed images go stale silently, so this job re-renders them from the
-# current UI and hands back the result for a developer to commit.
-#
-# ## Why this does not diff against the committed PNGs
-#
-# It would be a flaky gate, not a useful one. Skia and text shaping differ
-# enough between the runner and a developer's machine that a byte comparison
-# fails on renders that are visually identical, and a check that cries wolf gets
-# disabled. What IS enforced is that generation still works: a finder that no
-# longer matches, a dialog that moved, or a region whose bounds vanished all
-# fail the test rather than quietly writing a wrong picture. The uploaded
-# artifact is then the thing to eyeball.
 on:
   workflow_dispatch:
   pull_request:
     paths:
-      # Anything that changes what the captures look like.
       - "lib/ui/**"
       - "test/docs/screenshots_test.dart"
       - "test/fixtures/**"
@@ -28,15 +11,10 @@ on:
       - "schema/**"
       - ".github/workflows/docs-screenshots.yml"
 
-# Read-only: this job renders images and uploads them, and writes nothing back.
 permissions:
   contents: read
 
 env:
-  # Duplicated from ci.yml because `env` is per-workflow and a workflow cannot
-  # read another's. Bump both together, or the screenshots are rendered by a
-  # different Flutter than the one CI builds with, which is precisely the drift
-  # this pin exists to prevent.
   FLUTTER_VERSION: "3.47.1"
 
 jobs:
@@ -54,16 +32,11 @@ jobs:
 
       - run: flutter pub get --enforce-lockfile
 
-      # The harness fails loudly rather than emitting boxes-for-glyphs if it
-      # finds no text font, so a missing assets/fonts/IBMPlexSans-*.ttf is a
-      # failure here and not a silent visual regression.
       - name: Render screenshots
         env:
           DOCS_SCREENSHOT_DIR: build/docs-screenshots
         run: flutter test test/docs/screenshots_test.dart
 
-      # One grouped redirect rather than a dozen `>>` (shellcheck SC2129):
-      # cheaper, and it cannot half-write the table if a `stat` fails midway.
       - name: Report what changed
         shell: bash
         run: |
@@ -80,8 +53,6 @@ jobs:
               [ -f "$old" ] && committed="$(stat -c%s "$old") B"
               echo "| $name | $committed | $(stat -c%s "$f") B |"
             done
-            # A capture that exists on disk but is no longer rendered is a stale
-            # image the documentation may still be pointing at.
             for f in docs/_static/screenshots/*.png; do
               name="$(basename "$f")"
               if [ ! -f "build/docs-screenshots/$name" ]; then

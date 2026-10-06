@@ -1,12 +1,8 @@
 name: pre-commit autoupdate
 
-# .pre-commit-config.yaml pins each hook repository to a rev, and there is no
-# Dependabot ecosystem for pre-commit, so without this the hook versions rot
-# indefinitely. Monthly, not weekly: the hooks are formatters, a linter and a
-# spellchecker, and a month of staleness costs nothing.
 on:
   schedule:
-    - cron: "0 6 1 * *" # 06:00 UTC on the 1st
+    - cron: "0 6 1 * *"
   workflow_dispatch:
 
 permissions:
@@ -24,8 +20,6 @@ jobs:
 
       - uses: peter-evans/create-pull-request@v8
         with:
-          # A fixed branch, so this reuses ONE pull request forever instead of
-          # piling up a new one every month.
           branch: chore/pre-commit-autoupdate
           delete-branch: true
           title: "chore: update pre-commit hook revisions"

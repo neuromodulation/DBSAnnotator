@@ -1,56 +1,24 @@
 name: App CI/CD
 
-# The Flutter app's CI/CD, and the only workflow in this repository. The app
-# lives at the repo root, so every step runs there with no working-directory.
-#
-# On PRs touching the Dart tree it runs tests + a build check; on `v*` tags
-# it ships Android (the APK to the GitHub Release) and iOS (to TestFlight, when
-# the Apple secrets are configured).
 on:
   push:
-    # CI on main was missing entirely: a merge that broke the build was only
-    # discovered by the next PR, or by a tag.
     branches: [main]
     tags: ["v*"]
-  # No `paths:` filter, deliberately. The app IS the repo root, so the filter
-  # had to enumerate what the app is NOT, and it got it wrong: a PR touching
-  # only `pubspec.lock` (i.e. every Dependabot PR) matched nothing and ran ZERO
-  # jobs, and it listed a `ruff.toml` that no longer exists while omitting the
-  # `pyproject.toml` that replaced it. A workflow that silently runs nothing is
-  # worse than one that runs for two minutes on a README typo, and runner
-  # minutes are free on a public repository.
   pull_request:
   workflow_dispatch:
 
-# Read-only by default. Only the `release` job gets `contents: write`, and only
-# it needs one. Previously all seven jobs held a token that could push to the
-# repository, including the job that pipes a third-party binary into bash.
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # PR pushes cancel the previous run. Tag and main runs are NEVER cancelled: a
-  # cancelled tag run is exactly the half-built release this workflow exists to
-  # prevent.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # Pinned, not a bare `channel: stable`. pubspec.lock resolves against
-  # `flutter: ">=3.38.4"`, and with --enforce-lockfile an upstream stable
-  # release can break this build with no change in the repository. Bump by hand
-  # alongside a local `flutter upgrade`; there is no Dependabot ecosystem for
-  # the Flutter SDK.
   FLUTTER_VERSION: "3.47.1"
 
 
 jobs:
-  # Static checks. Fast and independent of the build, so a formatting or lint
-  # failure is reported in seconds rather than behind a 3-minute compile.
-  #
-  # The same set runs locally via .pre-commit-config.yaml. This job is the
-  # authority, because `git commit --no-verify` skips hooks and this cannot be
-  # skipped. Keep the two in step.
   checks:
     name: Static checks
     runs-on: ubuntu-latest
@@ -58,22 +26,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # test/version_parity_test.dart locks pubspec.yaml, lib/app_info.dart,
-      # CITATION.cff and msix_version to each other, but the TAG sat outside
-      # that ring: `git tag v0.6.0` on a 0.5.0 commit produced an MSIX
-      # labelled 0.6.0.0 wrapping an app whose report footers, filed in a
-      # patient record, said 0.5.0. This closes the ring.
-      #
-      # First step, before any toolchain: it fails in seconds, in front of a
-      # 20-minute fan-out. The regex is the same one version_parity_test.dart
-      # uses, so the two cannot disagree about what "the version" is.
       - name: Tag matches the pubspec version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: bash
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
-          tag="${tag%-rc*}"          # v0.5.1-rc / -rc2 / -rc.2 give 0.5.1
+          tag="${tag%-rc*}"
           pub=$(sed -n 's/^version:[[:space:]]*\([0-9][^+ #]*\).*/\1/p' pubspec.yaml | head -1)
           [ -n "$pub" ] || { echo "::error::pubspec.yaml declares no parseable version:"; exit 1; }
           if [ "$tag" != "$pub" ]; then
@@ -88,56 +47,22 @@ jobs:
           channel: stable
           cache: true
 
-      # Needed before the analyze hook, and before the docs build resolves the
-      # schema. `dart format` and `flutter analyze --fatal-infos` are NOT
-      # separate steps here: both are local hooks in .pre-commit-config.yaml and
-      # run in the pre-commit invocation below, so there is one definition of
-      # each rather than two that can drift.
       - run: flutter pub get --enforce-lockfile
 
-      # actionlint validates `${{ }}` expressions and shellchecks every `run:`
-      # block. The windows job interpolates repository variables into bash, so
-      # this is not hypothetical. Not a pre-commit hook: it is a Go binary and
-      # the maintainer's machine has no Go toolchain.
-      #
-      # A pinned action, NOT `curl | bash`. The download script lives on a
-      # moving branch and is unchecksummed, and this workflow holds a token that
-      # can write to the repository, so piping it into a shell would be remote
-      # code execution with push access, on a clinical tool.
       - uses: rhysd/actionlint@v1.7.12
 
-      # `python` on PATH for the generate-docs-includes hook, which is
-      # `language: system`.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - uses: astral-sh/setup-uv@v7
 
-      # One source of truth for hook versions, arguments AND ordering:
-      # .pre-commit-config.yaml. This used to be three `uvx ruff@0.16.5 …` /
-      # `codespell@2.4.3` / `doc8@2.0.0` steps that pinned the same versions a
-      # SECOND time, so the hooks and CI could enforce different rules, and a
-      # `pre-commit autoupdate` PR would have desynced them silently while CI
-      # kept enforcing the old ones. It also subsumes `dart format` and
-      # `flutter analyze --fatal-infos` (both local hooks) and satisfies the
-      # generate-includes-before-doc8 ordering structurally rather than by
-      # comment.
-      #
-      # `--show-diff-on-failure` so a formatting failure prints the fix.
       - run: uvx pre-commit run --all-files --show-diff-on-failure
 
-      # Not a hook: Read the Docs builds with fail_on_warning, so without this a
-      # docs regression is only discovered after merge, when publishing breaks.
-      # It needs the generated includes, which the pre-commit run above has
-      # already rendered.
       - name: Docs build (warnings are errors)
         run: uv run --with-requirements docs/requirements.txt sphinx-build -b html -W --keep-going docs docs/_build/html
 
 
   test:
-    # Renamed from "Analyze & test": `flutter analyze` moved out. The `checks`
-    # job runs it with --fatal-infos, which is strictly stronger, so running the
-    # weaker form here bought a second Flutter install and nothing else.
     name: Test
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -151,23 +76,6 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: flutter test
 
-  # ---------------------------------------------------------------------------
-  # Does the dataset this app writes actually satisfy BIDS?
-  #
-  # Every other claim of compliance in this repository is OUR READING of the
-  # specification, restated in tests we wrote. The validator is the only thing
-  # that tests the reading itself, and it is the claim the JOSS paper makes.
-  #
-  # It lives in CI because it cannot run on the maintainer's machine: the
-  # validator is Deno-based, and that machine has no Node, Deno or Docker.
-  #
-  # `continue-on-error` DELIBERATELY, for now. The first output of a validator
-  # against a bespoke `beh` dataset is a finding, not a verdict. Expect
-  # legitimate complaints about our own columns and about `desc-aggregate_beh`
-  # at a derivative root, which is the one part of the layout not yet confirmed.
-  # Turning a gate red before anyone has read what it says teaches people to
-  # ignore it. Triage the output, fix the real errors, record which warnings are
-  # acceptable and why, and THEN delete this line.
   bids-validate:
     name: BIDS validator
     runs-on: ubuntu-latest
@@ -185,10 +93,6 @@ jobs:
           deno-version: v2.x
       - run: flutter pub get --enforce-lockfile
 
-      # Two sessions of one subject plus a second subject, so `scans.tsv`
-      # grouping, `participants.tsv` with more than one row, and the combined
-      # table's cross-subject path are all exercised. A plain `flutter test`
-      # writes nothing, hence the env var.
       - name: Write a dataset tree
         env:
           BIDS_DATASET_DIR: build/bids-dataset
@@ -196,12 +100,6 @@ jobs:
 
       - name: Validate it
         run: |
-          # Every invocation is guarded. The default shell is `bash -e`, and the
-          # validator exits non-zero whenever it finds errors, so an unguarded
-          # call kills the step before it writes anything: the job's purpose is
-          # to PRODUCE the finding, and `continue-on-error` decides what it
-          # costs. A `set -uo pipefail` line does NOT help, since it leaves the
-          # shell's own -e in place.
           deno run -ERWN jsr:@bids/validator build/bids-dataset --json > build/bids-report.json || true
           deno run -ERWN jsr:@bids/validator build/bids-dataset > build/bids-report.txt 2>&1 || true
           {
@@ -212,8 +110,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # The JSON is the thing to triage, and it outlives the log retention of a
-      # step summary.
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -224,18 +120,6 @@ jobs:
             build/bids-dataset
           if-no-files-found: error
 
-  # ---------------------------------------------------------------------------
-  # Build jobs. Each produces ONE correctly-named archive in `out/`, and the
-  # `cp`/`test -x` that names it IS the completeness check. `upload-artifact`
-  # errors only when NOTHING matches, so listing two paths under one
-  # `if-no-files-found: error` let a missing .aab beside a present .apk upload a
-  # partial artifact and pass.
-  #
-  # The version comes from pubspec.yaml, not the tag, so PR builds produce
-  # identically-named archives and the packaging path is exercised on every PR
-  # rather than first on a release. The `checks` job asserts tag == pubspec, so
-  # the two cannot disagree.
-  # ---------------------------------------------------------------------------
   linux:
     name: Linux
     needs: [checks, test]
@@ -256,9 +140,6 @@ jobs:
       - run: flutter pub get --enforce-lockfile
       - run: flutter build linux --release
 
-      # tar, not upload-artifact on the directory: artifacts do not preserve the
-      # executable bit, so the old `linux-bundle` download contained a
-      # non-executable `dbs_annotator` and was never actually a deliverable.
       - name: Package the Linux bundle
         shell: bash
         run: |
@@ -280,8 +161,6 @@ jobs:
     needs: [checks, test]
     runs-on: windows-latest
     timeout-minutes: 30
-    # Job-level env so step `if:` conditions can read it (a step-level env is
-    # not visible to that step's own `if:`), same reason as the android job.
     env:
       IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
       WINDOWS_CERT_BASE64: ${{ secrets.WINDOWS_CERT_BASE64 }}
@@ -310,19 +189,6 @@ jobs:
           7z a -tzip "out/dbs-annotator-${v}-windows-x64.zip" \
                ./build/windows/x64/runner/Release/*
 
-      # ---- MSIX: on tags, and only when it CAN be built --------------------
-      # `--store` needs the Partner Center identity, which is deliberately not
-      # in the repo. This step used to run unconditionally on a tag and
-      # therefore FAILED on every real tag (no `publisher` in msix_config) while
-      # the android job had already created the Release. Now: no certificate and
-      # no Store identity means the step is SKIPPED, the job stays green with a
-      # portable zip, and the release job records the absence in the run summary.
-      # The day Partner Center is configured it becomes mandatory with no edit
-      # to this file.
-      #
-      # No --version: msix reads msix_version from pubspec.yaml, which
-      # version_parity_test.dart pins to <version>.0 and the checks job now pins
-      # to the tag. One source of truth, and the old tag-munging step is gone.
       - name: Build MSIX
         id: msix
         if: env.IS_TAG == 'true' && (env.WINDOWS_CERT_BASE64 != '' || env.MSIX_IDENTITY_NAME != '')
@@ -346,17 +212,10 @@ jobs:
           dart run msix:create "${args[@]}"
 
       - name: Shred the certificate
-        # `always()` so a failed MSIX build cannot leave a private key on disk
-        # for a later step or a cached workspace.
         if: always()
         shell: bash
         run: rm -f signing.pfx
 
-      # A signature check is the WRONG assertion here: a --store package is
-      # unsigned by design, so `signtool verify /pa` would fail on correct
-      # output. The failure that actually costs a review cycle is an identity
-      # mismatch, which .github/RELEASING.md calls the most common rejection, so
-      # assert the manifest the tool actually wrote.
       - name: Verify the MSIX identity
         if: steps.msix.outcome == 'success'
         shell: pwsh
@@ -408,11 +267,6 @@ jobs:
           cache: true
       - run: flutter config --enable-macos-desktop
       - run: flutter pub get --enforce-lockfile
-      # A compile gate that contributes NO release asset, deliberately: an
-      # unsigned .app is Gatekeeper-quarantined and there is no macOS section in
-      # .github/RELEASING.md telling anyone how to open it. Shipping a zip that
-      # fails to launch is worse than shipping nothing. Signing needs a paid
-      # Apple account that does not exist yet.
       - run: flutter build macos --release
 
   android:
@@ -420,8 +274,6 @@ jobs:
     needs: [checks, test]
     runs-on: ubuntu-latest
     timeout-minutes: 25
-    # Job-level env so step `if:` conditions can read it (step-level env is not
-    # visible to that step's own `if:`).
     env:
       IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -431,10 +283,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # All four, or none. `releaseSigningReady` in android/app/build.gradle.kts
-      # is an AND over the keystore plus three values: set the keystore secret
-      # and forget ANDROID_KEY_PASSWORD, and the release build is signed with
-      # the DEBUG key with only a `logger.lifecycle` line and exit code 0.
       - name: Signing secrets are all-or-nothing
         shell: bash
         run: |
@@ -471,30 +319,16 @@ jobs:
 
       - name: Build APK + AAB
         env:
-          # Makes Gradle THROW rather than fall back to the debug key. Set only
-          # on tags, so a local or PR `flutter build apk --release` keeps its
-          # useful debug-signed behaviour.
           ANDROID_REQUIRE_RELEASE_SIGNING: ${{ env.IS_TAG }}
         run: |
           flutter pub get --enforce-lockfile
           flutter build apk --release
           flutter build appbundle --release
 
-      # `apksigner`, not `keytool -printcert -jarfile`: keytool reads only the
-      # v1 JAR signature and prints "Not a signed jar file" for a v2/v3-only
-      # APK, which is what Flutter produces. apksigner ships in the build-tools
-      # already on the runner.
-      #
-      # Runs on EVERY build so the path and the fingerprint output are proven
-      # continuously; the ASSERTION is conditional, because a PR build with no
-      # secrets is legitimately debug-signed.
       - name: Verify the APK signer
         shell: bash
         run: |
           set -euo pipefail
-          # `find`, not `ls` over a glob (shellcheck SC2012): the runner ships
-          # several build-tools versions and we want the newest, so sort -V over
-          # the found paths. Fails loudly if the SDK layout ever changes.
           apksigner=$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -name apksigner | sort -V | tail -n1)
           if [ -z "$apksigner" ]; then
             echo "::error::no apksigner found under $ANDROID_HOME/build-tools"
@@ -514,8 +348,6 @@ jobs:
             grep -q "certificate DN:" signer.txt
           fi
 
-      # Two `cp`s instead of a two-line `path:`, so a missing file fails here
-      # rather than uploading a partial artifact that passes.
       - name: Name the release assets
         shell: bash
         run: |
@@ -549,17 +381,11 @@ jobs:
           channel: stable
           cache: true
 
-      # A compile gate that contributes NO release asset: an unsigned .app
-      # cannot be installed from a GitHub Release, and iPadOS distribution is
-      # TestFlight-only. Always runs, so PRs verify iOS still compiles.
       - name: Build iOS (no codesign)
         run: |
           flutter pub get --enforce-lockfile
           flutter build ios --release --no-codesign
 
-      # Signed IPA + TestFlight upload only on a tag and only when the Apple
-      # secrets are present. Wire fastlane pilot here once the Apple Developer
-      # account is set up; see .github/RELEASING.md section 3.
       - name: Upload to TestFlight (fastlane)
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.APP_STORE_CONNECT_KEY_ID != '' }}
         run: |
@@ -571,40 +397,18 @@ jobs:
             exit 1
           fi
 
-      # Without this, a tag with no Apple secrets goes GREEN having shipped
-      # nothing, while .github/RELEASING.md claims CI uploads to TestFlight. A
-      # warning in the run summary keeps "green" from meaning "shipped".
       - name: Note that iOS was not shipped
         if: ${{ startsWith(github.ref, 'refs/tags/v') && env.APP_STORE_CONNECT_KEY_ID == '' }}
         run: |
           echo "::warning::iOS was compiled but not uploaded: the App Store Connect secrets are not configured. iPadOS is not part of this release."
           echo "iOS: compiled, not uploaded (no App Store Connect secrets)." >> "$GITHUB_STEP_SUMMARY"
 
-  # ---------------------------------------------------------------------------
-  # The single release writer.
-  #
-  # Previously `windows` and `android` each called action-gh-release, so
-  # whichever finished first CREATED the Release, and since the MSIX step
-  # failed on every real tag, the actual outcome of tagging this repo was a
-  # public release containing one debug-signed APK and nothing else. Per-job
-  # attach cannot be made atomic: there is no ordering between those jobs. One
-  # writer with one manifest eliminates the possibility.
-  #
-  # If any upstream job fails, this job never starts, so NO Release object is
-  # ever created, and there is nothing to retract.
-  #
-  # `draft: true` always: the automation guarantees "every gate passed and the
-  # asset list is complete", and a human clicks Publish. That single flag is
-  # also what makes the -rc dry run free: an rc exercises this entire job,
-  # artifact download and manifest check included, and publishes nothing.
-  # ---------------------------------------------------------------------------
   release:
     name: Draft the release
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [checks, test, linux, windows, macos, android, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # The only job in this workflow that can write to the repository.
     permissions:
       contents: write
     steps:
@@ -632,7 +436,6 @@ jobs:
           else
             echo "No MSIX: neither the MSIX_IDENTITY_NAME variable nor the WINDOWS_CERT_BASE64 secret is set. See .github/RELEASING.md section 4." >> "$GITHUB_STEP_SUMMARY"
           fi
-          # macOS and iOS contribute no asset by design; see their jobs.
           [ "$missing" = 0 ]
           { echo "### Release assets"; echo '```'; ls -l dist/; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
 

@@ -1,30 +1,8 @@
 name: Dependabot auto-merge
 
-# Asymmetric on purpose, and the asymmetry is the whole design: auto-merge is
-# permitted exactly where an existing CI gate proves the thing that can break,
-# and nowhere else.
-#
-# This app writes PDF and Word documents that are filed into a patient record.
-# The tests assert the report CONTENT MODEL (test/report_content_test.dart) and
-# the docx/pdf PACKAGE STRUCTURE (test/session_docx_test.dart,
-# test/session_pdf_test.dart) - never rendered output. So a patch bump in `pdf`
-# that shifts text metrics, or in `archive` that changes how a part is stored,
-# produces a green CI run and a differently-laid-out clinical document. That is
-# why nothing from `pub` may auto-merge, at any update level.
-#
-# github-actions and pip(docs) are different: a broken action fails the run it
-# appears in, and a Sphinx regression fails the `-W` docs build in the checks
-# job - which is exactly what Read the Docs enforces with fail_on_warning.
-# There, CI is a complete proof.
-#
-# The condition that would let `pub` in is a rendering-fidelity golden test.
-# Until that exists, the merge button stays human.
 
 on: pull_request
 
-# Dependabot-triggered runs get a read-only GITHUB_TOKEN by default; this is
-# the documented way to raise it. Actions secrets are unavailable in these runs
-# (only Dependabot secrets are), which is fine - nothing here needs one.
 permissions:
   contents: write
   pull-requests: write
@@ -40,14 +18,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # For a GROUPED pull request `update-type` is the highest bump in the
-      # group, so a group containing one major is excluded whole.
-      # An ALLOWLIST, not a denylist. This was written as
-      # `package-ecosystem != 'pub'`, which auto-merges anything unexpected by
-      # default - and that is not hypothetical: 28 open PRs from the retired
-      # `uv` ecosystem all satisfied it. Name the two ecosystems whose failure
-      # mode CI actually proves, and let everything else fall through to a
-      # human.
       - name: Enable auto-merge (CI-proven ecosystems only)
         if: >-
           (steps.meta.outputs.package-ecosystem == 'github_actions' ||
@@ -58,8 +28,6 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Say so in the run summary rather than passing silently, so "the
-      # auto-merge job was green" never gets mistaken for "it merged".
       - name: Note that this one merges by hand
         if: >-
           !((steps.meta.outputs.package-ecosystem == 'github_actions' ||
