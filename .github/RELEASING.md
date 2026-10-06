@@ -232,7 +232,7 @@ MSIX needs four components and Microsoft reserves the fourth: *"the last (fourth
 section of the version number is reserved for Store use and must be left as 0"*.
 `msix_version` in `pubspec.yaml` is therefore `<pubspec version>.0`, enforced by
 `test/version_parity_test.dart`. On a tag, CI derives it from the tag instead
-(`app-v0.5.1` gives `0.5.1.0`), so the release artifact matches what you tagged.
+(`v0.5.1` gives `0.5.1.0`), so the release artifact matches what you tagged.
 
 One caveat to expect: the same Microsoft page says the first section *"cannot be
 0"*. That sentence sits in a section about UWP packages and it is not established
@@ -250,7 +250,7 @@ Package validation runs before review, so finding out costs nothing.
 # CHANGELOG.md under the new version, and the fragment files are deleted.
 uvx towncrier build --version 0.5.1 --yes
 # Commit both, through a PR, then tag the merged commit.
-git tag app-v0.5.1 && git push origin app-v0.5.1
+git tag v0.5.1 && git push origin v0.5.1
 ```
 
 The new `CHANGELOG.md` section is also the text for the GitHub Release notes
@@ -271,14 +271,14 @@ to publish is yours.
 **Do a dry run first**, and it is a real rehearsal now rather than a hazard:
 
 ```bash
-git tag app-v0.5.1-rc && git push origin app-v0.5.1-rc
+git tag v0.5.1-rc && git push origin v0.5.1-rc
 ```
 
 An `-rc` tag takes an identical path through every job and produces a draft
 *prerelease* titled "dry run, do not publish". It is invisible to the public, is
 never marked `latest`, and sends no watcher notifications. Inspect it, then
 delete it. (Before this, `-rc` matched
-`startsWith(github.ref, 'refs/tags/app-v')` like any other tag and published for
+`startsWith(github.ref, 'refs/tags/v')` like any other tag and published for
 real.)
 
 What is and is not in a release:

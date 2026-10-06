@@ -24,6 +24,7 @@ build/
 .fvm/
 **/doc/api/
 coverage/
+.coverage
 flutter_*.png
 linked_*.ds
 unlinked.ds
